@@ -1,0 +1,35 @@
+---
+title: Schedule Orders
+---
+sequenceDiagram
+    autonumber
+    actor Worker
+    participant MES
+    box Adaptive Scheduler
+        participant App
+        participant Core
+    end
+    participant Nest as Nesting
+    Worker ->> MES: finishes task
+    MES ->> App: send planning horizon, graphs and states
+    activate App
+    App ->> App: Validate graphs
+    alt graphs wrong
+        App -->> MES: Graphs did not pass Validation
+    end 
+    App ->>+ Core: send planning horizon and graphs
+    Core ->> Core: resolve graphs
+    Core -->>- App: propose feasible schedule
+    App ->> App: validate schedule and resolve ids
+    App ->> App: evaluate schedule
+    App ->>+ Nest: propose order and batches
+    Nest -->>- App: propose batches
+    alt different batches
+        App ->>+ Core: send proposed batches
+        Core ->> Core: resolve graphs
+        Core -->>- App: propose feasible schedule
+        App ->> App: validate schedule and resolve ids    
+    end
+    App -->> MES: return schedule
+    MES -->> Worker: notify for new plan
+    deactivate App

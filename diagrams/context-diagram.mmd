@@ -1,0 +1,20 @@
+flowchart LR
+    Prod([Porduction Planner])
+    Worker([Worker])
+	MES[MES]
+    Nest[Nesting Service]
+    Core[[Adapative Scheduler]]
+    
+    %% User MES interactions
+    Prod -- Order release,\nplanning settings --> MES
+    MES -- Schedule view --> Prod
+    Worker -- Task progress --> MES
+    MES -- Task list --> Worker
+
+    %% MES Scheduler interactions
+    MES -- Order and task events,\n state snapshots,\n master data, arrival forecast --> Core
+    Core -- Schedule,\n changes to previous schedule --> MES
+    
+    %% Scheduler Nesting
+    Core -- Proposed batches --> Nest
+    Nest -- Confirmed batches --> Core

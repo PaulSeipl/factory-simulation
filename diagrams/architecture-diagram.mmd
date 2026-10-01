@@ -1,0 +1,21 @@
+flowchart LR
+    subgraph AS [Adaptive Scheduler]
+        direction TB
+	    App("Application Layer (stateful)")
+	    Core("Planning Core(stateless)")
+    end
+
+	MES[MES/Simulation]
+    Nest[Nesting Service]
+    
+    %% Intern Adapative Scheduler
+    App -- Solver instance --> Core
+    Core -- Solver result --> App
+
+    %% MES <--> Adaptive Scheduler
+    MES -- Events, snapshots, master data, forecast --> AS
+    AS -- Schedule + diff --> MES
+
+    %% Nesting Service <--> Adaptive Scheduler
+    Nest -- Confirmed batches --> AS
+    AS -- Proposed batches --> Nest

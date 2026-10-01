@@ -1,0 +1,42 @@
+---
+title: Schedule in progress
+---
+sequenceDiagram
+    autonumber
+    actor Worker
+    participant MES as MES/Simulation
+    box Adaptive Scheduler
+        participant App
+        participant Core
+    end
+    participant Nest as Nesting
+    Worker ->> MES: finishes task
+    MES ->> App: send finished task
+    activate App
+    alt task finished on time
+        App -->> MES: nothing to change
+        MES -->> Worker: None
+    else task finished not on time
+        App ->> App: reschedule via right/left shift
+        App ->> App: evaluate schedule
+        alt signifcantly changed schedule
+            App ->>+ Core: send planning horizon, graphs <br/> and current schedule
+            Core ->> Core: reschedule
+            Core ->>- App: propose feasible schedule
+            App ->> App: Validate and evaluate schedule
+            alt new batches
+                App ->>+ Nest: propose order and batches
+                Nest -->>- App: propose batches
+                alt different batches
+                    App ->>+ Core: send proposed batches
+                    Core ->> Core: resolve graphs
+                    Core -->>- App: propose feasible schedule
+                    App ->> App: validate schedule and resolve ids   
+                    App ->> App: evaluate schedule   
+                end
+            end
+        end
+        App -->> MES: return schedule
+        MES -->> Worker: Notify changes
+        deactivate App
+    end
