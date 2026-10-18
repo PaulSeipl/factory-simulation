@@ -1,0 +1,21 @@
+{
+  "schema_version": "0.2",
+  "name": "toy-3x3",
+  "time_unit": "min",
+  "machines": ["M1", "M2", "M3"],
+  "orders": [
+    {"id": "J1", "release": 0, "operations": [
+      {"id": "1", "step": "op1", "options": {"M1": 4, "M2": 5}},
+      {"id": "2", "step": "op2", "options": {"M3": 3}, "predecessors": ["1"]}
+    ]},
+    {"id": "J2", "release": 0, "operations": [
+      {"id": "1", "step": "op1", "options": {"M1": 2}},
+      {"id": "2", "step": "op2", "options": {"M2": 3, "M3": 4}, "predecessors": ["1"]},
+      {"id": "3", "step": "op3", "options": {"M1": 3, "M3": 2}, "predecessors": ["2"]}
+    ]},
+    {"id": "J3", "release": 0, "operations": [
+      {"id": "1", "step": "op1", "options": {"M2": 4, "M3": 3}},
+      {"id": "2", "step": "op2", "options": {"M1": 5}, "predecessors": ["1"]}
+    ]}
+  ]
+}

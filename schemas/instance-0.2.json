@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "Operation": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "step": {
+          "title": "Step",
+          "type": "string"
+        },
+        "options": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "minProperties": 1,
+          "title": "Options",
+          "type": "object"
+        },
+        "predecessors": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Predecessors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "step",
+        "options"
+      ],
+      "title": "Operation",
+      "type": "object"
+    },
+    "Order": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "release": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Release",
+          "type": "integer"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/Operation"
+          },
+          "title": "Operations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "operations"
+      ],
+      "title": "Order",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "0.2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "time_unit": {
+      "default": "min",
+      "enum": [
+        "s",
+        "min",
+        "h"
+      ],
+      "title": "Time Unit",
+      "type": "string"
+    },
+    "machines": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Machines",
+      "type": "array"
+    },
+    "orders": {
+      "items": {
+        "$ref": "#/$defs/Order"
+      },
+      "title": "Orders",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "name",
+    "machines",
+    "orders"
+  ],
+  "title": "Instance",
+  "type": "object"
+}

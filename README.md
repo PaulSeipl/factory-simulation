@@ -1,4 +1,6 @@
-# Data Model
+# Models
+
+## Data Model
 
 ```mermaid
 classDiagram
@@ -151,13 +153,12 @@ classDiagram
         +String assignedMachineId
         +String assignedWorkerId
         +String batchId
-        +String runId
+        +String loadId
     }
 
     class Batch {
         +String batchId
         +CarrierType carrierType
-        +GroupingState groupingState
         +String plateId
         +String formingOperationId
         +String machineId
@@ -187,15 +188,30 @@ classDiagram
         +String machineId
         +String workerId
         +String batchId
-        +String runId
+        +String loadId
         +Boolean frozen
+    }
+
+    %% ===== Nesting coordination (output to Nesting) =====
+    class PrintDeadline {
+        +String orderId
+        +String partId
+        +DateTime earliestPrintStart
+        +DateTime latestPrintEnd
+    }
+
+    class PrintSlot {
+        +String machineId
+        +String plateSetId
+        +DateTime start
+        +Duration maxDuration
     }
 
     %% ===== Enumerations =====
     class OperationKind {
         <<enumeration>>
         TASK
-        JOB
+        MACHINE_RUN
     }
 
     class Lane {
@@ -224,12 +240,6 @@ classDiagram
         <<enumeration>>
         PLATE
         BLANK
-    }
-
-    class GroupingState {
-        <<enumeration>>
-        PROPOSED
-        CONFIRMED
     }
 
     class OrderKind {
@@ -345,9 +355,13 @@ classDiagram
     Schedule "1" *-- "1..*" ScheduledOperation
     ScheduledOperation "0..*" --> "1" Order
     ScheduledOperation "0..*" --> "1" RoutingOperation
+    Schedule "1" *-- "0..*" PrintDeadline
+    Schedule "1" *-- "0..*" PrintSlot
+    PrintDeadline "0..*" --> "1" Order
+    PrintSlot "0..*" --> "1" Machine
 ```
 
-# Solver Model
+## Solver Model
 
 ```mermaid
 classDiagram
@@ -364,11 +378,11 @@ classDiagram
         +String algorithm
     }
 
-    class Job {
-        +String jobId
+    class Order {
+        +String orderId
         +Int releaseTime
         +Int dueTime
-        +JobKind kind
+        +OrderKind kind
         +Int priority
         +Float objectiveWeight
         +Boolean released
@@ -376,7 +390,7 @@ classDiagram
 
     class Operation {
         +String opId
-        +String jobId
+        +String orderId
         +String partId
         +String stepId
         +OperationKind kind
@@ -410,7 +424,6 @@ classDiagram
 
     class ExistingBatch {
         +String batchId
-        +Boolean confirmed
         +String plateId
         +String carrierResourceId
         +String machineId
@@ -427,7 +440,7 @@ classDiagram
         +String machineId
         +String workerId
         +String batchId
-        +String runId
+        +String loadId
     }
 
     %% ===== Output =====
@@ -438,6 +451,20 @@ classDiagram
         +Float computeTime
     }
 
+    class PrintDeadline {
+        +String orderId
+        +String partId
+        +Int earliestStart
+        +Int latestEnd
+    }
+
+    class PrintSlot {
+        +String machineId
+        +String carrierResourceId
+        +Int start
+        +Int maxDuration
+    }
+
     %% ===== Enumerations =====
     class ResourceType {
         <<enumeration>>
@@ -446,7 +473,7 @@ classDiagram
         CARRIER
     }
 
-    class JobKind {
+    class OrderKind {
         <<enumeration>>
         CUSTOMER
         MAINTENANCE
@@ -456,7 +483,7 @@ classDiagram
     class OperationKind {
         <<enumeration>>
         TASK
-        JOB
+        MACHINE_RUN
     }
 
     class SolverStatus {
@@ -468,17 +495,31 @@ classDiagram
     }
 
     %% ===== Relationships =====
-    SolverInstance "1" *-- "1..*" Job
+    SolverInstance "1" *-- "1..*" Order
     SolverInstance "1" *-- "1..*" Operation : open operations only
     SolverInstance "1" *-- "1..*" Resource
     SolverInstance "1" *-- "0..*" ExistingBatch
     SolverInstance "1" *-- "0..*" Assignment : fixed (in progress)
     SolverInstance "1" o-- "0..*" Assignment : warm start
 
-    Job "1" *-- "1..*" Operation
+    Order "1" *-- "1..*" Operation
     Operation "0..*" --> "0..*" Operation : predecessors
     Operation "0..*" --> "0..*" Resource : eligible machines
     Resource "1" *-- "0..*" AvailabilityInterval
 
     SolverResult "1" *-- "0..*" Assignment : schedule
+    SolverResult "1" *-- "0..*" PrintDeadline : to nesting
+    SolverResult "1" *-- "0..*" PrintSlot : to nesting
+```
+
+## Adaptive Scheduler Context Diagram
+
+```mermaid
+    flowchart TB
+        MES(MES)
+        Planner{{Planner}}
+        App(Application Layer)
+        MES -- new orders to be planned --> App -- New orders + running plan --> Planner
+        MES -- start/finish task --> App -- right shift reschedule + evaluate --> App -- running plan + new metrics --> Planner
+        Planner -- new Schedule --> App -- new Schedule --> MES
 ```
