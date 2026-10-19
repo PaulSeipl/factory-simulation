@@ -1,0 +1,23 @@
+{
+  "schema_version": "0.2",
+  "name": "toy-dag-3x4",
+  "time_unit": "min",
+  "machines": ["M1", "M2", "M3", "M4"],
+  "orders": [
+    {"id": "A", "release": 0, "operations": [
+      {"id": "a1", "step": "op1", "options": {"M1": 3, "M2": 5}},
+      {"id": "a2", "step": "op2", "options": {"M2": 4, "M3": 3}, "predecessors": ["a1"]},
+      {"id": "a3", "step": "op3", "options": {"M4": 2}, "predecessors": ["a2"]}
+    ]},
+    {"id": "B", "release": 2, "operations": [
+      {"id": "b1", "step": "op1", "options": {"M1": 2, "M3": 4}},
+      {"id": "b2", "step": "op2", "options": {"M2": 3, "M3": 3}, "predecessors": ["b1"]},
+      {"id": "b3", "step": "op3", "options": {"M1": 4, "M4": 3}, "predecessors": ["b1"]},
+      {"id": "b4", "step": "op4", "options": {"M4": 2, "M2": 3}, "predecessors": ["b2", "b3"]}
+    ]},
+    {"id": "C", "release": 4, "operations": [
+      {"id": "c1", "step": "op1", "options": {"M1": 3, "M3": 2}},
+      {"id": "c2", "step": "op2", "options": {"M2": 2, "M4": 4}, "predecessors": ["c1"]}
+    ]}
+  ]
+}

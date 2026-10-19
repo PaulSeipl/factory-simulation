@@ -4,10 +4,10 @@ Operations are indexed in file order (orders in sequence, operations within each
 so the operations of one order form a contiguous index range.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from graphlib import TopologicalSorter
 from types import MappingProxyType
-from typing import Mapping
 
 from simulation.model.instance import Instance
 

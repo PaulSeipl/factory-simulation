@@ -21,7 +21,8 @@ class Operation(BaseModel):
     id: str  # unique inside an order; globally (order.id, op.id)
     step: str  # process step like "print"; may repeat within and across orders
     # Machine ID -> duration.
-    # shortcut: dict stays mutable despite frozen=True, switch to frozendict once on Python >= 3.15 (pydantic >= 2.14 supports it)
+    # shortcut: dict stays mutable despite frozen=True,
+    # switch to frozendict once on Python >= 3.15 (pydantic >= 2.14 supports it)
     options: dict[str, PositiveInt] = Field(min_length=1)
     predecessors: tuple[str, ...] = ()  # op IDs of the same order
 

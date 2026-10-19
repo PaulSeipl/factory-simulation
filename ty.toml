@@ -1,0 +1,9 @@
+[environment]
+root = ["./src"]
+python-version = "3.14"
+
+[src]
+exclude = [
+  "./tests",
+  ".venv",
+]
