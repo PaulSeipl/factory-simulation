@@ -51,5 +51,5 @@ def test_brandimarte_matches_file_lines(path):
     inst = load_fjs(path)
     assert len(inst.orders) == n_jobs == len(job_lines)
     assert len(inst.machines) == n_machines
-    for order, line in zip(inst.orders, job_lines):
+    for order, line in zip(inst.orders, job_lines, strict=True):
         assert len(order.operations) == int(line.split()[0])

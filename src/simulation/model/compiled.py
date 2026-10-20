@@ -6,8 +6,9 @@ so the operations of one order form a contiguous index range.
 
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
-from graphlib import TopologicalSorter
 from types import MappingProxyType
+
+from graphlib import TopologicalSorter
 
 from simulation.model.instance import Instance
 
