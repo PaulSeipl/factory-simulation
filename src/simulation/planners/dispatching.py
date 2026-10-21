@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment
+from simulation.objectives import MAKESPAN, Objective
 
 
 @dataclass(slots=True)
@@ -128,3 +129,13 @@ def dispatch(
                 make_ready(s)
 
     return out
+
+
+def best_dispatch(ci: CompiledInstance, objective: Objective = MAKESPAN) -> tuple[str, list[Assignment]]:
+    """Best schedule over all sequencing rules x (assignment rules + joint) under the objective."""
+    runs = (
+        (f"{s}/{a or 'joint'}", dispatch(ci, SEQUENCING_RULES[s], ASSIGNMENT_RULES[a] if a else None))
+        for s in SEQUENCING_RULES
+        for a in [*ASSIGNMENT_RULES, None]
+    )
+    return min(runs, key=lambda run: objective.evaluate(ci, run[1]))
