@@ -9,6 +9,7 @@ from simulation.io.json_loader import read_model, write_jsonl
 from simulation.model.compiled import CompiledInstance, compile_instance
 from simulation.model.instance import Instance
 from simulation.model.schedule import Assignment
+from simulation.objectives import MAKESPAN
 from simulation.planners.cpsat import solve
 from simulation.planners.dispatching import best_dispatch
 from simulation.sim.des import PlanNotExecutable, replay
@@ -49,23 +50,24 @@ def changed(op_id: str, **update) -> list[Assignment]:
 
 
 @pytest.mark.parametrize("path", PATHS, ids=lambda p: p.stem)
-def test_replay_of_rule_plan_equals_plan(path):
+def test_replay_of_rule_plan_equals_plan_and_keeps_its_makespan(path):
     ci = compiled(path)
     _, plan = best_dispatch(ci)
     realized = replay(ci, plan).schedule
     assert by_op(realized) == by_op(plan)
+    assert MAKESPAN.evaluate(ci, realized) == MAKESPAN.evaluate(ci, plan)
     assert_feasible(ci, realized)
 
 
-@pytest.mark.parametrize("path", [*PATHS[:2], DATA / "benchmarks" / "brandimarte" / "BrandimarteMk1.fjs"],
-                         ids=lambda p: p.stem)
+@pytest.mark.parametrize("path", PATHS, ids=lambda p: p.stem)
 def test_replay_of_cpsat_plan_equals_plan_and_keeps_its_makespan(path):
+    # any CP-SAT solution (optimal or not): its objective value is the makespan the DES must realize
     ci = compiled(path)
-    result = solve(ci, time_limit=10)
-    assert result.status == "OPTIMAL"
+    result = solve(ci, time_limit=1, hint=best_dispatch(ci)[1])
+    assert result.status in ("OPTIMAL", "FEASIBLE")
     realized = replay(ci, result.schedule).schedule
     assert by_op(realized) == by_op(result.schedule)
-    assert max(a.end for a in realized) == result.objective
+    assert MAKESPAN.evaluate(ci, realized) == result.objective
 
 
 def test_operation_does_not_start_before_its_planned_start():
