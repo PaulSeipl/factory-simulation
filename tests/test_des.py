@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from simulation.check.feasibility import assert_feasible
+from simulation.check.feasibility import assert_feasible, check_schedule
 from simulation.io.brandimarte_loader import load_fjs
 from simulation.io.json_loader import read_model, write_jsonl
 from simulation.model.compiled import CompiledInstance, compile_instance
@@ -13,6 +13,7 @@ from simulation.objectives import MAKESPAN
 from simulation.planners.cpsat import solve
 from simulation.planners.dispatching import best_dispatch
 from simulation.sim.des import PlanNotExecutable, replay
+from simulation.sim.scenario import Scenario, sample_scenario
 
 DATA = Path(__file__).parents[1] / "data"
 PATHS = [
@@ -78,7 +79,7 @@ def test_operation_does_not_start_before_its_planned_start():
 
 
 def test_completion_is_processed_before_a_start_at_the_same_time():
-    # a1 completes and b1 starts on M1 at t=3; otherwise the DES would see M1 busy and raise
+    # a1 completes and b1 starts on M1 at t=3; otherwise b1 would wait for M1 and start late
     log = replay(TOY, PLAN).log
     at_3 = [(e["type"], e["op_id"]) for e in log if e["t"] == 3]
     assert at_3.index(("COMPLETE", "a1")) < at_3.index(("START", "b1"))
@@ -90,24 +91,75 @@ def test_completion_is_processed_before_a_start_at_the_same_time():
 @pytest.mark.parametrize(
     ("plan", "message"),
     [
-        pytest.param(changed("b1", start=2, end=4), r"machine busy with \('A', 'a1'\)", id="machine-overlap"),
-        pytest.param(changed("b4", start=8, end=10), r"predecessors not finished: \[\('B', 'b3'\)\]",
-                     id="before-predecessor"),
-        pytest.param(changed("c1", start=1, end=3), r"before release 4", id="before-release"),
-        pytest.param(changed("c2", machine="M3"), r"not eligible", id="ineligible-machine"),
-        pytest.param(PLAN[:-1], r"missing from the plan: \[\('C', 'c2'\)\]", id="missing-op"),
-        pytest.param([*PLAN, PLAN[0]], r"planned more than once", id="duplicate-op"),
+        pytest.param(changed("b1", start=2, end=4), r"\[C5\].*overlap on M1", id="machine-overlap"),
+        pytest.param(changed("b4", start=8, end=10), r"\[C3\].*b4.*before predecessor .*b3", id="before-predecessor"),
+        pytest.param(changed("c1", start=1, end=3), r"\[C4\].*before release 4", id="before-release"),
+        pytest.param(changed("c2", machine="M3"), r"\[C1\].*eligible", id="ineligible-machine"),
+        pytest.param(PLAN[:-1], r"\[C1\].*c2.*not assigned", id="missing-op"),
+        pytest.param([*PLAN, PLAN[0]], r"\[C1\].*assigned more than once", id="duplicate-op"),
+        pytest.param(changed("b3", end=7), r"\[C2\].*b3", id="wrong-duration"),
     ],
 )
-def test_plan_that_cannot_run_as_planned_is_rejected(plan, message):
+def test_infeasible_plan_is_rejected_before_it_runs(plan, message):
+    # waiting would otherwise silently repair the plan, so replay validates it with the checker first
     with pytest.raises(PlanNotExecutable, match=message):
         replay(TOY, plan)
 
 
-def test_durations_come_from_the_instance_not_from_the_plan():
-    # the plan claims b3 takes 2 on M1, the instance says 4: the DES realizes 4, so realized != plan
-    realized = {a.op_id: a for a in replay(TOY, changed("b3", end=7)).schedule}
-    assert (realized["b3"].start, realized["b3"].end) == (5, 9)
+# --- execution under disturbances ------------------------------------------------------------
+
+
+def scenario(**factor_of_op) -> Scenario:
+    inst = read_model(DATA / "instances" / "toy-dag-3x4.json", Instance)
+    return Scenario(instance=inst.name, seed=0, sigma=0, factors=[
+        {"order_id": o.id, "op_id": op.id, "factor": factor_of_op.get(op.id, 1.0)}
+        for o in inst.orders for op in o.operations
+    ])
+
+
+def test_longer_operation_shifts_its_successors_and_keeps_the_machine_order():
+    # math/13_des.md, section 5: b1 takes 4 instead of 2; c2 could run at 8 on M2 but waits for b2 (planned first)
+    realized = {a.op_id: (a.machine, a.start, a.end) for a in replay(TOY, PLAN, scenario(b1=2.0)).schedule}
+    assert realized == {
+        "a1": ("M1", 0, 3), "a2": ("M3", 3, 6), "a3": ("M4", 6, 8),
+        "b1": ("M1", 3, 7), "b2": ("M2", 7, 10), "b3": ("M1", 7, 11), "b4": ("M4", 11, 13),
+        "c1": ("M3", 6, 8), "c2": ("M2", 10, 12),
+    }
+
+
+def test_shorter_operation_does_not_pull_the_next_one_forward():
+    # a1 takes round(1.5) = 2 instead of 3; b1 on M1 still starts at its planned 3
+    realized = {a.op_id: (a.start, a.end) for a in replay(TOY, PLAN, scenario(a1=0.5)).schedule}
+    assert realized["a1"] == (0, 2) and realized["b1"] == (3, 5)
+
+
+@pytest.mark.parametrize("path", PATHS, ids=lambda p: p.stem)
+def test_sigma_zero_scenario_equals_replay_without_scenario(path):
+    ci = compiled(path)
+    _, plan = best_dispatch(ci)
+    inst = load_fjs(path) if path.suffix == ".fjs" else read_model(path, Instance)
+    assert replay(ci, plan, sample_scenario(inst, sigma=0.0, seed=1)).schedule == replay(ci, plan).schedule
+
+
+@pytest.mark.parametrize("seed", range(5))
+@pytest.mark.parametrize("path", PATHS, ids=lambda p: p.stem)
+def test_disturbed_execution_is_feasible_and_keeps_machine_order_and_planned_starts(path, seed):
+    ci = compiled(path)
+    _, plan = best_dispatch(ci)
+    inst = load_fjs(path) if path.suffix == ".fjs" else read_model(path, Instance)
+    realized = replay(ci, plan, sample_scenario(inst, sigma=0.3, seed=seed)).schedule
+    # realized durations differ from p, so C2 does not hold by design; all other constraints must
+    assert {v.constraint for v in check_schedule(ci, realized)} <= {"C2"}
+    planned = {(a.order_id, a.op_id): a for a in plan}
+    for a in realized:
+        p = planned[a.order_id, a.op_id]
+        assert a.machine == p.machine and a.start >= p.start
+
+    def machine_orders(schedule):
+        return {m: [(a.order_id, a.op_id) for a in sorted(schedule, key=lambda a: a.start) if a.machine == m]
+                for m in ci.machine_ids}
+
+    assert machine_orders(realized) == machine_orders(plan)
 
 
 # --- event log ---------------------------------------------------------------------------------
