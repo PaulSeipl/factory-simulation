@@ -52,7 +52,23 @@ class SimResult:
 
 
 def replay(ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario | None = None) -> SimResult:
-    """Execute the plan event by event; without a scenario the realized schedule equals the plan."""
+    """Execute the whole plan; without a scenario the realized schedule equals the plan."""
+    state, log = run(ci, plan, scenario)
+    machine = {(a.order_id, a.op_id): a.machine for a in plan}
+    schedule = [
+        Assignment(order_id=k, op_id=j, machine=machine[k, j], start=state.start[o], end=state.end[o])
+        for o, (k, j) in enumerate(ci.op_keys)
+    ]
+    return SimResult(schedule, log)
+
+
+def run(
+    ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario | None = None, until: int | None = None
+) -> tuple[SimState, list[dict]]:
+    """Execute the plan event by event, up to and including time point `until` (default: to the end).
+
+    The returned state is the factory after all events and starts at `until` (state.t == until).
+    """
     # waiting would silently repair a broken plan, so it is validated first (C1-C5)
     if violations := check_schedule(ci, plan):
         raise PlanNotExecutable("\n".join(f"[{v.constraint}] {v.message}" for v in violations))
@@ -81,7 +97,7 @@ def replay(ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario 
         log.append({"t": state.t, "type": kind, "order_id": order_id, "op_id": op_id,
                     "machine": ci.machine_ids[machine[o]]})
 
-    while state.events:
+    while state.events and (until is None or state.events[0][0] <= until):
         state.t = state.events[0][0]
         # 1. process every event at time t
         while state.events and state.events[0][0] == state.t:
@@ -106,10 +122,8 @@ def replay(ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario 
                 state.push(state.t + duration[o], EventType.COMPLETE, o)
                 record("START", o)
 
-    if state.due:  # cannot happen for a feasible plan: waiting only shifts operations to the right
+    if until is not None:
+        state.t = until
+    elif state.due:  # cannot happen for a feasible plan: waiting only shifts operations to the right
         raise RuntimeError(f"operations never started: {[ci.op_keys[o] for o in sorted(state.due)]}")
-    schedule = [
-        Assignment(order_id=k, op_id=j, machine=ci.machine_ids[machine[o]], start=state.start[o], end=state.end[o])
-        for o, (k, j) in enumerate(ci.op_keys)
-    ]
-    return SimResult(schedule, log)
+    return state, log
