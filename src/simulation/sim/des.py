@@ -1,10 +1,15 @@
 """Discrete-event simulation of the factory (math/13_des.md).
 
 The DES executes the current plan under the disturbances of a scenario; it decides nothing. Every
-operation runs on its planned machine, in the planned order per machine (no overtaking). An operation
-is released to the shop floor at its planned start shifted by its start offset (early or late) and
-starts as soon as it is released, its predecessors are finished, its machine is free and its release
-time has passed. Realized durations come from the scenario.
+operation runs on its planned machine, in the planned order per machine (no overtaking). It is ready
+when its predecessors are finished, its machine is free, it is next on that machine and its order is
+released. An early start offset releases it before its planned start (it starts once ready); a late
+start offset delays the start by that many minutes after the operation is both due and ready (the
+worker comes late, counted once). Realized durations come from the scenario.
+
+A running operation that has not completed by its expected end (planned duration; afterwards every minute)
+raises an OVERDUE event. It changes nothing in the factory; it only gives the planning tool a time point at
+which it sees the overrun, as an MES would report it.
 
 Changing the plan is the job of the planning tool (repair, complete rescheduling): it reads the
 snapshot and hands a new plan to `Simulation.update_plan` between processing the events of a time
@@ -26,8 +31,9 @@ from simulation.sim.snapshot import Snapshot, snapshot
 class EventType(IntEnum):
     # value = priority at equal time: completions free machines first
     COMPLETE = 0
-    RELEASE = 1  # a late start offset has elapsed: the operation is released to the shop floor
+    LATE_START = 1  # a late start offset has elapsed: the waiting operation starts now
     DUE = 2  # planned start + min(offset, 0) reached; ignored if the plan has moved it since
+    OVERDUE = 3  # a running operation has passed its expected end; ignored if it has completed
 
 
 class PlanNotExecutable(ValueError):
@@ -49,6 +55,7 @@ class SimState:
     running: list[int | None] = field(default_factory=list)  # per machine: running op
     next_pos: list[int] = field(default_factory=list)  # per machine: position of the next op in its planned order
     released: set[int] = field(default_factory=set)  # released to the shop floor, not started yet
+    late_start_at: list[int | None] = field(default_factory=list)  # per op: start time after a late offset
     start: list[int | None] = field(default_factory=list)  # per op: actual start
     end: list[int | None] = field(default_factory=list)  # per op: actual completion
 
@@ -78,6 +85,7 @@ class Simulation:
         self.state = SimState(
             machine=[0] * ci.n_ops, planned_start=[0] * ci.n_ops, planned_end=[0] * ci.n_ops,
             due_at=[None] * ci.n_ops, running=[None] * ci.n_machines, start=[None] * ci.n_ops, end=[None] * ci.n_ops,
+            late_start_at=[None] * ci.n_ops,
         )
         self.duration = [0] * ci.n_ops  # realized durations on the currently planned machines
         self._apply(plan)
@@ -111,8 +119,11 @@ class Simulation:
                 state.running[m], state.end[o] = None, state.t
                 state.next_pos[m] += 1
                 self._record("COMPLETE", o)
-            elif kind is EventType.RELEASE:
-                state.released.add(o)
+            elif kind is EventType.LATE_START:
+                pass  # only marks the time point; the start step starts the operation
+            elif kind is EventType.OVERDUE:
+                if state.end[o] is None:  # still running: the snapshot now expects its end at t + 1
+                    state.push(state.t + 1, EventType.OVERDUE, o)
             elif state.due_at[o] == state.t:  # DUE events moved by a plan update are stale and skipped
                 self._on_due(o)
         return state.t
@@ -128,9 +139,17 @@ class Simulation:
                 and state.order_on[m][state.next_pos[m]] == o
                 and all(state.end[q] is not None for q in self.ci.predecessors[o])
             ):
+                if self.offset[o] > 0 and state.late_start_at[o] is None:
+                    # due and ready now: the worker comes offset minutes later, the machine stays reserved
+                    state.late_start_at[o] = state.t + self.offset[o]
+                    state.push(state.late_start_at[o], EventType.LATE_START, o)
+                if state.late_start_at[o] is not None and state.t < state.late_start_at[o]:
+                    continue
                 state.released.remove(o)
                 state.running[m], state.start[o] = o, state.t
                 state.push(state.t + self.duration[o], EventType.COMPLETE, o)
+                # expected end from the planned duration, never from the scenario (snapshot, no leakage)
+                state.push(state.t + dict(self.ci.options[o])[m], EventType.OVERDUE, o)
                 self._record("START", o)
 
     def check_completed(self) -> None:
@@ -194,10 +213,7 @@ class Simulation:
 
     def _on_due(self, o: int) -> None:
         self.state.due_at[o] = None
-        if self.offset[o] > 0:  # a late start is fixed once, relative to the planned start reached now
-            self.state.push(self.state.t + self.offset[o], EventType.RELEASE, o)
-        else:
-            self.state.released.add(o)
+        self.state.released.add(o)
 
     def _record(self, kind: str, o: int) -> None:
         order_id, op_id = self.ci.op_keys[o]

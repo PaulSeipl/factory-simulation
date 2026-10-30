@@ -211,6 +211,16 @@ def test_late_start_offset_delays_the_operation_and_its_successors():
     assert realized["a2"] == (5, 8) and realized["a3"] == (8, 10) and realized["c1"] == (8, 10)
 
 
+def test_late_start_offset_counts_from_actual_readiness():
+    # b1 takes 4 and ends at 7; b3 (planned 5 on M1, offset +2) is ready at 7 and starts 2 minutes later, at 9
+    assert realized_times(PLAN, disturbed({"b1": 2.0}, {"b3": 2}))["b3"] == (9, 13)
+
+
+def test_late_start_offset_after_a_gap_counts_from_the_planned_start():
+    # c2 planned at 9, ready at 8 (gap): the worker comes 1 minute after the planned start
+    assert realized_times(GAP_PLAN, disturbed(offset={"c2": 1}))["c2"] == (10, 12)
+
+
 def test_simulation_state_can_be_copied_mid_run():
     sim = Simulation(TOY, PLAN, disturbed({"b1": 2.0}))
     sim.run(until=5)

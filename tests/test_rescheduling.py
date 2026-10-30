@@ -9,7 +9,7 @@ from simulation.io.json_loader import read_model
 from simulation.model.compiled import CompiledInstance, compile_instance
 from simulation.model.instance import Instance
 from simulation.model.schedule import Assignment
-from simulation.planners.cpsat import solve
+from simulation.planners.cpsat import cpsat_planner, solve
 from simulation.planners.dispatching import best_dispatch, dispatch, dispatch_planner, ect, least_load, spt
 from simulation.sim.des import PlanNotExecutable
 from simulation.sim.scenario import Scenario, sample_scenario
@@ -159,6 +159,43 @@ def test_better_plan_from_rescheduling():
     assert makespan(result) == 14
 
 
+def test_small_repairs_add_up_against_the_anchor():
+    # b1 takes 4 instead of 2: the repairs at t=5 and t=6 each add 1 to the projected makespan (11 -> 12 -> 13).
+    # Each change alone stays within delta_C = 1; against the start plan (anchor) the deviation at t=6 is 2 > 1.
+    policy = ReschedulingPolicy(dispatch_planner(spt), max_makespan_change=1)
+    result = execute(TOY, PLAN, disturbed({"b1": 2.0}), policy)
+    repairs = of_type(result, "REPAIR")
+    assert [(d["t"], d["makespan_change"], d["makespan_deviation"]) for d in repairs[:2]] == [(5, 1, 1), (6, 1, 2)]
+    assert [d["t"] for d in of_type(result, "REPLAN")] == [6]
+
+
+def test_anchor_moves_to_the_plan_of_a_complete_rescheduling():
+    # b1 takes 5 instead of 2: rescheduling at t=6 (new plan 14, b1 expected to end at 7). At t=7 b1 is overdue and
+    # the repair adds 1 more; against the new plan that is a deviation of 1 (no rescheduling), against the start
+    # plan (11) it would be 4
+    policy = ReschedulingPolicy(dispatch_planner(spt), max_makespan_change=1)
+    result = execute(TOY, PLAN, disturbed({"b1": 2.5}), policy)
+    assert [(d["t"], d["makespan_after"]) for d in of_type(result, "REPLAN")] == [(6, 14)]
+    assert [(d["t"], d["makespan_deviation"]) for d in of_type(result, "REPAIR") if d["t"] > 6] == [(7, 1)]
+    assert makespan(result) == 15
+
+
+def test_overrun_is_seen_every_minute_after_the_planned_end():
+    # a3 planned [6, 8) on M4 takes 8: from t=9 every OVERDUE event pushes b4 (next on M4) one minute later
+    result = execute(TOY, PLAN, disturbed({"a3": 4.0}), REPAIR)
+    assert [(d["t"], d["makespan_change"]) for d in of_type(result, "REPAIR")] == [
+        (8, 0), (9, 1), (10, 1), (11, 1), (12, 1), (13, 1)]
+    assert times(result)["b4"] == (14, 16)
+
+
+def test_overrun_triggers_rescheduling_without_other_events():
+    # same overrun, delta_C = 2: at t=11 the deviation from the start plan is 3; the rule moves b4 to M2 [11, 14)
+    policy = ReschedulingPolicy(dispatch_planner(spt), max_makespan_change=2)
+    result = execute(TOY, PLAN, disturbed({"a3": 4.0}), policy)
+    assert [d["t"] for d in of_type(result, "REPLAN")] == [11]
+    assert {a.op_id: a.machine for a in result.schedule}["b4"] == "M2" and times(result)["b4"] == (11, 14)
+
+
 def test_infeasible_plan_from_the_planner_raises():
     def broken(ci, snapshot, current):
         return [a.model_copy(update={"start": 0, "end": a.end - a.start}) for a in current]  # everything at 0
@@ -177,3 +214,35 @@ def test_disturbed_execution_with_rescheduling_is_feasible(path, seed):
     policy = ReschedulingPolicy(dispatch_planner(spt, ect), max_makespan_change=2, max_shift=10)
     realized = execute(ci, plan, sc, policy).schedule
     assert {v.constraint for v in check_schedule(ci, realized)} <= {"C2"}
+
+
+# --- complete rescheduling with CP-SAT ------------------------------------------------------------
+
+
+def test_cpsat_rescheduling_does_not_make_a_good_plan_worse():
+    # same case as the rule-based test above (b1 takes 4): CP-SAT keeps the machines and realizes 13 like repair
+    policy = ReschedulingPolicy(cpsat_planner(time_limit=5), max_makespan_change=0)
+    result = execute(TOY, PLAN, disturbed({"b1": 2.0}), policy)
+    assert makespan(result) == 13
+    assert all(d["accepted"] and d["changed_assignments"] == 0 for d in of_type(result, "REPLAN"))
+
+
+@pytest.mark.parametrize(("budget", "realized"), [(0, 16), (1, 15), (2, 14), (None, 14)])
+def test_change_budget_trades_stability_for_makespan(budget, realized):
+    # weak SPT + least-load plan (15), b1 takes 6 instead of 4; repair alone realizes 17 (test above)
+    plan = dispatch(TOY, spt, least_load)
+    policy = ReschedulingPolicy(cpsat_planner(time_limit=5, change_budget=budget), max_makespan_change=0)
+    result = execute(TOY, plan, disturbed({"b1": 1.5}), policy)
+    assert makespan(result) == realized
+    assert all(budget is None or d["changed_assignments"] <= budget for d in of_type(result, "REPLAN"))
+
+
+def test_disturbed_execution_with_cpsat_rescheduling_is_feasible():
+    path = DATA / "benchmarks" / "brandimarte" / "BrandimarteMk1.fjs"
+    ci = compiled(path)
+    _, plan = best_dispatch(ci)
+    sc = sample_scenario(load_fjs(path), sigma=0.3, seed=0, q=0.5, max_early=5, max_late=5)
+    policy = ReschedulingPolicy(cpsat_planner(time_limit=0.5, change_budget=5), max_makespan_change=0)
+    result = execute(ci, plan, sc, policy)
+    assert {v.constraint for v in check_schedule(ci, result.schedule)} <= {"C2"}
+    assert of_type(result, "REPLAN") and all(d["changed_assignments"] <= 5 for d in of_type(result, "REPLAN"))
