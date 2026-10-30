@@ -29,6 +29,7 @@ class CompiledInstance:
     successors: tuple[tuple[int, ...], ...]  # op idx -> op idxs
     op_order: tuple[int, ...]  # op idx -> order idx
     release: tuple[int, ...]  # op idx -> release of its order
+    due_date: tuple[int | None, ...]  # order idx -> due date (None: the order has none)
     topo_order: tuple[int, ...]  # all op idxs, every predecessor before its successors
 
     @property
@@ -90,6 +91,7 @@ def compile_instance(instance: Instance) -> CompiledInstance:
         successors=tuple(map(tuple, successors)),
         op_order=tuple(o_idx for o_idx, _, _ in flat),
         release=tuple(order.release for _, order, _ in flat),
+        due_date=tuple(order.due_date for order in instance.orders),
         # Instance validation guarantees an acyclic graph
         topo_order=tuple(TopologicalSorter(dict(enumerate(predecessors))).static_order()),
     )

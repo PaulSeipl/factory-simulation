@@ -31,12 +31,13 @@ class Order(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     id: str
     release: NonNegativeInt = 0  # earliest start time
+    due_date: NonNegativeInt | None = None  # soft: completing later is tardy, not infeasible
     operations: tuple[Operation, ...]
 
 
 class Instance(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal["0.2"]
+    schema_version: Literal["0.3"]
     name: str
     time_unit: Literal["s", "min", "h"] = "min"
     machines: tuple[str, ...]
@@ -50,6 +51,8 @@ class Instance(BaseModel):
             raise ValueError(f"duplicate order IDs: {dups}")
         machines = set(self.machines)
         for order in self.orders:
+            if order.due_date is not None and order.due_date < order.release:
+                raise ValueError(f"order {order.id}: due date {order.due_date} before release {order.release}")
             local = [op.id for op in order.operations]
             if dups := _duplicates(local):
                 raise ValueError(f"order {order.id}: duplicate operation IDs: {dups}")

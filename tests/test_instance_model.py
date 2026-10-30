@@ -34,7 +34,7 @@ def test_toy_roundtrip_lossless(toy_path, tmp_path):
 def test_same_op_ids_and_steps_across_orders_allowed():
     inst = Instance.model_validate(
         {
-            "schema_version": "0.2",
+            "schema_version": "0.3",
             "name": "dup-across-orders",
             "machines": ["M1"],
             "orders": [
@@ -105,6 +105,11 @@ def negative_release(d):
     d["orders"][0]["release"] = -1
 
 
+def due_date_before_release(d):
+    d["orders"][0]["release"] = 5
+    d["orders"][0]["due_date"] = 4
+
+
 def unknown_field(d):
     ops(d, 0)[0]["predeccessors"] = []  # the old typo
 
@@ -137,8 +142,9 @@ def duplicate_predecessor(d):
         (zero_duration, r"greater than 0"),
         (negative_duration, r"greater than 0"),
         (negative_release, r"greater than or equal to 0"),
+        (due_date_before_release, r"order J1: due date 4 before release 5"),
         (unknown_field, r"predeccessors\s+Extra inputs are not permitted"),
-        (wrong_schema_version, r"Input should be '0.2'"),
+        (wrong_schema_version, r"Input should be '0.3'"),
         (unknown_time_unit, r"Input should be 's', 'min' or 'h'"),
     ],
     ids=lambda v: v.__name__ if callable(v) else None,

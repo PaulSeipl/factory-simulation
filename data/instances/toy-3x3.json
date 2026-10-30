@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.2",
+  "schema_version": "0.3",
   "name": "toy-3x3",
   "time_unit": "min",
   "machines": ["M1", "M2", "M3"],

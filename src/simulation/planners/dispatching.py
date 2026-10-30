@@ -62,6 +62,12 @@ def lrp(_ci: CompiledInstance, state: DispatchState, o: int, _m: int, p: int) ->
     return (-state.remaining_path[o], p)
 
 
+def edd(ci: CompiledInstance, _state: DispatchState, o: int, _m: int, p: int) -> tuple[int, ...]:
+    """Earliest due date of the operation's order; SPT as tie-breaker; orders without due date last."""
+    due = ci.due_date[ci.op_order[o]]
+    return (0, due, p) if due is not None else (1, 0, p)
+
+
 def least_load(ci: CompiledInstance, state: DispatchState, o: int) -> int:
     """Eligible machine with the least assigned processing time; then shorter p, then lower index."""
     return min(ci.options[o], key=lambda mp: (state.load[mp[0]], mp[1], mp[0]))[0]
@@ -76,7 +82,7 @@ def ect(ci: CompiledInstance, state: DispatchState, o: int) -> int:
     return min(ci.options[o], key=lambda mp: (completion(mp), mp[1], mp[0]))[0]
 
 
-SEQUENCING_RULES: dict[str, SequencingRule] = {"spt": spt, "fifo": fifo, "mwkr": mwkr, "lrp": lrp}
+SEQUENCING_RULES: dict[str, SequencingRule] = {"spt": spt, "fifo": fifo, "mwkr": mwkr, "lrp": lrp, "edd": edd}
 ASSIGNMENT_RULES: dict[str, AssignmentRule] = {"least_load": least_load, "ect": ect}
 
 

@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from simulation.control.rescheduling import ReschedulingPolicy, execute
+from simulation.due_dates import assign_due_dates
 from simulation.io.json_loader import read_model, write_csv
 from simulation.metrics import run_metrics
 from simulation.model.compiled import compile_instance
@@ -63,3 +64,12 @@ def test_metrics_round_trip_through_csv(tmp_path):
     with (tmp_path / "results.csv").open(encoding="utf-8", newline="") as f:
         read = list(csv.DictReader(f))
     assert [r["makespan"] for r in read] == ["11", "16"] and list(read[0]) == list(rows[0])
+
+
+def test_due_date_metrics_only_with_due_dates():
+    # due dates 10 / 11 / 10 (theta = 1, tests/test_due_dates.py); a3 takes 8, repair only: order ends A 14, B 16,
+    # C 10, lateness 4, 5, 0
+    ci = compile_instance(assign_due_dates(TOY_INSTANCE, (1.0,), 0))
+    m = run_metrics(ci, PLAN, execute(ci, PLAN, A3_LONG, ReschedulingPolicy()))
+    assert (m["total_tardiness"], m["tardy_orders"], m["max_lateness"]) == (9, 2, 5)
+    assert "total_tardiness" not in run_metrics(TOY, PLAN, execute(TOY, PLAN, A3_LONG, ReschedulingPolicy()))

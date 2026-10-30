@@ -36,7 +36,7 @@ def load(path: Path) -> Instance:
 
 
 def instance(name: str, machines: list[str], orders: list[dict]) -> Instance:
-    return Instance.model_validate({"schema_version": "0.2", "name": name, "machines": machines, "orders": orders})
+    return Instance.model_validate({"schema_version": "0.3", "name": name, "machines": machines, "orders": orders})
 
 
 @pytest.mark.parametrize("assignment", ASSIGNMENTS.values(), ids=ASSIGNMENTS.keys())

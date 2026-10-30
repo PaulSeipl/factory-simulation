@@ -7,8 +7,9 @@ so that every generated instance can be reproduced.
 import random
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, PositiveInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, PositiveFloat, PositiveInt, model_validator
 
+from simulation.due_dates import assign_due_dates
 from simulation.model.instance import Instance
 
 type RoutingMode = Literal["chain", "split", "join", "split_join"]
@@ -42,6 +43,7 @@ class GeneratorParams(BaseModel):
     routing_modes: tuple[RoutingMode, ...] = Field(default=("chain",), min_length=1)
     max_branches: int = Field(default=2, ge=2)
     templates: tuple[OrderTemplate, ...] = ()
+    due_date_tightness: tuple[PositiveFloat, ...] = ()  # theta per order drawn from these; () = no due dates
 
     @model_validator(mode="after")
     def check_consistency(self) -> Self:
@@ -93,12 +95,13 @@ def generate_instance(params: GeneratorParams) -> Instance:
                for j in range(1, length + 1)]
         orders.append({"id": f"O{i}", "release": rng.randint(*params.release_range), "operations": ops})
 
-    return Instance.model_validate({
-        "schema_version": "0.2",
+    instance = Instance.model_validate({
+        "schema_version": "0.3",
         "name": params.name or params.default_name(),
         "machines": machines,
         "orders": orders,
     })
+    return assign_due_dates(instance, params.due_date_tightness, params.seed) if params.due_date_tightness else instance
 
 
 def _precedence(mode: str, n: int, max_branches: int, rng: random.Random) -> dict[int, list[int]]:

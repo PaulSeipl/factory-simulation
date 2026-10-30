@@ -4,8 +4,8 @@ The DES executes the current plan under the disturbances of a scenario; it decid
 operation runs on its planned machine, in the planned order per machine (no overtaking). It is ready
 when its predecessors are finished, its machine is free, it is next on that machine and its order is
 released. An early start offset releases it before its planned start (it starts once ready); a late
-start offset delays the start by that many minutes after the operation is both due and ready (the
-worker comes late, counted once). Realized durations come from the scenario.
+start offset delays the start by that many minutes after the operation has reached its planned start
+and is ready (the worker comes late, counted once). Realized durations come from the scenario.
 
 A running operation that has not completed by its expected end (planned duration; afterwards every minute)
 raises an OVERDUE event. It changes nothing in the factory; it only gives the planning tool a time point at
@@ -32,7 +32,7 @@ class EventType(IntEnum):
     # value = priority at equal time: completions free machines first
     COMPLETE = 0
     LATE_START = 1  # a late start offset has elapsed: the waiting operation starts now
-    DUE = 2  # planned start + min(offset, 0) reached; ignored if the plan has moved it since
+    PLANNED_START = 2  # planned start + min(offset, 0) reached; ignored if the plan has moved it since
     OVERDUE = 3  # a running operation has passed its expected end; ignored if it has completed
 
 
@@ -51,7 +51,7 @@ class SimState:
     order_on: list[list[int]] = field(default_factory=list)  # current plan: order of the ops per machine
     planned_start: list[int] = field(default_factory=list)  # current plan: start and end per op
     planned_end: list[int] = field(default_factory=list)
-    due_at: list[int | None] = field(default_factory=list)  # per op: pending DUE time, None once processed
+    planned_start_at: list[int | None] = field(default_factory=list)  # per op: pending PLANNED_START, None once done
     running: list[int | None] = field(default_factory=list)  # per machine: running op
     next_pos: list[int] = field(default_factory=list)  # per machine: position of the next op in its planned order
     released: set[int] = field(default_factory=set)  # released to the shop floor, not started yet
@@ -84,13 +84,13 @@ class Simulation:
         self.offset = [d.start_offset for d in disturbance] if disturbance else [0] * ci.n_ops
         self.state = SimState(
             machine=[0] * ci.n_ops, planned_start=[0] * ci.n_ops, planned_end=[0] * ci.n_ops,
-            due_at=[None] * ci.n_ops, running=[None] * ci.n_machines, start=[None] * ci.n_ops, end=[None] * ci.n_ops,
-            late_start_at=[None] * ci.n_ops,
+            planned_start_at=[None] * ci.n_ops, running=[None] * ci.n_machines, start=[None] * ci.n_ops,
+            end=[None] * ci.n_ops, late_start_at=[None] * ci.n_ops,
         )
         self.duration = [0] * ci.n_ops  # realized durations on the currently planned machines
         self._apply(plan)
         for o in range(ci.n_ops):
-            self._set_due(o)
+            self._set_planned_start(o)
 
     # --- running ------------------------------------------------------------------------------
 
@@ -124,8 +124,8 @@ class Simulation:
             elif kind is EventType.OVERDUE:
                 if state.end[o] is None:  # still running: the snapshot now expects its end at t + 1
                     state.push(state.t + 1, EventType.OVERDUE, o)
-            elif state.due_at[o] == state.t:  # DUE events moved by a plan update are stale and skipped
-                self._on_due(o)
+            elif state.planned_start_at[o] == state.t:  # PLANNED_START moved by a plan update: stale, skipped
+                self._on_planned_start(o)
         return state.t
 
     def start_operations(self) -> None:
@@ -140,7 +140,7 @@ class Simulation:
                 and all(state.end[q] is not None for q in self.ci.predecessors[o])
             ):
                 if self.offset[o] > 0 and state.late_start_at[o] is None:
-                    # due and ready now: the worker comes offset minutes later, the machine stays reserved
+                    # planned start reached and ready: the worker comes offset minutes later, machine stays reserved
                     state.late_start_at[o] = state.t + self.offset[o]
                     state.push(state.late_start_at[o], EventType.LATE_START, o)
                 if state.late_start_at[o] is not None and state.t < state.late_start_at[o]:
@@ -175,11 +175,11 @@ class Simulation:
             raise PlanNotExecutable(_describe(violations))
         self._apply(plan)
         for o in range(self.ci.n_ops):
-            due = self.state.due_at[o]
-            if due is not None and self._due_time(o) != due:  # released ops are not moved any more
-                self._set_due(o)
-                if self.state.due_at[o] == self.state.t:
-                    self._on_due(o)
+            pending = self.state.planned_start_at[o]
+            if pending is not None and self._planned_start_time(o) != pending:  # released ops are not moved any more
+                self._set_planned_start(o)
+                if self.state.planned_start_at[o] == self.state.t:
+                    self._on_planned_start(o)
 
     def realized(self) -> list[Assignment]:
         s = self.state
@@ -203,16 +203,16 @@ class Simulation:
             s.order_on[s.machine[o]].append(o)
         s.next_pos = [sum(s.end[o] is not None for o in ops) for ops in s.order_on]
 
-    def _due_time(self, o: int) -> int:
+    def _planned_start_time(self, o: int) -> int:
         return max(self.state.planned_start[o] + min(self.offset[o], 0), self.state.t)
 
-    def _set_due(self, o: int) -> None:
-        """(Re)schedule the DUE event of a pending operation; earlier DUE events of it become stale."""
-        self.state.due_at[o] = self._due_time(o)
-        self.state.push(self.state.due_at[o], EventType.DUE, o)
+    def _set_planned_start(self, o: int) -> None:
+        """(Re)schedule the PLANNED_START event of a pending operation; earlier ones of it become stale."""
+        self.state.planned_start_at[o] = self._planned_start_time(o)
+        self.state.push(self.state.planned_start_at[o], EventType.PLANNED_START, o)
 
-    def _on_due(self, o: int) -> None:
-        self.state.due_at[o] = None
+    def _on_planned_start(self, o: int) -> None:
+        self.state.planned_start_at[o] = None
         self.state.released.add(o)
 
     def _record(self, kind: str, o: int) -> None:
