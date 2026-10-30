@@ -6,12 +6,15 @@ planned processing time, never from the scenario. Operations that have not start
 """
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment
-from simulation.sim.des import SimState
+
+if TYPE_CHECKING:  # the DES uses snapshots itself, so its module is imported for type checking only
+    from simulation.sim.des import SimState
 
 
 class FrozenOperation(BaseModel):

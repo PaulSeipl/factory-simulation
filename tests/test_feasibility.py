@@ -8,6 +8,7 @@ from simulation.io.json_loader import read_model
 from simulation.model.compiled import CompiledInstance, compile_instance
 from simulation.model.instance import Instance
 from simulation.model.schedule import Assignment
+from simulation.sim.snapshot import FrozenOperation, Snapshot
 
 DATA = Path(__file__).parents[1] / "data"
 TOY = compile_instance(read_model(DATA / "instances" / "toy-dag-3x4.json", Instance))
@@ -101,3 +102,46 @@ def test_touching_intervals_do_not_overlap():
 def test_assert_feasible_lists_violations():
     with pytest.raises(AssertionError, match=r"\[C4\]"):
         assert_feasible(TOY, mutate("c1", start=1, end=3))
+
+
+# --- revised plans against a snapshot (math/05: C6, C7) ---------------------------------------
+
+# at t = 4: a1 finished [0,3); a2 running on M3 since 3 (expected end 6); b1 running on M1 since 3,
+# realized end unknown, expected end 5 (planned)
+SNAPSHOT = Snapshot(instance=TOY.name, t=4, frozen=[
+    FrozenOperation(order_id="A", op_id="a1", machine="M1", start=0, end=3, running=False),
+    FrozenOperation(order_id="A", op_id="a2", machine="M3", start=3, end=6, running=True),
+    FrozenOperation(order_id="B", op_id="b1", machine="M1", start=3, end=5, running=True),
+])
+
+
+def test_feasible_plan_passes_with_snapshot():
+    assert check_schedule(TOY, FEASIBLE, SNAPSHOT) == []
+
+
+def test_frozen_operation_with_expected_end_is_not_a_c2_violation():
+    # a2 overruns: frozen with expected end 7 instead of 6; its successors are shifted accordingly
+    overrun = Snapshot(instance=TOY.name, t=4, frozen=[*SNAPSHOT.frozen[:1],
+                       SNAPSHOT.frozen[1].model_copy(update={"end": 7}), SNAPSHOT.frozen[2]])
+    plan = [a.model_copy(update=changes.get(a.op_id, {})) for a in FEASIBLE
+            for changes in [{"a2": {"end": 7}, "a3": {"start": 7, "end": 9}, "c1": {"start": 7, "end": 9},
+                             "c2": {"start": 9, "end": 11}}]]
+    assert check_schedule(TOY, plan, overrun) == []
+
+
+@pytest.mark.parametrize(
+    "plan",
+    [
+        pytest.param(mutate("a1", machine="M2"), id="frozen-machine-changed"),  # a1 also fits on M2 at [0,3)
+        pytest.param(mutate("a2", end=5), id="frozen-end-changed"),  # expected end 6 in the snapshot
+    ],
+)
+def test_changed_frozen_operation_is_c7(plan):
+    assert {v.constraint for v in check_schedule(TOY, plan, SNAPSHOT)} == {"C7"}
+
+
+def test_free_operation_before_t_is_c6():
+    # at t = 4 only a1 is frozen; b1 (free) planned at 3 is before the rescheduling point
+    # (a2 and b1 are free in this snapshot, but planned at 3)
+    early = Snapshot(instance=TOY.name, t=4, frozen=SNAPSHOT.frozen[:1])
+    assert {(v.constraint, v.ops[0][1]) for v in check_schedule(TOY, FEASIBLE, early)} == {("C6", "a2"), ("C6", "b1")}

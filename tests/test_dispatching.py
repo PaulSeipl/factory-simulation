@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from simulation.check.feasibility import assert_feasible
+from simulation.check.feasibility import assert_feasible, check_schedule
 from simulation.io.brandimarte_loader import load_fjs
 from simulation.io.json_loader import read_model
 from simulation.model.compiled import compile_instance
@@ -18,6 +18,9 @@ from simulation.planners.dispatching import (
     mwkr,
     spt,
 )
+from simulation.sim.des import run
+from simulation.sim.scenario import sample_scenario
+from simulation.sim.snapshot import FrozenOperation, Snapshot, snapshot
 
 DATA = Path(__file__).parents[1] / "data"
 PATHS = [
@@ -106,3 +109,34 @@ ASSIGNMENT_CONFLICT = instance("assignment-conflict", ["M1", "M2"], [
 def test_assignment_rules_resolve_the_conflict_differently(assignment, machine_of_g1):
     machines = {a.op_id: a.machine for a in dispatch(compile_instance(ASSIGNMENT_CONFLICT), spt, assignment)}
     assert machines == {"f1": "M1", "g1": machine_of_g1}
+
+
+# --- dispatching from a snapshot (rescheduling, math/05) ---------------------------------------
+
+TOY_SNAPSHOT = Snapshot(instance="toy-dag-3x4", t=5, frozen=[
+    FrozenOperation(order_id="A", op_id="a1", machine="M1", start=0, end=3, running=False),
+    FrozenOperation(order_id="A", op_id="a2", machine="M3", start=3, end=6, running=True),
+    FrozenOperation(order_id="B", op_id="b1", machine="M1", start=3, end=6, running=True),  # overrunning
+])
+
+
+def test_joint_spt_from_snapshot_matches_hand_computation():
+    # math/11_dispatching-rules.md, section 5: M1 and M3 busy until 6, nothing starts before 5
+    ci = compile_instance(load(DATA / "instances" / "toy-dag-3x4.json"))
+    plan = dispatch(ci, spt, None, TOY_SNAPSHOT)
+    assert sorted((a.op_id, a.machine, a.start, a.end) for a in plan) == [
+        ("a1", "M1", 0, 3), ("a2", "M3", 3, 6), ("a3", "M4", 6, 8), ("b1", "M1", 3, 6), ("b2", "M2", 6, 9),
+        ("b3", "M1", 6, 10), ("b4", "M2", 10, 13), ("c1", "M3", 6, 8), ("c2", "M4", 8, 12),
+    ]
+    assert check_schedule(ci, plan, TOY_SNAPSHOT) == []
+
+
+@pytest.mark.parametrize("assignment", ASSIGNMENTS.values(), ids=ASSIGNMENTS.keys())
+@pytest.mark.parametrize("sequencing", SEQUENCING_RULES.values(), ids=SEQUENCING_RULES.keys())
+def test_every_rule_combination_from_a_mid_run_snapshot_is_feasible(sequencing, assignment):
+    inst = load(DATA / "benchmarks" / "brandimarte" / "BrandimarteMk1.fjs")
+    ci = compile_instance(inst)
+    plan = dispatch(ci, spt, ect)
+    state, _ = run(ci, plan, sample_scenario(inst, 0.3, seed=1), until=15)
+    snap = snapshot(ci, plan, state)
+    assert check_schedule(ci, dispatch(ci, sequencing, assignment, snap), snap) == []

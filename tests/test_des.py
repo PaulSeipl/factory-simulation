@@ -1,3 +1,4 @@
+import copy
 import json
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from simulation.model.schedule import Assignment
 from simulation.objectives import MAKESPAN
 from simulation.planners.cpsat import solve
 from simulation.planners.dispatching import best_dispatch
-from simulation.sim.des import PlanNotExecutable, replay
+from simulation.sim.des import PlanNotExecutable, Simulation, replay
 from simulation.sim.scenario import Scenario, sample_scenario
 
 DATA = Path(__file__).parents[1] / "data"
@@ -174,3 +175,54 @@ def test_log_has_one_start_and_one_completion_per_operation_in_time_order(tmp_pa
     write_jsonl(log, tmp_path / "events.jsonl")
     lines = (tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()
     assert [json.loads(line) for line in lines] == log
+
+
+# --- start offsets (no planning tool) --------------------------------------------------------
+
+
+def disturbed(factor=None, offset=None) -> Scenario:
+    inst = read_model(DATA / "instances" / "toy-dag-3x4.json", Instance)
+    factor, offset = factor or {}, offset or {}
+    return Scenario(instance=inst.name, seed=0, sigma=0, factors=[
+        {"order_id": o.id, "op_id": op.id, "factor": factor.get(op.id, 1.0), "start_offset": offset.get(op.id, 0)}
+        for o in inst.orders for op in o.operations
+    ])
+
+
+GAP_PLAN = changed("c2", start=9, end=11)  # c2 could start at 8: a gap in the plan
+
+
+def realized_times(plan, sc=None):
+    return {a.op_id: (a.start, a.end) for a in replay(TOY, plan, sc).schedule}
+
+
+def test_early_start_offset_starts_as_soon_as_possible():
+    # c2 planned at 9 with offset -1: released at 8, c1 and b2 are done at 8, so it starts at 8
+    assert realized_times(GAP_PLAN, disturbed(offset={"c2": -1}))["c2"] == (8, 10)
+
+
+def test_early_start_offset_cannot_skip_a_predecessor():
+    # b2 planned at 5 with offset -3: released at 2, but its predecessor b1 ends at 5
+    assert realized_times(PLAN, disturbed(offset={"b2": -3}))["b2"] == (5, 8)
+
+
+def test_late_start_offset_delays_the_operation_and_its_successors():
+    realized = realized_times(PLAN, disturbed(offset={"a2": 2}))
+    assert realized["a2"] == (5, 8) and realized["a3"] == (8, 10) and realized["c1"] == (8, 10)
+
+
+def test_simulation_state_can_be_copied_mid_run():
+    sim = Simulation(TOY, PLAN, disturbed({"b1": 2.0}))
+    sim.run(until=5)
+    clone = copy.deepcopy(sim)
+    sim.run()
+    clone.run()
+    assert sim.realized() == clone.realized()
+
+
+def test_plan_update_must_respect_the_frozen_part():
+    sim = Simulation(TOY, PLAN)
+    sim.run(until=4)  # a1 finished, a2 and b1 running
+    moved = [a.model_copy(update={"start": 2, "end": 4}) if a.op_id == "b1" else a for a in sim.current_plan()]
+    with pytest.raises(PlanNotExecutable, match=r"\[C7\]"):
+        sim.update_plan(moved)

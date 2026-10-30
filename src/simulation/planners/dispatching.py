@@ -9,14 +9,21 @@ Without an assignment rule ("joint"):
   the sequencing rule ranks the pairs that can start at t, i.e. it chooses operation and machine.
 
 Both variants are non-delay: a machine never stays idle while a candidate could start on it.
+
+From a snapshot (rescheduling, math/05_rescheduling-frozen-part.md): the frozen operations are kept as
+they are, their machines are busy until their (expected) end, and nothing new starts before snapshot.t.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment
 from simulation.objectives import MAKESPAN, Objective
+
+if TYPE_CHECKING:
+    from simulation.sim.snapshot import Snapshot
 
 
 @dataclass(slots=True)
@@ -74,7 +81,10 @@ ASSIGNMENT_RULES: dict[str, AssignmentRule] = {"least_load": least_load, "ect": 
 
 
 def dispatch(
-    ci: CompiledInstance, sequencing: SequencingRule, assignment: AssignmentRule | None = None
+    ci: CompiledInstance,
+    sequencing: SequencingRule,
+    assignment: AssignmentRule | None = None,
+    snapshot: Snapshot | None = None,
 ) -> list[Assignment]:
     min_p = [min(p for _, p in opts) for opts in ci.options]
     work_left = [0] * len(ci.order_ids)
@@ -83,11 +93,26 @@ def dispatch(
     remaining_path = [0] * ci.n_ops
     for o in reversed(ci.topo_order):
         remaining_path[o] = min_p[o] + max((remaining_path[s] for s in ci.successors[o]), default=0)
-    zeros = [0] * ci.n_machines
-    state = DispatchState(list(ci.release), list(zeros), list(zeros), list(zeros), work_left, remaining_path)
+    t0 = snapshot.t if snapshot else 0
+    state = DispatchState(
+        [max(r, t0) for r in ci.release], [t0] * ci.n_machines, [0] * ci.n_machines, [0] * ci.n_machines,
+        work_left, remaining_path,
+    )
     open_preds = [len(preds) for preds in ci.predecessors]
     duration = [dict(opts) for opts in ci.options]
     ready: dict[int, tuple[tuple[int, int], ...]] = {}  # ready operation -> machines it may still use
+
+    out: list[Assignment] = []
+    frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
+    for o, f in frozen.items():  # the frozen part: kept unchanged, occupies its machine until its end
+        m = ci.machine_index[f.machine]
+        out.append(Assignment(order_id=f.order_id, op_id=f.op_id, machine=f.machine, start=f.start, end=f.end))
+        state.machine_free[m] = max(state.machine_free[m], f.end)
+        state.load[m] += duration[o][m]
+        state.work_left[ci.op_order[o]] -= min_p[o]
+        for s in ci.successors[o]:
+            state.ready_at[s] = max(state.ready_at[s], f.end)
+            open_preds[s] -= 1
 
     def make_ready(o: int) -> None:
         if assignment is None:
@@ -99,10 +124,9 @@ def dispatch(
             state.backlog[m] += duration[o][m]
 
     for o in range(ci.n_ops):
-        if open_preds[o] == 0:
+        if open_preds[o] == 0 and o not in frozen:
             make_ready(o)
 
-    out: list[Assignment] = []
     while ready:
         candidates = [
             (max(state.ready_at[o], state.machine_free[m]), o, m, p) for o, mps in ready.items() for m, p in mps
@@ -139,3 +163,13 @@ def best_dispatch(ci: CompiledInstance, objective: Objective = MAKESPAN) -> tupl
         for a in [*ASSIGNMENT_RULES, None]
     )
     return min(runs, key=lambda run: objective.evaluate(ci, run[1]))
+
+
+def dispatch_planner(sequencing: SequencingRule, assignment: AssignmentRule | None = None):
+    """Rescheduling planner for the DES: planner(ci, snapshot, current_plan) -> new complete plan."""
+
+    def planner(ci: CompiledInstance, snapshot: Snapshot, _current: Sequence[Assignment]) -> list[Assignment]:
+        return dispatch(ci, sequencing, assignment, snapshot)
+
+    return planner
+
