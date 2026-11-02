@@ -4,11 +4,13 @@ import pytest
 
 from simulation.check.feasibility import check_schedule
 from simulation.control.rescheduling import ReschedulingPolicy, execute
+from simulation.due_dates import assign_due_dates
 from simulation.io.brandimarte_loader import load_fjs
 from simulation.io.json_loader import read_model
 from simulation.model.compiled import CompiledInstance, compile_instance
 from simulation.model.instance import Instance
 from simulation.model.schedule import Assignment
+from simulation.objectives import TOTAL_TARDINESS
 from simulation.planners.cpsat import cpsat_planner, solve
 from simulation.planners.dispatching import best_dispatch, dispatch, dispatch_planner, ect, least_load, spt
 from simulation.sim.des import PlanNotExecutable
@@ -194,6 +196,48 @@ def test_overrun_triggers_rescheduling_without_other_events():
     result = execute(TOY, PLAN, disturbed({"a3": 4.0}), policy)
     assert [d["t"] for d in of_type(result, "REPLAN")] == [11]
     assert {a.op_id: a.machine for a in result.schedule}["b4"] == "M2" and times(result)["b4"] == (11, 14)
+
+
+def test_periodic_safety_net_without_disturbance():
+    # nothing deviates, so no threshold fires; the safety net reschedules every 4 minutes while operations are
+    # still unstarted (the last one, b4, starts at 9). CP-SAT keeps every machine of the optimal plan.
+    result = execute(TOY, PLAN, policy=ReschedulingPolicy(cpsat_planner(time_limit=5), period=4))
+    assert [(d["t"], d["triggers"], d["changed_assignments"]) for d in of_type(result, "REPLAN")] == [
+        (4, ["period"], 0), (8, ["period"], 0)]
+    assert makespan(result) == 11
+
+
+def test_period_restarts_after_a_triggered_rescheduling():
+    # b1 takes 4 instead of 2: periodic at 4, threshold at 6 (deviation 2 > 1), next periodic at 6 + 4 = 10, not 8
+    policy = ReschedulingPolicy(cpsat_planner(time_limit=5), max_makespan_change=1, period=4)
+    result = execute(TOY, PLAN, disturbed({"b1": 2.0}), policy)
+    assert [(d["t"], d["triggers"]) for d in of_type(result, "REPLAN")] == [
+        (4, ["period"]), (6, ["makespan"]), (10, ["period"])]
+
+
+def test_trigger_on_the_planners_objective():
+    # due dates A 10, B 11, C 10; a3 takes 8 instead of 2. At t=9 a3 is expected to end at 10 (A on time) and b4,
+    # next on M4, moves to [10, 12): B becomes 1 late. The tardiness trigger fires at 9, while the projected
+    # makespan has moved by only 1 and a makespan threshold of 2 fires only at t=11.
+    ci = compile_instance(assign_due_dates(TOY_INSTANCE, (1.0,), 0))
+    on_tardiness = execute(ci, PLAN, disturbed({"a3": 4.0}), ReschedulingPolicy(
+        dispatch_planner(spt), objective=TOTAL_TARDINESS, max_objective_change=0))
+    repair_at_9 = next(d for d in of_type(on_tardiness, "REPAIR") if d["t"] == 9)
+    assert (repair_at_9["objective_deviation"], repair_at_9["makespan_deviation"]) == (1, 1)
+    assert [(d["t"], d["triggers"]) for d in of_type(on_tardiness, "REPLAN")][0] == (9, ["objective"])
+    on_makespan = execute(ci, PLAN, disturbed({"a3": 4.0}),
+                          ReschedulingPolicy(dispatch_planner(spt), max_makespan_change=2))
+    assert [d["t"] for d in of_type(on_makespan, "REPLAN")] == [11]
+
+
+@pytest.mark.parametrize(("kwargs", "message"), [
+    ({"objective": TOTAL_TARDINESS}, "must be given together"),
+    ({"max_objective_change": 0}, "must be given together"),
+    ({"period": 0}, "period must be positive"),
+])
+def test_invalid_policy_is_rejected(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        ReschedulingPolicy(**kwargs)
 
 
 def test_infeasible_plan_from_the_planner_raises():

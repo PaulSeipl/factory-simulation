@@ -13,22 +13,30 @@ Two bases for the time an order is given:
 
 import math
 import random
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from graphlib import TopologicalSorter
 
-from simulation.model.instance import Instance, Order
+from simulation.model.instance import CarrierStep, Instance, Order, operation_graph
 from simulation.model.schedule import Assignment
 
 
-def lead_time_bound(order: Order) -> float:
-    """Longest path through the order with average processing times."""
+def lead_time_bound(order: Order, carrier_steps: Mapping[str, CarrierStep] | None = None) -> float:
+    """Longest path through the order with average processing times.
+
+    A carrier operation counts with its step: average of the step's machines plus setup and removal (the
+    constant per machine, not the run estimate; math/06_due-dates.md).
+    """
     ops = {op.id: op for op in order.operations}
     finish: dict[str, float] = {}
     for j in TopologicalSorter({op.id: op.predecessors for op in order.operations}).static_order():
         op = ops[j]
         start = max((finish[q] for q in op.predecessors), default=0.0)
-        finish[j] = start + sum(op.options.values()) / len(op.options)
+        if op.options is None:
+            step = carrier_steps[op.step]
+            finish[j] = start + sum(step.options.values()) / len(step.options) + step.setup + step.removal
+        else:
+            finish[j] = start + sum(op.options.values()) / len(op.options)
     return max(finish.values())
 
 
@@ -40,12 +48,17 @@ def assign_due_dates(
     Without `reference` the basis is the lead-time bound, with it the flow time of each order in that plan.
     """
     rng = random.Random(f"due-{seed}")
-    if reference is not None:
+    if reference is not None:  # entries of carriers and runs count for every order they serve
+        served = {key: node.orders for key, node in operation_graph(instance).items()}
         order_end: dict[str, int] = {}
         for a in reference:
-            order_end[a.order_id] = max(order_end.get(a.order_id, 0), a.end)
+            for k in served[a.order_id, a.op_id]:
+                order_end[k] = max(order_end.get(k, 0), a.end)
     data = instance.model_dump()
     for order, raw in zip(instance.orders, data["orders"], strict=True):
-        basis = lead_time_bound(order) if reference is None else order_end[order.id] - order.release
+        if reference is None:
+            basis = lead_time_bound(order, instance.carrier_steps)
+        else:
+            basis = order_end[order.id] - order.release
         raw["due_date"] = order.release + math.floor(rng.choice(tightness) * basis + 0.5)
     return Instance.model_validate(data)

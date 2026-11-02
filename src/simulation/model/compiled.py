@@ -1,7 +1,7 @@
 """Index-based, immutable view of an Instance for the hot path (simulator, rules, solvers).
 
-Operations are indexed in file order (orders in sequence, operations within each order),
-so the operations of one order form a contiguous index range.
+Operations are indexed in file order: the operations of every order (contiguous per order), then the
+operations of the carriers and of the runs (math/03_loads.md). Owners in op_keys are orders, carriers or runs.
 """
 
 from collections.abc import Mapping
@@ -10,9 +10,9 @@ from types import MappingProxyType
 
 from graphlib import TopologicalSorter
 
-from simulation.model.instance import Instance
+from simulation.model.instance import Instance, operation_graph
 
-type OpKey = tuple[str, str]  # (order_id, op_id)
+type OpKey = tuple[str, str]  # (owner_id, op_id); owner: order, carrier or run
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,9 +27,13 @@ class CompiledInstance:
     options: tuple[tuple[tuple[int, int], ...], ...]  # op idx -> ((machine idx, duration), ...)
     predecessors: tuple[tuple[int, ...], ...]  # op idx -> op idxs
     successors: tuple[tuple[int, ...], ...]  # op idx -> op idxs
-    op_order: tuple[int, ...]  # op idx -> order idx
-    release: tuple[int, ...]  # op idx -> release of its order
+    op_orders: tuple[tuple[int, ...], ...]  # op idx -> idxs of the orders it serves (one for order operations)
+    release: tuple[int, ...]  # op idx -> latest release of the orders it serves
     due_date: tuple[int | None, ...]  # order idx -> due date (None: the order has none)
+    # run operations (setup, main, removal): one machine, blocked from the first start to the last end
+    machine_groups: tuple[tuple[int, ...], ...]
+    # op idx -> carriers that may share one machine run with it (p-batch step), 1 otherwise
+    batch_capacity: tuple[int, ...]
     topo_order: tuple[int, ...]  # all op idxs, every predecessor before its successors
 
     @property
@@ -64,14 +68,14 @@ def _rebuild(state: dict) -> CompiledInstance:
 def compile_instance(instance: Instance) -> CompiledInstance:
     machine_ids = instance.machines
     machine_index = {m: i for i, m in enumerate(machine_ids)}
-    flat = [(o_idx, order, op) for o_idx, order in enumerate(instance.orders) for op in order.operations]
-    op_keys = tuple((order.id, op.id) for _, order, op in flat)
+    order_index = {o.id: i for i, o in enumerate(instance.orders)}
+    release = {o.id: o.release for o in instance.orders}
+    graph = operation_graph(instance)
+    op_keys = tuple(graph)
     op_index = {key: i for i, key in enumerate(op_keys)}
 
-    predecessors = tuple(
-        tuple(op_index[order.id, p] for p in op.predecessors) for _, order, op in flat
-    )
-    successors: list[list[int]] = [[] for _ in flat]
+    predecessors = tuple(tuple(op_index[q] for q in node.predecessors) for node in graph.values())
+    successors: list[list[int]] = [[] for _ in op_keys]
     for i, preds in enumerate(predecessors):
         for p in preds:
             successors[p].append(i)
@@ -84,14 +88,29 @@ def compile_instance(instance: Instance) -> CompiledInstance:
         order_ids=tuple(order.id for order in instance.orders),
         op_keys=op_keys,
         op_index=MappingProxyType(op_index),
-        options=tuple(
-            tuple((machine_index[m], d) for m, d in op.options.items()) for _, _, op in flat
-        ),
+        options=tuple(tuple((machine_index[m], d) for m, d in node.options.items()) for node in graph.values()),
         predecessors=predecessors,
         successors=tuple(map(tuple, successors)),
-        op_order=tuple(o_idx for o_idx, _, _ in flat),
-        release=tuple(order.release for _, order, _ in flat),
+        op_orders=tuple(tuple(order_index[k] for k in node.orders) for node in graph.values()),
+        # carrier and run operations wait for their orders anyway; the latest release is the honest bound
+        release=tuple(max(release[k] for k in node.orders) for node in graph.values()),
         due_date=tuple(order.due_date for order in instance.orders),
+        batch_capacity=tuple(
+            (instance.carrier_steps[step].batch_capacity or 1) if (step := _carrier_step(instance, key)) else 1
+            for key in op_keys
+        ),
+        machine_groups=tuple(dict.fromkeys(
+            tuple(op_index[key] for key in node.group) for node in graph.values() if node.group
+        )),
         # Instance validation guarantees an acyclic graph
         topo_order=tuple(TopologicalSorter(dict(enumerate(predecessors))).static_order()),
     )
+
+
+def _carrier_step(instance: Instance, key: OpKey) -> str | None:
+    """Step of a carrier operation (owner is a carrier), None for order and run operations."""
+    carrier = next((c for c in instance.carriers if c.id == key[0]), None)
+    if carrier is None:
+        return None
+    order = next(o for o in instance.orders if o.id == carrier.parts[0][0])
+    return next(op.step for op in order.operations if op.id == key[1])

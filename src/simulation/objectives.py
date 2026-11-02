@@ -48,11 +48,11 @@ MAKESPAN = Objective(
 
 
 def _order_ends(ci: CompiledInstance, schedule: Sequence[Assignment]) -> list[int]:
-    """Completion C_k per order index."""
-    order_of = {k: i for i, k in enumerate(ci.order_ids)}
+    """Completion C_k per order index: latest end of the operations serving k (incl. carrier and run operations)."""
     ends = [0] * len(ci.order_ids)
     for a in schedule:
-        ends[order_of[a.order_id]] = max(ends[order_of[a.order_id]], a.end)
+        for k in ci.op_orders[ci.op_index[a.order_id, a.op_id]]:
+            ends[k] = max(ends[k], a.end)
     return ends
 
 
@@ -68,7 +68,8 @@ def _order_end_vars(model, ci, ends, horizon) -> list:
     sinks: list[list] = [[] for _ in ci.order_ids]
     for o in range(ci.n_ops):
         if not ci.successors[o]:
-            sinks[ci.op_order[o]].append(ends[o])
+            for k in ci.op_orders[o]:
+                sinks[k].append(ends[o])
     cks = []
     for k, sink_ends in enumerate(sinks):
         ck = model.new_int_var(0, horizon, f"C_order_{k}")

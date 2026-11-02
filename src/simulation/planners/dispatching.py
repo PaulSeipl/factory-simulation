@@ -10,6 +10,9 @@ Without an assignment rule ("joint"):
 
 Both variants are non-delay: a machine never stays idle while a candidate could start on it.
 
+A run (setup, main operation, removal; math/03_loads.md) is dispatched as one unit: its first operation stands for
+the whole run, and when it is chosen the run's operations are placed back to back on one machine (C8, C9).
+
 From a snapshot (rescheduling, math/05_rescheduling-frozen-part.md): the frozen operations are kept as
 they are, their machines are busy until their (expected) end, and nothing new starts before snapshot.t.
 """
@@ -54,7 +57,7 @@ def fifo(_ci: CompiledInstance, state: DispatchState, o: int, _m: int, p: int) -
 
 def mwkr(ci: CompiledInstance, state: DispatchState, o: int, _m: int, p: int) -> tuple[int, ...]:
     """Most work remaining in the operation's order; SPT as tie-breaker."""
-    return (-state.work_left[ci.op_order[o]], p)
+    return (-max(state.work_left[k] for k in ci.op_orders[o]), p)
 
 
 def lrp(_ci: CompiledInstance, state: DispatchState, o: int, _m: int, p: int) -> tuple[int, ...]:
@@ -64,7 +67,7 @@ def lrp(_ci: CompiledInstance, state: DispatchState, o: int, _m: int, p: int) ->
 
 def edd(ci: CompiledInstance, _state: DispatchState, o: int, _m: int, p: int) -> tuple[int, ...]:
     """Earliest due date of the operation's order; SPT as tie-breaker; orders without due date last."""
-    due = ci.due_date[ci.op_order[o]]
+    due = min((d for k in ci.op_orders[o] if (d := ci.due_date[k]) is not None), default=None)
     return (0, due, p) if due is not None else (1, 0, p)
 
 
@@ -95,7 +98,8 @@ def dispatch(
     min_p = [min(p for _, p in opts) for opts in ci.options]
     work_left = [0] * len(ci.order_ids)
     for o in range(ci.n_ops):
-        work_left[ci.op_order[o]] += min_p[o]
+        for k in ci.op_orders[o]:
+            work_left[k] += min_p[o]
     remaining_path = [0] * ci.n_ops
     for o in reversed(ci.topo_order):
         remaining_path[o] = min_p[o] + max((remaining_path[s] for s in ci.successors[o]), default=0)
@@ -106,6 +110,9 @@ def dispatch(
     )
     open_preds = [len(preds) for preds in ci.predecessors]
     duration = [dict(opts) for opts in ci.options]
+    run_of = {g[0]: g for g in ci.machine_groups}  # first operation -> the whole run
+    for head, group in run_of.items():  # the head stands for the run: duration of the run on each machine
+        duration[head] = {m: sum(duration[q][m] for q in group) for m in duration[head]}
     ready: dict[int, tuple[tuple[int, int], ...]] = {}  # ready operation -> machines it may still use
 
     out: list[Assignment] = []
@@ -115,15 +122,36 @@ def dispatch(
         out.append(Assignment(order_id=f.order_id, op_id=f.op_id, machine=f.machine, start=f.start, end=f.end))
         state.machine_free[m] = max(state.machine_free[m], f.end)
         state.load[m] += duration[o][m]
-        state.work_left[ci.op_order[o]] -= min_p[o]
+        for k in ci.op_orders[o]:
+            state.work_left[k] -= min_p[o]
         for s in ci.successors[o]:
             state.ready_at[s] = max(state.ready_at[s], f.end)
             open_preds[s] -= 1
 
+    for g in ci.machine_groups:  # a partly started run continues back to back on its machine (C8, C9)
+        if (rest := [q for q in g if q not in frozen]) and len(rest) < len(g):
+            m = ci.machine_index[frozen[g[0]].machine]
+            start = max(t0, state.machine_free[m])
+            for q in rest:
+                end = start + duration[q][m]
+                owner, op_id = ci.op_keys[q]
+                out.append(Assignment(order_id=owner, op_id=op_id, machine=ci.machine_ids[m], start=start, end=end))
+                state.load[m] += duration[q][m]
+                for k in ci.op_orders[q]:
+                    state.work_left[k] -= min_p[q]
+                for s in ci.successors[q]:
+                    state.ready_at[s] = max(state.ready_at[s], end)
+                    open_preds[s] -= 1
+                start = end
+            state.machine_free[m] = start
+            frozen.update(dict.fromkeys(rest))  # placed: never made ready below
+
     def make_ready(o: int) -> None:
         if assignment is None:
-            ready[o] = ci.options[o]
+            ready[o] = tuple(duration[o].items())
         else:
+            # shortcut: assignment rules see the head's own duration (e.g. setup), not the whole run; fine while
+            # the run's durations rank the machines like its setup, revisit with the print-duration estimator
             m = assignment(ci, state, o)
             ready[o] = ((m, duration[o][m]),)
             state.load[m] += duration[o][m]
@@ -148,15 +176,23 @@ def dispatch(
         else:
             state.backlog[m] -= p
 
-        order_id, op_id = ci.op_keys[o]
-        out.append(Assignment(order_id=order_id, op_id=op_id, machine=ci.machine_ids[m], start=t, end=t + p))
         state.machine_free[m] = t + p
-        state.work_left[ci.op_order[o]] -= min_p[o]
-        for s in ci.successors[o]:
-            state.ready_at[s] = max(state.ready_at[s], t + p)
-            open_preds[s] -= 1
-            if open_preds[s] == 0:
-                make_ready(s)
+        group = run_of.get(o)
+        start = t
+        for q in group or (o,):  # a run back to back on one machine; a single operation otherwise
+            end = start + (dict(ci.options[q])[m] if group else p)
+            owner, op_id = ci.op_keys[q]
+            out.append(Assignment(order_id=owner, op_id=op_id, machine=ci.machine_ids[m], start=start, end=end))
+            for k in ci.op_orders[q]:
+                state.work_left[k] -= min_p[q]
+            for s in ci.successors[q]:
+                if group and s in group:
+                    continue  # placed in this loop
+                state.ready_at[s] = max(state.ready_at[s], end)
+                open_preds[s] -= 1
+                if open_preds[s] == 0:
+                    make_ready(s)
+            start = end
 
     return out
 

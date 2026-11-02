@@ -16,7 +16,7 @@ PATHS = [DATA / "instances" / "toy-3x3.json", *sorted((DATA / "benchmarks" / "br
 # operations listed against precedence order, so topo_order must actually sort
 UNORDERED = Instance.model_validate(
     {
-        "schema_version": "0.3",
+        "schema_version": "0.4",
         "name": "unordered",
         "machines": ["M1", "M2"],
         "orders": [
@@ -61,7 +61,7 @@ def test_options_release_and_order_per_op(instance):
             assert {c.machine_ids[m]: d for m, d in c.options[i]} == op.options
             assert len(c.options[i]) == len(op.options)
             assert [c.op_keys[p] for p in c.predecessors[i]] == [(order.id, p) for p in op.predecessors]
-            assert c.op_order[i] == o_idx
+            assert c.op_orders[i] == (o_idx,)
             assert c.release[i] == order.release
 
 

@@ -11,7 +11,7 @@ from simulation.io.json_loader import read_model  # noqa: E402
 from simulation.model.compiled import compile_instance  # noqa: E402
 from simulation.model.instance import Instance  # noqa: E402
 from simulation.planners.dispatching import dispatch, least_load, spt  # noqa: E402
-from simulation.viz import plot_gantt, plot_orders  # noqa: E402
+from simulation.viz import plot_carriers, plot_gantt, plot_orders  # noqa: E402
 
 TOY = compile_instance(read_model(Path(__file__).parents[1] / "data" / "instances" / "toy-dag-3x4.json", Instance))
 
@@ -29,4 +29,12 @@ def test_plot_gantt_draws_one_bar_per_assignment():
     ax = plot_gantt(TOY, schedule)
     assert sum(isinstance(p, Rectangle) for p in ax.patches) == len(schedule)
     assert [t.get_text() for t in ax.get_yticklabels()] == list(TOY.machine_ids)
+    plt.close(ax.figure)
+
+
+def test_plot_carriers_draws_one_segment_per_carried_part():
+    inst = read_model(Path(__file__).parents[1] / "data" / "instances" / "toy-carriers.json", Instance)
+    ax = plot_carriers(inst, capacity=3)
+    assert sum(isinstance(p, Rectangle) for p in ax.patches) == sum(len(c.parts) for c in inst.carriers)
+    assert [t.get_text() for t in ax.get_yticklabels()] == ["R1 · L1", "R2 · L2"]
     plt.close(ax.figure)

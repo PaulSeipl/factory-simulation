@@ -14,10 +14,13 @@ if TYPE_CHECKING:
 def run_metrics(ci: CompiledInstance, plan: Sequence[Assignment], result: ExecutionResult) -> dict[str, int | float]:
     """One flat record per run (a CSV row); `plan` is the start plan the run began with."""
     planned = {(a.order_id, a.op_id): a for a in plan}
-    order_end: dict[str, int] = {}
+    order_end: dict[str, int] = {}  # owners of schedule entries can be carriers or runs; count per served order
+    release: dict[str, int] = {}
     for a in result.schedule:
-        order_end[a.order_id] = max(order_end.get(a.order_id, 0), a.end)
-    release = {k: ci.release[ci.op_index[k, j]] for k, j in ci.op_keys}
+        o = ci.op_index[a.order_id, a.op_id]
+        for k in (ci.order_ids[i] for i in ci.op_orders[o]):
+            order_end[k] = max(order_end.get(k, 0), a.end)
+            release[k] = min(release.get(k, ci.release[o]), ci.release[o])  # the order's own operations
     replans = [d for d in result.decisions if d["type"] == "REPLAN"]
     metrics = {
         "planned_makespan": max(a.end for a in plan),

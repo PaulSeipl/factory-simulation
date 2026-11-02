@@ -8,6 +8,10 @@ From a snapshot (complete rescheduling, math/05_rescheduling-frozen-part.md): fr
 fixed intervals with the times of the snapshot (C7), all others start at t at the earliest (C6). With
 a reference plan and a change budget, at most that many operations not started may run on another
 machine than in the reference plan.
+
+Runs (math/03_loads.md): the operations of a run choose the same machine (C8), and instead of their own
+intervals one interval from the start of the first to the end of the last operation enters the machine's
+no-overlap constraint (C9: the machine is blocked also while the removal waits).
 """
 
 from collections.abc import Sequence
@@ -55,13 +59,15 @@ def solve(
     ends: list[cp_model.IntVar] = []
     choice: list[list[tuple[int, cp_model.IntVar]]] = []  # per op: (machine, x_{o,m})
     per_machine: list[list[cp_model.IntervalVar]] = [[] for _ in range(ci.n_machines)]
+    in_run = {o for g in ci.machine_groups for o in g}  # occupy their machine through the run's span (C9)
 
     for o in range(ci.n_ops):
         if (f := frozen.get(o)) is not None:  # C7: fixed machine and times (realized or expected end)
             m = ci.machine_index[f.machine]
             starts.append(model.new_constant(f.start))
             ends.append(model.new_constant(f.end))
-            per_machine[m].append(model.new_fixed_size_interval_var(f.start, f.end - f.start, f"frozen_{o}"))
+            if o not in in_run:
+                per_machine[m].append(model.new_fixed_size_interval_var(f.start, f.end - f.start, f"frozen_{o}"))
             choice.append([(m, model.new_constant(1))])
             continue
         starts.append(model.new_int_var(max(ci.release[o], t), horizon, f"S_{o}"))  # C4 and C6 as lower bound
@@ -69,7 +75,8 @@ def solve(
         lits = []
         for m, p in ci.options[o]:
             x = model.new_bool_var(f"x_{o}_{m}")
-            per_machine[m].append(model.new_optional_fixed_size_interval_var(starts[o], p, x, f"a_{o}_{m}"))
+            if o not in in_run:
+                per_machine[m].append(model.new_optional_fixed_size_interval_var(starts[o], p, x, f"a_{o}_{m}"))
             lits.append((m, p, x))
         model.add_exactly_one(x for _, _, x in lits)  # C1
         model.add(ends[o] == starts[o] + sum(p * x for _, p, x in lits))  # C2
@@ -78,6 +85,15 @@ def solve(
         if o not in frozen:
             for q in ci.predecessors[o]:
                 model.add(starts[o] >= ends[q])  # C3
+    for g in ci.machine_groups:
+        x_first = dict(choice[g[0]])
+        for q in g[1:]:  # C8: one machine for the whole run
+            for m, x in choice[q]:
+                model.add(x == x_first.get(m, 0))
+        span = model.new_int_var(0, horizon, f"span_{g[0]}")
+        for m, x in x_first.items():  # C9: the machine is blocked from the first start to the last end
+            blocked = model.new_optional_interval_var(starts[g[0]], span, ends[g[-1]], x, f"run_{g[0]}_{m}")
+            per_machine[m].append(blocked)
     for intervals in per_machine:
         model.add_no_overlap(intervals)  # C5
 

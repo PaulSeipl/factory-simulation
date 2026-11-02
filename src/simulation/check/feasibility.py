@@ -1,4 +1,5 @@
-"""Feasibility checker for the base model (math/01_basic-fjsp.md, C1-C5) and revised plans (math/05, C6-C7).
+"""Feasibility checker for the base model (math/01_basic-fjsp.md, C1-C5), revised plans (math/05, C6-C7) and
+machine runs of carriers (math/03_loads.md, C8-C9, C10 batches).
 
 Written independently of every planner and solver: it only reads the compiled
 instance and the assignments, and reports every violated constraint. Test oracle
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class Violation:
-    constraint: str  # "C1".."C5" (math/01), "C6", "C7" (math/05); "C0" = operation not in the instance
+    constraint: str  # "C1".."C5" (math/01), "C6", "C7" (math/05), "C8".."C10" (math/03); "C0" = not in the instance
     ops: tuple[OpKey, ...]
     message: str
 
@@ -47,7 +48,7 @@ def check_schedule(
             starts_before_t(key, a.start, snapshot.t) if snapshot and o not in frozen else None,
         ]
         violations += [v for v in found if v]
-    return violations + machine_overlaps(ci, by_op)
+    return violations + run_on_several_machines(ci, by_op) + machine_overlaps(ci, by_op)
 
 
 def assigned_exactly_once(
@@ -119,23 +120,64 @@ def starts_before_t(key: OpKey, start: int, t: int) -> Violation | None:
     return None
 
 
-def machine_overlaps(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> list[Violation]:
-    """C5: sweep per machine over half-open intervals [S, C), reporting every overlapping pair."""
-    per_machine: dict[str, list[tuple[int, int, int]]] = defaultdict(list)
-    for o, a in by_op.items():
-        per_machine[a.machine].append((a.start, a.end, o))
+def run_on_several_machines(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> list[Violation]:
+    """C8: setup, main operation and removal of a run on one machine."""
     violations = []
+    for group in ci.machine_groups:
+        if len(machines := {by_op[o].machine for o in group if o in by_op}) > 1:
+            keys = tuple(ci.op_keys[o] for o in group)
+            violations.append(Violation("C8", keys, f"run {keys[0][0]} on several machines: {sorted(machines)}"))
+    return violations
+
+
+def machine_overlaps(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> list[Violation]:
+    """C5: sweep per machine over half-open intervals [S, C), reporting every overlapping pair.
+
+    C9: a run blocks its machine from the start of its first operation to the end of its last one, also in a gap
+    between them (e.g. a print that has finished and waits for its removal); a pair involving such a span is C9.
+
+    C10: operations of a batch step (capacity > 1) on one machine with identical start and end form one machine
+    run, holding at most the capacity; they occupy the machine as one interval.
+    """
+    in_group = {o: g for g in ci.machine_groups for o in g}
+    per_machine: dict[str, list[tuple[int, int, tuple[int, ...]]]] = defaultdict(list)
+    batches: dict[tuple[str, int, int], list[int]] = defaultdict(list)
+    violations = []
+    for o, a in by_op.items():
+        g = in_group.get(o)
+        if ci.batch_capacity[o] > 1:
+            batches[a.machine, a.start, a.end].append(o)
+        elif g is None or not all(q in by_op for q in g):
+            per_machine[a.machine].append((a.start, a.end, (o,)))
+        elif o == g[0]:
+            per_machine[a.machine].append((a.start, by_op[g[-1]].end, g))
+    for (machine, s, e), ops in batches.items():
+        per_machine[machine].append((s, e, tuple(ops)))
+        if len(ops) > (cap := min(ci.batch_capacity[o] for o in ops)):
+            violations.append(Violation("C10", tuple(ci.op_keys[o] for o in ops),
+                                        f"{len(ops)} operations in one run on {machine} [{s},{e}), capacity {cap}"))
     for machine, intervals in per_machine.items():
-        running: list[tuple[int, int, int]] = []
-        for s, e, o in sorted(intervals):
+        running: list[tuple[int, int, tuple[int, ...]]] = []
+        for s, e, ops in sorted(intervals):
             running = [iv for iv in running if iv[1] > s]
             violations += [
-                Violation("C5", (ci.op_keys[o2], ci.op_keys[o]),
-                          f"{ci.op_keys[o2]} [{s2},{e2}) and {ci.op_keys[o]} [{s},{e}) overlap on {machine}")
-                for s2, e2, o2 in running
+                Violation("C9" if (len(ops2) > 1 and ops2[0] in in_group) or (len(ops) > 1 and ops[0] in in_group)
+                          else "C5",
+                          (ci.op_keys[ops2[0]], ci.op_keys[ops[0]]),
+                          f"{_label(ci, ops2)} [{s2},{e2}) and {_label(ci, ops)} [{s},{e}) overlap on {machine}")
+                for s2, e2, ops2 in running
             ]
-            running.append((s, e, o))
+            running.append((s, e, ops))
     return violations
+
+
+def _label(ci: CompiledInstance, ops: tuple[int, ...]) -> str:
+    first, last = ci.op_keys[ops[0]], ci.op_keys[ops[-1]]
+    if len(ops) == 1:
+        return str(first)
+    if ops[0] not in {o for g in ci.machine_groups for o in g}:
+        return f"batch {[ci.op_keys[o][0] for o in ops]} ({first[1]})"
+    return f"run {first[0]} ({first[1]} to {last[1]})"
 
 
 def assert_feasible(ci: CompiledInstance, assignments: Iterable[Assignment]) -> None:

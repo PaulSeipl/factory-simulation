@@ -61,7 +61,7 @@ def test_tardiness_needs_due_dates():
 def test_edd_beats_spt_on_one_machine():
     # X (p 3, due 3) and Y (p 1, due 10) on one machine. SPT: Y [0, 1), X [1, 4), X is 1 late. EDD: X first, none late.
     ci = compile_instance(Instance.model_validate({
-        "schema_version": "0.3", "name": "edd", "machines": ["M1"], "orders": [
+        "schema_version": "0.4", "name": "edd", "machines": ["M1"], "orders": [
             {"id": "X", "due_date": 3, "operations": [{"id": "x", "step": "s", "options": {"M1": 3}}]},
             {"id": "Y", "due_date": 10, "operations": [{"id": "y", "step": "s", "options": {"M1": 1}}]},
         ]}))
@@ -104,7 +104,7 @@ def brute_force_tardiness(ci: CompiledInstance) -> dict[str, int | tuple[int, in
                 m, p = machines[o]
                 end[o] = max(ci.release[o], free[m], *(end[q] for q in ci.predecessors[o])) + p
                 free[m] = end[o]
-                order_end[ci.op_order[o]] = max(order_end[ci.op_order[o]], end[o])
+                order_end[ci.op_orders[o][0]] = max(order_end[ci.op_orders[o][0]], end[o])
             tardiness = sum(max(c - d, 0) for c, d in zip(order_end, due, strict=True))
             tardy = sum(c > d for c, d in zip(order_end, due, strict=True))
             values = {"total_tardiness": tardiness, "tardy_orders": tardy,

@@ -1,0 +1,51 @@
+{
+  "schema_version": "0.4",
+  "name": "toy-carriers",
+  "time_unit": "min",
+  "machines": ["D", "M", "P", "P2", "O", "Q", "S", "F"],
+  "orders": [
+    {"id": "A", "parts": [{"id": "s1", "type": "secondary"}, {"id": "s2", "type": "secondary"}, {"id": "p", "type": "primary"}],
+     "operations": [
+      {"id": "design", "step": "design", "options": {"D": 2}},
+      {"id": "mill", "step": "mill", "scope": "primary", "options": {"M": 3}, "predecessors": ["design"]},
+      {"id": "print", "step": "print", "scope": "carrier", "role": "form", "predecessors": ["design"]},
+      {"id": "oven", "step": "oven", "scope": "carrier", "predecessors": ["print"]},
+      {"id": "qm", "step": "qm", "scope": "carrier", "predecessors": ["oven", "mill"]},
+      {"id": "saw", "step": "saw", "scope": "carrier", "role": "separate", "predecessors": ["qm"]},
+      {"id": "finish", "step": "finish", "options": {"F": 1}, "predecessors": ["saw"]}
+    ]},
+    {"id": "B", "parts": [{"id": "s", "type": "secondary"}, {"id": "p", "type": "primary"}],
+     "operations": [
+      {"id": "design", "step": "design", "options": {"D": 2}},
+      {"id": "mill", "step": "mill", "scope": "primary", "options": {"M": 3}, "predecessors": ["design"]},
+      {"id": "print", "step": "print", "scope": "carrier", "role": "form", "predecessors": ["design"]},
+      {"id": "oven", "step": "oven", "scope": "carrier", "predecessors": ["print"]},
+      {"id": "qm", "step": "qm", "scope": "carrier", "predecessors": ["oven", "mill"]},
+      {"id": "saw", "step": "saw", "scope": "carrier", "role": "separate", "predecessors": ["qm"]},
+      {"id": "finish", "step": "finish", "options": {"F": 1}, "predecessors": ["saw"]}
+    ]},
+    {"id": "C", "parts": [{"id": "s", "type": "secondary"}],
+     "operations": [
+      {"id": "design", "step": "design", "options": {"D": 2}},
+      {"id": "print", "step": "print", "scope": "carrier", "role": "form", "predecessors": ["design"]},
+      {"id": "oven", "step": "oven", "scope": "carrier", "predecessors": ["print"]},
+      {"id": "qm", "step": "qm", "scope": "carrier", "predecessors": ["oven"]},
+      {"id": "saw", "step": "saw", "scope": "carrier", "role": "separate", "predecessors": ["qm"]},
+      {"id": "finish", "step": "finish", "options": {"F": 1}, "predecessors": ["saw"]}
+    ]}
+  ],
+  "carrier_steps": {
+    "print": {"options": {"P": 4, "P2": 5}, "setup": 1, "removal": 1},
+    "oven": {"options": {"O": 3}},
+    "qm": {"options": {"Q": 1}},
+    "saw": {"options": {"S": 1}}
+  },
+  "carriers": [
+    {"id": "L1", "parts": [["A", "s1"], ["B", "s"]]},
+    {"id": "L2", "parts": [["A", "s2"], ["C", "s"]]}
+  ],
+  "runs": [
+    {"id": "R1", "step": "print", "carriers": ["L1"]},
+    {"id": "R2", "step": "print", "carriers": ["L2"]}
+  ]
+}

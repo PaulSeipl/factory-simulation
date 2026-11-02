@@ -10,7 +10,7 @@ import random
 from pydantic import BaseModel, ConfigDict, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat
 
 from simulation.model.compiled import CompiledInstance
-from simulation.model.instance import Instance
+from simulation.model.instance import Instance, operation_graph
 
 
 class OperationFactor(BaseModel):
@@ -41,13 +41,14 @@ def sample_scenario(
     from a separate random stream, so switching them on does not change the factors of a seed.
     """
     rng, start_rng = random.Random(seed), random.Random(f"start-{seed}")
+    # every compiled operation, incl. carrier and run operations (owner in order_id); for instances without carriers
+    # the same operations in the same order as the routes, so the draws of a seed are unchanged
     factors = tuple(
         OperationFactor(
-            order_id=order.id, op_id=op.id, factor=rng.lognormvariate(-sigma**2 / 2, sigma),
+            order_id=owner, op_id=op_id, factor=rng.lognormvariate(-sigma**2 / 2, sigma),
             start_offset=0 if start_rng.random() < q else start_rng.randint(-max_early, max_late),
         )
-        for order in instance.orders
-        for op in order.operations
+        for owner, op_id in operation_graph(instance)
     )
     return Scenario(instance=instance.name, seed=seed, sigma=sigma, q=q, max_early=max_early, max_late=max_late,
                     factors=factors)

@@ -34,6 +34,7 @@ class EventType(IntEnum):
     LATE_START = 1  # a late start offset has elapsed: the waiting operation starts now
     PLANNED_START = 2  # planned start + min(offset, 0) reached; ignored if the plan has moved it since
     OVERDUE = 3  # a running operation has passed its expected end; ignored if it has completed
+    WAKE = 4  # a time point requested by the planning tool (e.g. periodic rescheduling); no effect in the factory
 
 
 class PlanNotExecutable(ValueError):
@@ -121,6 +122,8 @@ class Simulation:
                 self._record("COMPLETE", o)
             elif kind is EventType.LATE_START:
                 pass  # only marks the time point; the start step starts the operation
+            elif kind is EventType.WAKE:
+                pass
             elif kind is EventType.OVERDUE:
                 if state.end[o] is None:  # still running: the snapshot now expects its end at t + 1
                     state.push(state.t + 1, EventType.OVERDUE, o)
@@ -180,6 +183,14 @@ class Simulation:
                 self._set_planned_start(o)
                 if self.state.planned_start_at[o] == self.state.t:
                     self._on_planned_start(o)
+
+    def wake_at(self, t: int) -> None:
+        """Make t a time point of the run, so that the planning tool is called then (no effect in the factory)."""
+        self.state.push(t, EventType.WAKE, -1)
+
+    @property
+    def has_unstarted(self) -> bool:
+        return any(s is None for s in self.state.start)
 
     def realized(self) -> list[Assignment]:
         s = self.state

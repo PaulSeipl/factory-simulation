@@ -1,0 +1,133 @@
+{
+  "seed": 1,
+  "name": "dental-carriers-example",
+  "n_orders": 40,
+  "release_range": [
+    0,
+    480
+  ],
+  "route": [
+    {
+      "id": "design",
+      "step": "design",
+      "scope": "order",
+      "role": null,
+      "predecessors": []
+    },
+    {
+      "id": "mill",
+      "step": "mill",
+      "scope": "primary",
+      "role": null,
+      "predecessors": [
+        "design"
+      ]
+    },
+    {
+      "id": "print",
+      "step": "print",
+      "scope": "carrier",
+      "role": "form",
+      "predecessors": [
+        "design"
+      ]
+    },
+    {
+      "id": "oven",
+      "step": "oven",
+      "scope": "carrier",
+      "role": null,
+      "predecessors": [
+        "print"
+      ]
+    },
+    {
+      "id": "qm",
+      "step": "qm",
+      "scope": "carrier",
+      "role": null,
+      "predecessors": [
+        "oven",
+        "mill"
+      ]
+    },
+    {
+      "id": "saw",
+      "step": "saw",
+      "scope": "carrier",
+      "role": "separate",
+      "predecessors": [
+        "qm"
+      ]
+    },
+    {
+      "id": "finish",
+      "step": "finish",
+      "scope": "order",
+      "role": null,
+      "predecessors": [
+        "saw"
+      ]
+    }
+  ],
+  "machines": {
+    "design": 2,
+    "mill": 3,
+    "print": 2,
+    "oven": 1,
+    "qm": 1,
+    "saw": 1,
+    "finish": 2
+  },
+  "durations": {
+    "design": [
+      10,
+      20
+    ],
+    "mill": [
+      5,
+      10
+    ],
+    "print": [
+      60,
+      90
+    ],
+    "oven": [
+      90,
+      90
+    ],
+    "qm": [
+      10,
+      15
+    ],
+    "saw": [
+      5,
+      10
+    ],
+    "finish": [
+      10,
+      20
+    ]
+  },
+  "carried_type": "secondary",
+  "counted_type": "primary",
+  "count_range": [
+    1,
+    7
+  ],
+  "carrier_capacity": 12,
+  "carriers_per_run": 4,
+  "run_step": "print",
+  "setup": 10,
+  "removal": 10,
+  "unit_time": 8,
+  "estimator": {
+    "fixed": 20,
+    "share": 0.5
+  },
+  "due_date_tightness": [
+    1.5,
+    2.0,
+    2.5
+  ]
+}
