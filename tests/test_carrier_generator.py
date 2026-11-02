@@ -91,13 +91,97 @@ def test_generated_instance_is_solvable_and_replays_unchanged():
     ({"run_step": "design"}, r"run step 'design' is not a carrier step of the route"),
     ({"unit_time": None}, r"the estimator needs unit_time"),
     ({"count_range": (5, 2)}, r"count_range: min 5 > max 2"),
+    ({"batch_capacity": {"print": 3}}, r"batch_capacity for \['print'\]: only carrier steps other than the run step"),
+    ({"batch_capacity": {"oven": 1}}, r"greater than or equal to 2"),
 ])
 def test_invalid_parameters_rejected(changes, message):
     with pytest.raises(ValidationError, match=message):
         params(**changes)
 
 
+# blanks: primary parts of several orders on one blank (mill per blank, separation, polishing), carrier milling
+# per plate after the oven; both milling steps on the same mills
+BLANK_ROUTE = [
+    {"id": "design", "step": "design"},
+    {"id": "mill_blank", "step": "mill_blank", "scope": "carrier", "carries": "primary", "role": "form",
+     "predecessors": ["design"]},
+    {"id": "separate", "step": "separate", "scope": "carrier", "carries": "primary", "role": "separate",
+     "predecessors": ["mill_blank"]},
+    {"id": "polish", "step": "polish", "scope": "primary", "predecessors": ["separate"]},
+    {"id": "print", "step": "print", "scope": "carrier", "carries": "secondary", "role": "form",
+     "predecessors": ["design"]},
+    {"id": "oven", "step": "oven", "scope": "carrier", "carries": "secondary", "predecessors": ["print"]},
+    {"id": "mill_carrier", "step": "mill_carrier", "scope": "carrier", "carries": "secondary",
+     "predecessors": ["oven"]},
+    {"id": "qm", "step": "qm", "scope": "carrier", "carries": "secondary", "predecessors": ["mill_carrier", "polish"]},
+    {"id": "saw", "step": "saw", "scope": "carrier", "carries": "secondary", "role": "separate",
+     "predecessors": ["qm"]},
+    {"id": "finish", "step": "finish", "predecessors": ["saw"]},
+]
+BLANKS = {
+    "route": BLANK_ROUTE,
+    "machines": {"design": 2, "mill": 3, "bench": 2, "print": 2, "oven": 1, "qm": 1, "saw": 1, "finish": 2},
+    "machine_pool": {"mill_blank": "mill", "mill_carrier": "mill", "separate": "bench", "polish": "bench"},
+    "durations": {**{k: v for k, v in BASE["durations"].items() if k != "mill"}, "mill_blank": (30, 30),
+                  "mill_carrier": (20, 20), "separate": (5, 5), "polish": (3, 6)},
+    "per_carrier": {"mill_blank": {"setup": 5, "removal": 5, "unit_time": 12},
+                    "mill_carrier": {"setup": 5, "removal": 5, "unit_time": 4}},
+    "batch_capacity": {"oven": 3}, "blank_capacity": 6,
+}
+
+
+def test_blank_nesting_and_times_by_hand():
+    # 3 orders with 4 primary parts each, blank capacity 6, index order: B1 = O1 n1..n4 + O2 n1, n2;
+    # B2 = O2 n3, n4 + O3 n1..n4 (O2 spans two blanks)
+    inst = generate_carrier_instance(params(**BLANKS, n_orders=3, release_range=(0, 0), count_range=(4, 4)))
+    blanks = [(c.id, c.parts) for c in inst.carriers if c.id.startswith("B")]
+    assert blanks == [("B1", (("O1", "n1"), ("O1", "n2"), ("O1", "n3"), ("O1", "n4"), ("O2", "n1"), ("O2", "n2"))),
+                      ("B2", (("O2", "n3"), ("O2", "n4"), ("O3", "n1"), ("O3", "n2"), ("O3", "n3"), ("O3", "n4")))]
+    parts = {p.id: p for p in inst.orders[0].parts}
+    assert parts["c"].times == {"print": 32, "mill_carrier": 16}  # 4 telescopes * 4
+    assert parts["n1"].times == {"mill_blank": 12}
+    assert set(inst.carrier_steps["mill_blank"].options) == set(inst.carrier_steps["mill_carrier"].options) == {
+        "mill1", "mill2", "mill3"}
+    assert inst.carrier_steps["mill_carrier"].runs == "per_carrier"
+    ci = compile_instance(inst)
+    assert dict(ci.options[ci.op_index["B1", "mill_blank"]]) == dict.fromkeys(
+        (ci.machine_index[m] for m in ("mill1", "mill2", "mill3")), 6 * 12)
+    polish = {ci.op_keys[q] for q in ci.predecessors[ci.op_index["O2", "polish"]]}
+    assert polish == {("B1", "separate"), ("B2", "separate")}  # O2's primary parts are on both blanks
+
+
+def test_generated_instance_with_blanks_is_solvable_and_replays_unchanged():
+    ci = compile_instance(generate_carrier_instance(params(**BLANKS, n_orders=6)))
+    for plan in (dispatch(ci, spt, ect), solve(ci, time_limit=10, workers=1).schedule):
+        assert check_schedule(ci, plan) == []
+        assert {(a.order_id, a.op_id): (a.machine, a.start) for a in replay(ci, plan).schedule} == {
+            (a.order_id, a.op_id): (a.machine, a.start) for a in plan}
+
+
+@pytest.mark.parametrize(("changes", "message"), [
+    ({"blank_capacity": None}, r"blank_capacity is needed exactly when carrier operations carry 'primary'"),
+    ({"per_carrier": {**BLANKS["per_carrier"], "print": {"unit_time": 1}}},
+     r"per_carrier for \['print'\]: only carrier steps other than the run step and batch steps"),
+    ({"per_carrier": {**BLANKS["per_carrier"], "oven": {"unit_time": 1}}}, r"per_carrier for \['oven'\]"),
+    ({"machine_pool": {**BLANKS["machine_pool"], "grind": "mill"}}, r"machine_pool for steps \['grind'\] not in the"),
+    ({"machine_pool": {**BLANKS["machine_pool"], "polish": "lathe"}}, r"no machines for steps \['polish'\]"),
+    ({"route": [{**op, "carries": "tertiary"} if op["id"] == "oven" else op for op in BLANK_ROUTE]},
+     r"carrier operations carry \['tertiary'\]"),
+    ({"route": [{**op, "carries": "primary"} if op["id"] == "print" else op for op in BLANK_ROUTE]},
+     r"run step 'print' must not carry 'primary'"),
+])
+def test_invalid_blank_parameters_rejected(changes, message):
+    with pytest.raises(ValidationError, match=message):
+        params(**{**BLANKS, **changes})
+
+
+def test_blank_capacity_without_blanks_rejected():
+    with pytest.raises(ValidationError, match=r"blank_capacity is needed exactly when"):
+        params(blank_capacity=6)
+
+
 def test_example_parameter_file():
     path = Path(__file__).parents[1] / "data" / "generator" / "dental-carriers-example.json"
     inst = generate_carrier_instance(read_model(path, CarrierGeneratorParams))
     assert len(inst.orders) == 40 and all(o.due_date is not None for o in inst.orders)
+    assert inst.carrier_steps["oven"].batch_capacity == 3

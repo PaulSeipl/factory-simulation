@@ -38,3 +38,17 @@ def test_plot_carriers_draws_one_segment_per_carried_part():
     assert sum(isinstance(p, Rectangle) for p in ax.patches) == sum(len(c.parts) for c in inst.carriers)
     assert [t.get_text() for t in ax.get_yticklabels()] == ["R1 · L1", "R2 · L2"]
     plt.close(ax.figure)
+
+
+def test_plot_gantt_draws_one_bar_per_batch():
+    import json
+
+    d = json.loads((Path(__file__).parents[1] / "data" / "instances" / "toy-carriers.json").read_text(encoding="utf-8"))
+    d["carrier_steps"]["oven"]["batch_capacity"] = 3
+    d["runs"] = [{"id": "R1", "step": "print", "carriers": ["L1", "L2"]}]
+    ci = compile_instance(Instance.model_validate(d))
+    schedule = dispatch(ci, spt, least_load)  # L1 and L2 share one oven run
+    ax = plot_gantt(ci, schedule)
+    assert sum(isinstance(p, Rectangle) for p in ax.patches) == len(schedule) - 1
+    assert "L1+L2/oven" in [t.get_text() for t in ax.texts]
+    plt.close(ax.figure)

@@ -113,4 +113,4 @@ def _carrier_step(instance: Instance, key: OpKey) -> str | None:
     if carrier is None:
         return None
     order = next(o for o in instance.orders if o.id == carrier.parts[0][0])
-    return next(op.step for op in order.operations if op.id == key[1])
+    return next((op.step for op in order.operations if op.id == key[1]), None)  # None: setup, removal of a run

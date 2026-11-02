@@ -7,6 +7,10 @@ released. An early start offset releases it before its planned start (it starts 
 start offset delays the start by that many minutes after the operation has reached its planned start
 and is ready (the worker comes late, counted once). Realized durations come from the scenario.
 
+A batch (operations of a batch step planned on one machine with the same start, e.g. carriers in one oven run)
+starts jointly once all its operations are ready; the program fixes its duration, so scenario factors do not
+apply to it (math/03_loads.md).
+
 A running operation that has not completed by its expected end (planned duration; afterwards every minute)
 raises an OVERDUE event. It changes nothing in the factory; it only gives the planning tool a time point at
 which it sees the overrun, as an MES would report it.
@@ -57,6 +61,7 @@ class SimState:
     next_pos: list[int] = field(default_factory=list)  # per machine: position of the next op in its planned order
     released: set[int] = field(default_factory=set)  # released to the shop floor, not started yet
     late_start_at: list[int | None] = field(default_factory=list)  # per op: start time after a late offset
+    batch: list[tuple[int, ...]] = field(default_factory=list)  # per op: its planned batch, (o,) if none
     start: list[int | None] = field(default_factory=list)  # per op: actual start
     end: list[int | None] = field(default_factory=list)  # per op: actual completion
 
@@ -81,12 +86,14 @@ class Simulation:
         self.ci = ci
         self.log: list[dict] = []
         disturbance = factors_by_index(ci, scenario) if scenario else None
-        self.factor = [d.factor for d in disturbance] if disturbance else [1.0] * ci.n_ops
+        # a batch step's program fixes its duration: no deviation
+        self.factor = [1.0 if ci.batch_capacity[o] > 1 else d.factor for o, d in enumerate(disturbance)] \
+            if disturbance else [1.0] * ci.n_ops
         self.offset = [d.start_offset for d in disturbance] if disturbance else [0] * ci.n_ops
         self.state = SimState(
             machine=[0] * ci.n_ops, planned_start=[0] * ci.n_ops, planned_end=[0] * ci.n_ops,
             planned_start_at=[None] * ci.n_ops, running=[None] * ci.n_machines, start=[None] * ci.n_ops,
-            end=[None] * ci.n_ops, late_start_at=[None] * ci.n_ops,
+            end=[None] * ci.n_ops, late_start_at=[None] * ci.n_ops, batch=[(o,) for o in range(ci.n_ops)],
         )
         self.duration = [0] * ci.n_ops  # realized durations on the currently planned machines
         self._apply(plan)
@@ -132,28 +139,35 @@ class Simulation:
         return state.t
 
     def start_operations(self) -> None:
-        """Start every released operation that can start now (a start cannot enable another one: p >= 1)."""
+        """Start every released operation that can start now (a start cannot enable another one: p >= 1).
+
+        A batch is handled by its first operation and starts only when all its operations are ready; a late
+        start offset of any of them delays the whole batch (the largest one counts).
+        """
         state = self.state
         for o in sorted(state.released):
-            m = state.machine[o]
+            m, batch = state.machine[o], state.batch[o]
             if (
-                state.t >= self.ci.release[o]
+                o == batch[0]
                 and state.running[m] is None
                 and state.order_on[m][state.next_pos[m]] == o
-                and all(state.end[q] is not None for q in self.ci.predecessors[o])
+                and all(q in state.released and state.t >= self.ci.release[q]
+                        and all(state.end[p] is not None for p in self.ci.predecessors[q]) for q in batch)
             ):
-                if self.offset[o] > 0 and state.late_start_at[o] is None:
+                offset = max(self.offset[q] for q in batch)
+                if offset > 0 and state.late_start_at[o] is None:
                     # planned start reached and ready: the worker comes offset minutes later, machine stays reserved
-                    state.late_start_at[o] = state.t + self.offset[o]
+                    state.late_start_at[o] = state.t + offset
                     state.push(state.late_start_at[o], EventType.LATE_START, o)
                 if state.late_start_at[o] is not None and state.t < state.late_start_at[o]:
                     continue
-                state.released.remove(o)
-                state.running[m], state.start[o] = o, state.t
-                state.push(state.t + self.duration[o], EventType.COMPLETE, o)
-                # expected end from the planned duration, never from the scenario (snapshot, no leakage)
-                state.push(state.t + dict(self.ci.options[o])[m], EventType.OVERDUE, o)
-                self._record("START", o)
+                for q in batch:
+                    state.released.remove(q)
+                    state.running[m], state.start[q] = q, state.t
+                    state.push(state.t + self.duration[q], EventType.COMPLETE, q)
+                    # expected end from the planned duration, never from the scenario (snapshot, no leakage)
+                    state.push(state.t + dict(self.ci.options[q])[m], EventType.OVERDUE, q)
+                    self._record("START", q)
 
     def check_completed(self) -> None:
         if any(e is None for e in self.state.end):
@@ -212,6 +226,7 @@ class Simulation:
         s.order_on = [[] for _ in range(ci.n_machines)]
         for o in sorted(range(ci.n_ops), key=lambda o: (s.planned_start[o], o)):
             s.order_on[s.machine[o]].append(o)
+        s.batch = list(planned_batches(ci, s.machine, s.planned_start, s.start))
         s.next_pos = [sum(s.end[o] is not None for o in ops) for ops in s.order_on]
 
     def _planned_start_time(self, o: int) -> int:
@@ -230,6 +245,21 @@ class Simulation:
         order_id, op_id = self.ci.op_keys[o]
         self.log.append({"t": self.state.t, "type": kind, "order_id": order_id, "op_id": op_id,
                          "machine": self.ci.machine_ids[self.state.machine[o]]})
+
+
+def planned_batches(
+    ci: CompiledInstance, machine: Sequence[int], planned_start: Sequence[int], start: Sequence[int | None]
+) -> list[tuple[int, ...]]:
+    """Per operation its batch: not started operations of a batch step with the same machine and planned start."""
+    groups: dict[tuple[int, int], list[int]] = {}
+    for o in range(ci.n_ops):
+        if ci.batch_capacity[o] > 1 and start[o] is None:
+            groups.setdefault((machine[o], planned_start[o]), []).append(o)
+    batch = [(o,) for o in range(ci.n_ops)]
+    for ops in groups.values():
+        for o in ops:
+            batch[o] = tuple(ops)
+    return batch
 
 
 def _describe(violations) -> str:

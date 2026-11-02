@@ -1,7 +1,8 @@
 """Plots for instances and schedules (matplotlib, dev dependency only).
 
 - plot_orders: precedence graph of selected orders, operations in columns by depth
-- plot_gantt: schedule per machine, bars colored by order (carrier operations light grey, runs dark grey)
+- plot_gantt: schedule per machine, bars colored by order (carrier operations light grey, runs dark grey,
+  one bar per batch)
 - plot_carriers: nesting: carriers grouped by run (load), parts colored by order
 """
 
@@ -84,14 +85,19 @@ def plot_gantt(ci: CompiledInstance, assignments: Iterable[Assignment], ax: Axes
         _, ax = plt.subplots(figsize=(12, 0.45 * ci.n_machines + 1.2))
     horizon = max((a.end for a in assignments), default=1)
     orders, in_run = set(ci.order_ids), {o for g in ci.machine_groups for o in g}
+    bars: dict[tuple[str, int, int], list[Assignment]] = {}  # a batch (same machine and times) is one bar
     for a in assignments:
-        o = ci.op_index[a.order_id, a.op_id]
+        batched = ci.batch_capacity[ci.op_index[a.order_id, a.op_id]] > 1
+        bars.setdefault((a.machine, a.start, a.end) if batched else (a.order_id, a.op_id, -1), []).append(a)
+    for members in bars.values():
+        a, o = members[0], ci.op_index[members[0].order_id, members[0].op_id]
         # an operation of a carrier or run serves several orders: shared colors instead of one order's color
         color = order_color(ci, ci.op_orders[o][0]) if a.order_id in orders else "0.5" if o in in_run else "0.78"
         row = ci.machine_index[a.machine]
         ax.barh(row, a.end - a.start, left=a.start, height=0.7, color=color, edgecolor="white")
         if a.end - a.start >= 0.04 * horizon:  # label only bars wide enough to hold it
-            ax.text((a.start + a.end) / 2, row, f"{a.order_id}/{a.op_id}", ha="center", va="center", fontsize=7)
+            label = "+".join(m.order_id for m in members) + f"/{a.op_id}"
+            ax.text((a.start + a.end) / 2, row, label, ha="center", va="center", fontsize=7)
     ax.set_yticks(range(ci.n_machines), ci.machine_ids)
     ax.set_ylim(ci.n_machines - 0.5, -0.5)
     ax.set_xlim(0, horizon)

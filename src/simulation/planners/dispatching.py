@@ -10,6 +10,10 @@ Without an assignment rule ("joint"):
 
 Both variants are non-delay: a machine never stays idle while a candidate could start on it.
 
+A batch step (e.g. oven) is batched greedily: when an operation of it is chosen at time t on machine m, the
+other operations of a batch step that are ready by t and may use m with the same duration join it, in the order of
+the sequencing rule, up to the capacity.
+
 A run (setup, main operation, removal; math/03_loads.md) is dispatched as one unit: its first operation stands for
 the whole run, and when it is chosen the run's operations are placed back to back on one machine (C8, C9).
 
@@ -170,16 +174,25 @@ def dispatch(
             (c for c in candidates if c[0] == t),
             key=lambda c: (*sequencing(ci, state, c[1], c[2], c[3]), c[1], c[2]),
         )
-        del ready[o]
-        if assignment is None:
-            state.load[m] += p
-        else:
-            state.backlog[m] -= p
+        batch = [o]
+        if ci.batch_capacity[o] > 1:  # greedy: the ready operations that fit on m with the same duration join
+            mates = [(q, mp) for q, mps in ready.items() for mp in mps if q != o and ci.batch_capacity[q] > 1
+                     and mp == (m, p) and state.ready_at[q] <= t]
+            mates.sort(key=lambda qm: (*sequencing(ci, state, qm[0], m, p), qm[0]))
+            batch += [q for q, _ in mates[:ci.batch_capacity[o] - 1]]
+        for q in batch:
+            del ready[q]
+            if assignment is None:
+                state.load[m] += p
+            else:
+                state.backlog[m] -= p
 
         state.machine_free[m] = t + p
         group = run_of.get(o)
         start = t
-        for q in group or (o,):  # a run back to back on one machine; a single operation otherwise
+        for q in group or batch:  # a run back to back on one machine; a batch (or one operation) at t
+            if not group:
+                start = t
             end = start + (dict(ci.options[q])[m] if group else p)
             owner, op_id = ci.op_keys[q]
             out.append(Assignment(order_id=owner, op_id=op_id, machine=ci.machine_ids[m], start=start, end=end))

@@ -202,7 +202,7 @@ def m_run_unknown_carrier(d):
 
 
 def m_run_step_not_passed(d):
-    d["carrier_steps"]["glaze"] = {"options": {"O": 1}}
+    d["carrier_steps"]["glaze"] = {"options": {"O": 1}, "runs": "given"}
     d["runs"].append({"id": "R3", "step": "glaze", "carriers": ["L1"]})
 
 
@@ -227,6 +227,8 @@ def m_cycle_through_runs(d):
     d["runs"] += [{"id": "R3", "step": "print", "carriers": ["L3"]},
                   {"id": "R4", "step": "oven", "carriers": ["L1", "L2", "L3"]},
                   {"id": "R5", "step": "qm", "carriers": ["L1", "L2", "L3"]}]
+    for step in ("oven", "qm"):
+        d["carrier_steps"][step]["runs"] = "given"
 
 
 @pytest.mark.parametrize(("mutate", "message"), [

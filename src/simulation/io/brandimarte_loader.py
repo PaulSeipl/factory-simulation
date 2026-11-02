@@ -62,7 +62,7 @@ def load_fjs(path: str | Path) -> Instance:
 
     return Instance.model_validate(
         {
-            "schema_version": "0.4",
+            "schema_version": "0.5",
             "name": path.stem,
             "machines": [f"M{i}" for i in range(1, n_machines + 1)],
             "orders": orders,

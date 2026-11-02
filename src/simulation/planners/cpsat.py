@@ -12,6 +12,9 @@ machine than in the reference plan.
 Runs (math/03_loads.md): the operations of a run choose the same machine (C8), and instead of their own
 intervals one interval from the start of the first to the end of the last operation enters the machine's
 no-overlap constraint (C9: the machine is blocked also while the removal waits).
+
+Batches (C10): operations of a batch step are assigned to batch slots; a used slot has a machine and a start,
+occupies the machine once and holds at most the capacity; an operation in a slot takes its machine and start.
 """
 
 from collections.abc import Sequence
@@ -59,7 +62,8 @@ def solve(
     ends: list[cp_model.IntVar] = []
     choice: list[list[tuple[int, cp_model.IntVar]]] = []  # per op: (machine, x_{o,m})
     per_machine: list[list[cp_model.IntervalVar]] = [[] for _ in range(ci.n_machines)]
-    in_run = {o for g in ci.machine_groups for o in g}  # occupy their machine through the run's span (C9)
+    # occupy their machine through the run's span (C9) or through their batch slot (C10)
+    in_run = {o for g in ci.machine_groups for o in g} | {o for o in range(ci.n_ops) if ci.batch_capacity[o] > 1}
 
     for o in range(ci.n_ops):
         if (f := frozen.get(o)) is not None:  # C7: fixed machine and times (realized or expected end)
@@ -94,6 +98,34 @@ def solve(
         for m, x in x_first.items():  # C9: the machine is blocked from the first start to the last end
             blocked = model.new_optional_interval_var(starts[g[0]], span, ends[g[-1]], x, f"run_{g[0]}_{m}")
             per_machine[m].append(blocked)
+    families: dict[tuple, list[int]] = {}  # operations that may share a batch: same options and capacity
+    for o in range(ci.n_ops):
+        if ci.batch_capacity[o] > 1:
+            families.setdefault((ci.options[o], ci.batch_capacity[o]), []).append(o)
+    for (options, capacity), ops in families.items():
+        used, slot_start, slot_machine, members = [], [], [], []
+        for j in range(len(ops)):  # at most one slot per operation
+            used.append(model.new_bool_var(f"batch_{ops[0]}_{j}"))
+            slot_start.append(model.new_int_var(0, horizon, f"T_{ops[0]}_{j}"))
+            slot_machine.append({m: model.new_bool_var(f"z_{ops[0]}_{j}_{m}") for m, _ in options})
+            model.add(sum(slot_machine[j].values()) == used[j])
+            for m, p in options:
+                per_machine[m].append(model.new_optional_fixed_size_interval_var(
+                    slot_start[j], p, slot_machine[j][m], f"slot_{ops[0]}_{j}_{m}"))
+            members.append([])
+            if j:
+                model.add(used[j] <= used[j - 1])  # symmetry: slots are used from the front
+        for i, o in enumerate(ops):
+            y = [model.new_bool_var(f"y_{o}_{j}") for j in range(i + 1)]  # symmetry: operation i uses a slot <= i
+            model.add_exactly_one(y)
+            x_of = dict(choice[o])
+            for j, y_oj in enumerate(y):
+                model.add(starts[o] == slot_start[j]).only_enforce_if(y_oj)
+                for m, z in slot_machine[j].items():
+                    model.add(z == x_of.get(m, 0)).only_enforce_if(y_oj)
+                members[j].append(y_oj)
+        for j in range(len(ops)):
+            model.add(sum(members[j]) <= capacity * used[j])
     for intervals in per_machine:
         model.add_no_overlap(intervals)  # C5
 

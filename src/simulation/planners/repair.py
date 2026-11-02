@@ -1,6 +1,7 @@
 """Shift repair (math/05_rescheduling-frozen-part.md): re-time the operations not yet started.
 
-Machine and order per machine stay as planned. An operation whose planned start was tight (equal to
+Machine and order per machine stay as planned; a batch (math/03_loads.md) moves as one: its operations start
+together at the latest start any of them needs. An operation whose planned start was tight (equal to
 the end of a predecessor, of the previous operation on its machine, or to its release) moves with its
 blocker, earlier or later; an operation with a gap keeps its planned start unless its blocker now
 ends later. Only what a planner may know at time t is used: realized times of finished operations,
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment
+from simulation.sim.des import planned_batches
 
 if TYPE_CHECKING:
     from simulation.sim.snapshot import Snapshot
@@ -45,14 +47,24 @@ def shift_repair(
             new_start[o] = start[o]
             new_end[o] = end[o] if end[o] is not None else max(start[o] + p[o], t + 1)
 
-    # planned starts of a feasible plan respect precedence and machine order, so blockers come first
-    for o in sorted((o for o in range(ci.n_ops) if start[o] is None), key=lambda o: (planned_start[o], o)):
+    batch = planned_batches(ci, machine, planned_start, start)
+    for ops in set(batch):
+        for b in ops[1:]:  # within a batch nobody waits for a fellow member
+            prev[b] = prev[ops[0]]
+
+    def candidate(o: int) -> int:
         blockers = [*ci.predecessors[o], *([prev[o]] if prev[o] is not None else [])]
         old_block = max([ci.release[o], *(planned_end[q] for q in blockers)])
         new_block = max([t, ci.release[o], *(new_end[q] for q in blockers)])
-        tight = planned_start[o] == old_block
-        new_start[o] = new_block if tight else max(planned_start[o], new_block)
-        new_end[o] = new_start[o] + p[o]
+        return new_block if planned_start[o] == old_block else max(planned_start[o], new_block)  # tight or gap
+
+    # planned starts of a feasible plan respect precedence and machine order, so blockers come first
+    for o in sorted((o for o in range(ci.n_ops) if start[o] is None), key=lambda o: (planned_start[o], o)):
+        if o != batch[o][0]:
+            continue  # placed with its batch
+        s = max(candidate(q) for q in batch[o])
+        for q in batch[o]:
+            new_start[q], new_end[q] = s, s + p[q]
     return new_start, new_end
 
 
