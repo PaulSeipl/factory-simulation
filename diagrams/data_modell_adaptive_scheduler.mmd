@@ -1,0 +1,389 @@
+classDiagram
+    direction LR
+
+    %% ===== Request root =====
+    class ProblemInstance {
+        +String instanceId
+        +DateTime planningTime
+        +String routingVersion
+    }
+
+    class Configuration {
+        +Map~Objective, Float~ objectiveWeights
+        +Duration timeBudget
+        +Duration frozenHorizon
+        +Duration planningHorizon
+        +RunMode mode
+        +Int seed
+        +String algorithm
+    }
+
+    %% ===== Master data: process definition (mirrors MES StepSpec) =====
+    class Routing {
+        +String routingId
+        +String version
+        +String productType
+    }
+
+    class RoutingOperation {
+        +String operationId
+        +String name
+        +OperationKind kind
+        +Lane lane
+        +List~String~ predecessorIds
+        +ResourceKind resource
+        +UnitKind unitKind
+        +Float attendedBase
+        +Float attendedPerUnit
+        +Float unattendedBase
+        +Float unattendedPerUnit
+        +Float extraPartDiscount
+        +Boolean hasHandoff
+        +Int maxBatch
+        +Distribution durationDistribution
+        +String continuityGroupId
+        +Boolean formsBatch
+        +CarrierType carrierType
+        +Boolean sameCarrierSetPerRun
+        +String couplingUntilOperationId
+        +String reworkOperationId
+        +String scrapRestartOperationId
+        +Float reworkProbability
+        +Float scrapProbability
+        +ReworkPolicy reworkPolicy
+    }
+
+    %% ===== Resources =====
+    class Machine {
+        +String machineId
+        +ResourceKind resource
+        +Int capacity
+        +UnitKind capacityUnit
+        +String calendarPatternId
+    }
+
+    class Worker {
+        +String workerId
+        +String calendarPatternId
+    }
+
+    class PlateSet {
+        +String plateSetId
+        +PlateSetStatus status
+    }
+
+    class Plate {
+        +String plateId
+        +String plateSetId
+    }
+
+    %% ===== Arrival forecast (expected future orders) =====
+    class ArrivalForecast {
+        +String forecastId
+        +Date validFrom
+        +Date validUntil
+    }
+
+    class ForecastBucket {
+        +DayOfWeek dayOfWeek
+        +Time startTime
+        +Time endTime
+        +Float expectedOrders
+        +Float stdDev
+    }
+
+    class OrderProfile {
+        +String routingId
+        +Distribution primaryPartsPerOrder
+        +Distribution teethPerPart
+        +Distribution telescopesPerPart
+        +Float share
+    }
+
+    %% ===== Calendars: recurring weekly pattern + exceptions =====
+    class CalendarPattern {
+        +String calendarPatternId
+        +String name
+    }
+
+    class CalendarSlot {
+        +DayOfWeek dayOfWeek
+        +Time startTime
+        +Time endTime
+    }
+
+    class CalendarException {
+        +DateTime start
+        +DateTime end
+        +ExceptionType type
+    }
+
+    class Holiday {
+        +Date date
+        +String name
+    }
+
+    %% ===== Transactional data: orders, parts, progress =====
+    class Order {
+        +String orderId
+        +OrderKind kind
+        +String routingId
+        +String targetPlateSetId
+        +OrderStatus status
+        +DateTime releaseDate
+        +DateTime dueDate
+        +Int priority
+    }
+
+    class Part {
+        +String partId
+        +String orderId
+        +PartType partType
+        +PartStatus status
+        +String replacesPartId
+        +Int teethCount
+        +Int telescopeCount
+    }
+
+    class OperationState {
+        +String orderId
+        +String partId
+        +String operationId
+        +OperationStatus status
+        +Int attempt
+        +QualityOutcome qualityOutcome
+        +DateTime actualStart
+        +DateTime actualEnd
+        +String assignedMachineId
+        +String assignedWorkerId
+        +String batchId
+        +String loadId
+    }
+
+    class Batch {
+        +String batchId
+        +CarrierType carrierType
+        +String plateId
+        +String formingOperationId
+        +String machineId
+        +List~String~ memberPartIds
+        +OperationStatus status
+        +String coupledUntilOperationId
+    }
+
+    %% ===== Schedule (output, and previous plan as input) =====
+    class Schedule {
+        +String scheduleId
+        +DateTime createdAt
+        +String algorithm
+        +String modelVersion
+        +SolverStatus solverStatus
+        +Map~Objective, Float~ objectiveValues
+        +Float optimalityGap
+        +Duration computeTime
+    }
+
+    class ScheduledOperation {
+        +String orderId
+        +String partId
+        +String operationId
+        +DateTime plannedStart
+        +DateTime plannedEnd
+        +String machineId
+        +String workerId
+        +String batchId
+        +String loadId
+        +Boolean frozen
+    }
+
+    %% ===== Nesting coordination (output to Nesting) =====
+    class PrintDeadline {
+        +String orderId
+        +String partId
+        +DateTime earliestPrintStart
+        +DateTime latestPrintEnd
+    }
+
+    class PrintSlot {
+        +String machineId
+        +String plateSetId
+        +DateTime start
+        +Duration maxDuration
+    }
+
+    %% ===== Enumerations =====
+    class OperationKind {
+        <<enumeration>>
+        TASK
+        MACHINE_RUN
+    }
+
+    class Lane {
+        <<enumeration>>
+        PRIMARY
+        SECONDARY
+        ORDER
+    }
+
+    class ResourceKind {
+        <<enumeration>>
+        AM
+        MILL
+        OVEN
+        COM
+    }
+
+    class UnitKind {
+        <<enumeration>>
+        PART
+        PLATE
+        ORDER
+    }
+
+    class CarrierType {
+        <<enumeration>>
+        PLATE
+        BLANK
+    }
+
+    class OrderKind {
+        <<enumeration>>
+        CUSTOMER
+        MAINTENANCE
+        FORECAST
+    }
+
+    class PlateSetStatus {
+        <<enumeration>>
+        AVAILABLE
+        IN_USE
+        AWAITING_GRINDING
+        GRINDING
+    }
+
+    class OrderStatus {
+        <<enumeration>>
+        RECEIVED
+        PREPRODUCTION
+        ON_HOLD
+        RELEASED
+        IN_PRODUCTION
+        COMPLETED
+    }
+
+    class OperationStatus {
+        <<enumeration>>
+        PENDING
+        IN_PROGRESS
+        COMPLETED
+        SCRAPPED
+    }
+
+    class PartStatus {
+        <<enumeration>>
+        ACTIVE
+        SCRAPPED
+        COMPLETED
+    }
+
+    class QualityOutcome {
+        <<enumeration>>
+        PASS
+        REWORK
+        SCRAP
+    }
+
+    class ReworkPolicy {
+        <<enumeration>>
+        NONE
+        EXPECTED_BUFFER
+        ALWAYS
+    }
+
+    class PartType {
+        <<enumeration>>
+        PRIMARY
+        SECONDARY
+    }
+
+    class ExceptionType {
+        <<enumeration>>
+        ABSENCE
+        DOWNTIME
+        MAINTENANCE
+        RESERVED
+        EXTRA_CAPACITY
+    }
+
+    class RunMode {
+        <<enumeration>>
+        OPERATIONAL
+        EXPERIMENT
+    }
+
+    class SolverStatus {
+        <<enumeration>>
+        OPTIMAL
+        FEASIBLE
+        FALLBACK
+        INFEASIBLE
+    }
+
+    class Objective {
+        <<enumeration>>
+        MAKESPAN
+        TOTAL_TARDINESS
+        WORKLOAD_BALANCE
+        SCHEDULE_STABILITY
+    }
+
+    %% ===== Relationships =====
+    ProblemInstance "1" *-- "1" Configuration
+    ProblemInstance "1" *-- "1..*" Routing
+    ProblemInstance "1" *-- "1..*" Machine
+    ProblemInstance "1" *-- "1..*" Worker
+    ProblemInstance "1" *-- "0..*" PlateSet
+    ProblemInstance "1" *-- "1..*" Order
+    ProblemInstance "1" *-- "0..*" Batch
+    ProblemInstance "1" *-- "1..*" CalendarPattern
+    ProblemInstance "1" *-- "0..*" Holiday : factory-wide
+    ProblemInstance "1" o-- "0..1" Schedule : previousSchedule
+    ProblemInstance "1" *-- "0..1" ArrivalForecast
+    ArrivalForecast "1" *-- "1..*" ForecastBucket
+    ArrivalForecast "1" *-- "1..*" OrderProfile
+    OrderProfile "0..*" --> "1" Routing : typical routing
+
+    Routing "1" *-- "1..*" RoutingOperation
+    RoutingOperation "0..*" --> "0..*" RoutingOperation : predecessors
+
+    CalendarPattern "1" *-- "1..*" CalendarSlot
+    Machine "0..*" --> "1" CalendarPattern : follows
+    Worker "0..*" --> "1" CalendarPattern : follows
+    Machine "1" *-- "0..*" CalendarException
+    Worker "1" *-- "0..*" CalendarException
+
+    Order "0..*" --> "1" Routing : follows
+    Order "1" *-- "1..*" Part
+    Part "0..1" --> "0..1" Part : replaces
+    RoutingOperation "0..*" --> "0..1" RoutingOperation : rework edge
+    RoutingOperation "0..*" --> "0..1" RoutingOperation : scrap restart
+    Order "1" *-- "1..*" OperationState : progress
+    OperationState "0..*" --> "1" RoutingOperation : instance of
+    OperationState "0..*" --> "0..1" Part : for part
+    OperationState "0..*" --> "0..1" Machine : assigned
+    OperationState "0..*" --> "0..1" Worker : assigned
+    OperationState "0..*" --> "0..1" Batch : member of
+
+    Batch "0..*" --> "0..1" Machine : formed on
+    Batch "0..*" --> "0..1" Plate : on plate
+    PlateSet "1" *-- "1..*" Plate
+    Order "0..*" --> "0..1" PlateSet : grinds
+    Batch "0..*" --> "1..*" Part : couples
+
+    Schedule "1" *-- "1..*" ScheduledOperation
+    ScheduledOperation "0..*" --> "1" Order
+    ScheduledOperation "0..*" --> "1" RoutingOperation
+    Schedule "1" *-- "0..*" PrintDeadline
+    Schedule "1" *-- "0..*" PrintSlot
+    PrintDeadline "0..*" --> "1" Order
+    PrintSlot "0..*" --> "1" Machine

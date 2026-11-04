@@ -1,0 +1,147 @@
+classDiagram
+    direction LR
+
+    %% All times are Int = minutes relative to planningTime (t = 0)
+
+    %% ===== Input =====
+    class SolverInstance {
+        +Int horizon
+        +Map~Objective, Float~ objectiveWeights
+        +Budget budget
+        +Int seed
+        +String algorithm
+    }
+
+    class Order {
+        +String orderId
+        +Int releaseTime
+        +Int dueTime
+        +OrderKind kind
+        +Int priority
+        +Float objectiveWeight
+        +Boolean released
+    }
+
+    class Operation {
+        +String opId
+        +String orderId
+        +String partId
+        +String stepId
+        +OperationKind kind
+        +List~String~ predecessorOpIds
+        +List~String~ eligibleMachineIds
+        +Float workUnits
+        +Int attendedBase
+        +Int attendedPerUnit
+        +Int unattendedBase
+        +Int unattendedPerUnit
+        +Map~Int, Int~ batchDurationTable
+        +Boolean hasHandoff
+        +Int maxBatch
+        +String continuityGroupId
+        +Boolean formsBatch
+        +Boolean sameCarrierSetPerRun
+        +String couplingUntilStepId
+        +Boolean tentative
+    }
+
+    class Resource {
+        +String resourceId
+        +ResourceType type
+        +Int capacity
+        +String releasedByOpId
+    }
+
+    class AvailabilityInterval {
+        +Int start
+        +Int end
+    }
+
+    class ExistingBatch {
+        +String batchId
+        +String plateId
+        +String carrierResourceId
+        +String machineId
+        +List~String~ memberPartIds
+        +String formingStepId
+        +String couplingUntilStepId
+    }
+
+    %% ===== Shared by input (fixed, warm start) and output =====
+    class Assignment {
+        +String opId
+        +Int start
+        +Int end
+        +String machineId
+        +String workerId
+        +String batchId
+        +String loadId
+    }
+
+    %% ===== Output =====
+    class SolverResult {
+        +SolverStatus status
+        +Map~Objective, Float~ objectiveValues
+        +Float optimalityGap
+        +Float computeTime
+    }
+
+    class PrintDeadline {
+        +String orderId
+        +String partId
+        +Int earliestStart
+        +Int latestEnd
+    }
+
+    class PrintSlot {
+        +String machineId
+        +String carrierResourceId
+        +Int start
+        +Int maxDuration
+    }
+
+    %% ===== Enumerations =====
+    class ResourceType {
+        <<enumeration>>
+        MACHINE
+        WORKER
+        CARRIER
+    }
+
+    class OrderKind {
+        <<enumeration>>
+        CUSTOMER
+        MAINTENANCE
+        FORECAST
+    }
+
+    class OperationKind {
+        <<enumeration>>
+        TASK
+        MACHINE_RUN
+    }
+
+    class SolverStatus {
+        <<enumeration>>
+        OPTIMAL
+        FEASIBLE
+        INFEASIBLE
+        TIMEOUT_NO_SOLUTION
+    }
+
+    %% ===== Relationships =====
+    SolverInstance "1" *-- "1..*" Order
+    SolverInstance "1" *-- "1..*" Operation : open operations only
+    SolverInstance "1" *-- "1..*" Resource
+    SolverInstance "1" *-- "0..*" ExistingBatch
+    SolverInstance "1" *-- "0..*" Assignment : fixed (in progress)
+    SolverInstance "1" o-- "0..*" Assignment : warm start
+
+    Order "1" *-- "1..*" Operation
+    Operation "0..*" --> "0..*" Operation : predecessors
+    Operation "0..*" --> "0..*" Resource : eligible machines
+    Resource "1" *-- "0..*" AvailabilityInterval
+
+    SolverResult "1" *-- "0..*" Assignment : schedule
+    SolverResult "1" *-- "0..*" PrintDeadline : to nesting
+    SolverResult "1" *-- "0..*" PrintSlot : to nesting
