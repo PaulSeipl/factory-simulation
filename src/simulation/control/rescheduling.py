@@ -37,6 +37,7 @@ class ReschedulingPolicy:
     planner: Planner | None = None  # complete rescheduling; None: repair only
     max_makespan_change: int | None = None  # trigger if the projected makespan deviates from the anchor by more
     max_shift: int | None = None  # trigger if a start deviates from the anchor by more
+    max_mean_shift: float | None = None  # trigger if the mean start deviation from the anchor is larger
     change_budget: int | None = None  # reject a plan that changes more machine assignments
     objective: Objective | None = None  # with max_objective_change: trigger on this objective (e.g. the planner's)
     max_objective_change: int | None = None  # trigger if objective(repaired) deviates from objective(anchor) by more
@@ -94,11 +95,12 @@ def adapt_plan(
         return anchor
     triggers = []
     if repaired != current:
-        makespan_change, max_shift = _change(current, repaired, snap)
+        makespan_change, max_shift, mean_shift = _change(current, repaired, snap)
         # measured against the anchor, so that many small repairs add up instead of each staying below the threshold
-        makespan_deviation, shift_deviation = _change(anchor.plan, repaired, snap)
+        makespan_deviation, shift_deviation, mean_shift_deviation = _change(anchor.plan, repaired, snap)
         record = {"t": snap.t, "type": "REPAIR", "makespan_change": makespan_change, "max_shift": max_shift,
-                  "makespan_deviation": makespan_deviation, "shift_deviation": shift_deviation}
+                  "mean_shift": mean_shift, "makespan_deviation": makespan_deviation,
+                  "shift_deviation": shift_deviation, "mean_shift_deviation": mean_shift_deviation}
         if policy.objective is not None:
             record["objective_deviation"] = (policy.objective.evaluate(ci, repaired)
                                              - policy.objective.evaluate(ci, anchor.plan))
@@ -116,12 +118,13 @@ def adapt_plan(
     return anchor
 
 
-def _change(before: Sequence[Assignment], after: Sequence[Assignment], snap: Snapshot) -> tuple[int, int]:
-    """Change of the projected makespan and largest start shift of the operations not started."""
+def _change(before: Sequence[Assignment], after: Sequence[Assignment], snap: Snapshot) -> tuple[int, int, float]:
+    """Change of the projected makespan, largest and mean start shift of the operations not started."""
     frozen = {(f.order_id, f.op_id) for f in snap.frozen}
     start_before = {(a.order_id, a.op_id): a.start for a in before}
     shifts = [abs(a.start - start_before[a.order_id, a.op_id]) for a in after if (a.order_id, a.op_id) not in frozen]
-    return max(a.end for a in after) - max(a.end for a in before), max(shifts, default=0)
+    return (max(a.end for a in after) - max(a.end for a in before), max(shifts, default=0),
+            sum(shifts) / len(shifts) if shifts else 0.0)
 
 
 def _triggers(policy: ReschedulingPolicy, record: dict) -> list[str]:
@@ -129,6 +132,7 @@ def _triggers(policy: ReschedulingPolicy, record: dict) -> list[str]:
     return [name for name, limit, value in (
         ("makespan", policy.max_makespan_change, abs(record["makespan_deviation"])),
         ("shift", policy.max_shift, record["shift_deviation"]),
+        ("mean_shift", policy.max_mean_shift, record["mean_shift_deviation"]),
         ("objective", policy.max_objective_change, abs(record.get("objective_deviation", 0))),
     ) if limit is not None and value > limit]
 

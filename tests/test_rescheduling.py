@@ -230,6 +230,20 @@ def test_trigger_on_the_planners_objective():
     assert [d["t"] for d in of_type(on_makespan, "REPLAN")] == [11]
 
 
+def test_mean_shift_trigger_next_to_the_max_shift_trigger():
+    # b1 takes 4 instead of 2. At t=5 the six operations not started are a3, b2, b3, b4, c1, c2; b2, b3, b4, c2 start
+    # 1 later than in the start plan: max 1, mean 4/6. At t=6 (a3 and c1 start only after the repair) the same four
+    # are 2 later: max 2, mean 8/6.
+    scenario = disturbed({"b1": 2.0})
+    repairs = of_type(execute(TOY, PLAN, scenario, REPAIR), "REPAIR")  # repair only: the anchor stays the start plan
+    assert [(d["t"], d["shift_deviation"], d["mean_shift_deviation"]) for d in repairs[:2]] == [
+        (5, 1, pytest.approx(4 / 6)), (6, 2, pytest.approx(8 / 6))]
+    on_mean = execute(TOY, PLAN, scenario, ReschedulingPolicy(dispatch_planner(spt), max_mean_shift=0.5))
+    assert [(d["t"], d["triggers"]) for d in of_type(on_mean, "REPLAN")][0] == (5, ["mean_shift"])
+    on_max = execute(TOY, PLAN, scenario, ReschedulingPolicy(dispatch_planner(spt), max_shift=1))
+    assert [(d["t"], d["triggers"]) for d in of_type(on_max, "REPLAN")][0] == (6, ["shift"])
+
+
 @pytest.mark.parametrize(("kwargs", "message"), [
     ({"objective": TOTAL_TARDINESS}, "must be given together"),
     ({"max_objective_change": 0}, "must be given together"),
