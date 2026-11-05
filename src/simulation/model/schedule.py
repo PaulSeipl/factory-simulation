@@ -7,9 +7,10 @@ class Assignment(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     order_id: str
     op_id: str
-    machine: str
+    machine: str | None  # None: operation without machine (math/04_workers.md); required, so never omitted by accident
     start: NonNegativeInt
     end: int
+    workers: tuple[str, ...] = ()  # one worker per share of the operation, in the order of CompiledInstance.shares
 
     @model_validator(mode="after")
     def check_interval(self):
@@ -21,8 +22,17 @@ class Assignment(BaseModel):
         return self
 
 
+class Break(BaseModel):
+    """Lunch break of a worker; its length comes from the instance's calendar (math/04_workers.md)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    worker: str
+    start: NonNegativeInt
+
+
 class Schedule(BaseModel):
     """Common output format of all planners."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
     assignments: tuple[Assignment, ...]
+    breaks: tuple[Break, ...] = ()  # planned breaks; empty for instances without workers

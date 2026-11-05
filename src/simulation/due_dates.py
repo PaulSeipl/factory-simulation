@@ -17,6 +17,7 @@ from collections.abc import Mapping, Sequence
 
 from graphlib import TopologicalSorter
 
+from simulation.calendar import next_cutoff
 from simulation.model.instance import CarrierStep, Instance, Order, operation_graph
 from simulation.model.schedule import Assignment
 
@@ -32,7 +33,9 @@ def lead_time_bound(order: Order, carrier_steps: Mapping[str, CarrierStep] | Non
     for j in TopologicalSorter({op.id: op.predecessors for op in order.operations}).static_order():
         op = ops[j]
         start = max((finish[q] for q in op.predecessors), default=0.0)
-        if op.options is None:
+        if op.duration is not None:  # without machine (math/04_workers.md)
+            finish[j] = start + op.duration
+        elif op.options is None:
             step = carrier_steps[op.step]
             finish[j] = start + sum(step.options.values()) / len(step.options) + step.setup + step.removal
         else:
@@ -60,5 +63,7 @@ def assign_due_dates(
             basis = lead_time_bound(order, instance.carrier_steps)
         else:
             basis = order_end[order.id] - order.release
-        raw["due_date"] = order.release + math.floor(rng.choice(tightness) * basis + 0.5)
+        due = order.release + math.floor(rng.choice(tightness) * basis + 0.5)
+        # with a work calendar the due date is a shipping date: the next cutoff (math/04_workers.md)
+        raw["due_date"] = next_cutoff(instance.calendar, due) if instance.calendar else due
     return Instance.model_validate(data)

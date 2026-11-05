@@ -7,12 +7,39 @@ operations of the carriers and of the runs (math/03_loads.md). Owners in op_keys
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from types import MappingProxyType
+from typing import NamedTuple
 
 from graphlib import TopologicalSorter
 
+from simulation.calendar import WeekCalendar
 from simulation.model.instance import Instance, operation_graph
 
 type OpKey = tuple[str, str]  # (owner_id, op_id); owner: order, carrier or run
+
+
+class Share(NamedTuple):
+    """A worker share of an operation (math/04_workers.md): kind "whole", "prefix" or "suffix"; length in time
+    units (0 for whole); qualified worker idxs. Stored independent of the duration, so it holds on every machine."""
+
+    kind: str
+    length: int
+    workers: tuple[int, ...]
+
+
+def share_interval(share: Share, start: int, end: int) -> tuple[int, int]:
+    """[from, to) of the worker time of a share for an operation running in [start, end)."""
+    if share.kind == "prefix":
+        return start, start + share.length
+    if share.kind == "suffix":
+        return end - share.length, end
+    return start, end
+
+
+def reject_workers(ci: "CompiledInstance", who: str) -> None:
+    # shortcut: guard until the consumer handles workers (plan phases 2-4), remove there
+    if ci.worker_ids or any(d is not None for d in ci.fixed_duration):
+        raise NotImplementedError(f"{who}: instances with workers or operations without machine are not supported "
+                                  "yet (math/04_workers.md)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +62,11 @@ class CompiledInstance:
     # op idx -> carriers that may share one machine run with it (p-batch step), 1 otherwise
     batch_capacity: tuple[int, ...]
     topo_order: tuple[int, ...]  # all op idxs, every predecessor before its successors
+    calendar: WeekCalendar | None = None  # work calendar (math/04); None: no shifts, tardiness in minutes
+    worker_ids: tuple[str, ...] = ()  # worker idx -> ID
+    # op idx -> duration of an operation without machine (its options are empty), None otherwise
+    fixed_duration: tuple[int | None, ...] = ()
+    shares: tuple[tuple[Share, ...], ...] = ()  # op idx -> worker shares (whole, prefix, suffix)
 
     @property
     def n_ops(self) -> int:
@@ -104,7 +136,21 @@ def compile_instance(instance: Instance) -> CompiledInstance:
         )),
         # Instance validation guarantees an acyclic graph
         topo_order=tuple(TopologicalSorter(dict(enumerate(predecessors))).static_order()),
+        calendar=WeekCalendar(**instance.calendar.model_dump()) if instance.calendar else None,
+        worker_ids=instance.workers,
+        fixed_duration=tuple(node.duration for node in graph.values()),
+        shares=tuple(_compile_shares(node.shares, instance.workers) for node in graph.values()),
     )
+
+
+def _compile_shares(shares, workers: tuple[str, ...]) -> tuple[Share, ...]:
+    out = []
+    for s in shares:
+        idxs = tuple(workers.index(w) for w in s.qualified) if s.qualified else tuple(range(len(workers)))
+        if s.whole:
+            out.append(Share("whole", 0, idxs))
+        out += [Share(kind, n, idxs) for kind, n in (("prefix", s.prefix), ("suffix", s.suffix)) if n]
+    return tuple(out)
 
 
 def _carrier_step(instance: Instance, key: OpKey) -> str | None:

@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 
 from simulation.check.feasibility import check_schedule
-from simulation.model.compiled import CompiledInstance
+from simulation.model.compiled import CompiledInstance, reject_workers
 from simulation.model.schedule import Assignment
 from simulation.sim.scenario import Scenario, factors_by_index, realized_duration
 from simulation.sim.snapshot import Snapshot, snapshot
@@ -80,6 +80,7 @@ class Simulation:
     """The factory, executing the current plan event by event."""
 
     def __init__(self, ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario | None = None):
+        reject_workers(ci, "DES")
         # waiting would silently repair a broken plan, so it is validated first (C1-C5)
         if violations := check_schedule(ci, plan):
             raise PlanNotExecutable(_describe(violations))

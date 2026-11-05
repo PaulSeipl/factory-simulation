@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 
 from ortools.sat.python import cp_model
 
-from simulation.model.compiled import CompiledInstance
+from simulation.model.compiled import CompiledInstance, reject_workers
 from simulation.model.schedule import Assignment
 from simulation.objectives import MAKESPAN, Objective
 
@@ -51,6 +51,7 @@ def solve(
     reference: Sequence[Assignment] | None = None,
     change_budget: int | None = None,
 ) -> CpSatResult:
+    reject_workers(ci, "CP-SAT")
     frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
     t = snapshot.t if snapshot else 0
     # trivial horizon: after the last fixed time point, every free operation in sequence on its slowest machine

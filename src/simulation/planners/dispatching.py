@@ -25,7 +25,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from simulation.model.compiled import CompiledInstance
+from simulation.model.compiled import CompiledInstance, reject_workers
 from simulation.model.schedule import Assignment
 from simulation.objectives import MAKESPAN, Objective
 
@@ -99,6 +99,7 @@ def dispatch(
     assignment: AssignmentRule | None = None,
     snapshot: Snapshot | None = None,
 ) -> list[Assignment]:
+    reject_workers(ci, "dispatching")
     min_p = [min(p for _, p in opts) for opts in ci.options]
     work_left = [0] * len(ci.order_ids)
     for o in range(ci.n_ops):

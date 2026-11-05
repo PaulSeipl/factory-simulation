@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.6",
+  "name": "toy-workers",
+  "machines": ["P"],
+  "workers": ["A", "B"],
+  "calendar": {},
+  "orders": [
+    {
+      "id": "k1",
+      "due_date": 240,
+      "operations": [
+        {"id": "print", "step": "print", "options": {"P": 60}, "worker": {"prefix": 15}},
+        {"id": "gb", "step": "gegenbetten", "duration": 90, "worker": {"prefix": 30, "qualified": ["A"]},
+         "predecessors": ["print"]},
+        {"id": "pack", "step": "pack", "duration": 20, "worker": {"whole": true}, "predecessors": ["gb"]}
+      ]
+    },
+    {
+      "id": "k2",
+      "due_date": 240,
+      "operations": [
+        {"id": "pack", "step": "pack", "duration": 20, "worker": {"whole": true}}
+      ]
+    }
+  ]
+}

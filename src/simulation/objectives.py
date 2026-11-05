@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from ortools.sat.python import cp_model
 
+from simulation.calendar import DAY, cutoffs, days_late
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment
 
@@ -30,7 +31,9 @@ class Objective:
 
 def static_horizon(ci: CompiledInstance) -> int:
     """H_0: latest release plus every operation on its slowest machine (the horizon of the static model)."""
-    return max(ci.release) + sum(max(p for _, p in options) for options in ci.options)
+    return max(ci.release) + sum(
+        max(p for _, p in options) if options else ci.fixed_duration[o] for o, options in enumerate(ci.options)
+    )
 
 
 def _makespan_cpsat(model, _ci, _starts, ends, horizon):
@@ -81,6 +84,14 @@ def _order_end_vars(model, ci, ends, horizon) -> list:
 def _tardiness_cpsat(model, ci, _starts, ends, horizon):
     cks = _order_end_vars(model, ci, ends, horizon)
     tardiness = []
+    if cal := ci.calendar:  # T_k = number of missed cutoffs c >= d_k, one Boolean [C_k > c] each (math/04)
+        for k in _due_orders(ci):
+            for c in (c for c in cutoffs(cal, horizon) if c >= ci.due_date[k]):
+                late = model.new_bool_var(f"late_{k}_{c}")
+                model.add(cks[k] <= c).only_enforce_if(late.Not())  # both directions: value equals evaluate
+                model.add(cks[k] >= c + 1).only_enforce_if(late)
+                tardiness.append(late)
+        return sum(tardiness)
     for k in _due_orders(ci):
         tk = model.new_int_var(0, horizon, f"T_{k}")
         model.add_max_equality(tk, [cks[k] - ci.due_date[k], 0])  # T_k = max(C_k - d_k, 0)
@@ -101,8 +112,19 @@ def _tardy_orders_cpsat(model, ci, _starts, ends, horizon):
 
 
 def _total_tardiness(ci: CompiledInstance, schedule: Sequence[Assignment]) -> int:
+    """Minutes, or with a work calendar the number of missed shipping cutoffs (math/04_workers.md)."""
     ends = _order_ends(ci, schedule)
+    if cal := ci.calendar:
+        return sum(days_late(cal, ci.due_date[k], ends[k]) for k in _due_orders(ci))
     return sum(max(ends[k] - ci.due_date[k], 0) for k in _due_orders(ci))
+
+
+def _tardiness_spread(ci: CompiledInstance) -> int:
+    # each T_k moves at most as far as C_k, i.e. within a window of length H_0 (math/06, section 4); a window of
+    # that length holds at most H_0 // 1440 + 1 cutoffs (one per day)
+    if ci.calendar:
+        return len(_due_orders(ci)) * (static_horizon(ci) // DAY + 1)
+    return len(_due_orders(ci)) * static_horizon(ci)
 
 
 def _tardy_orders(ci: CompiledInstance, schedule: Sequence[Assignment]) -> int:
@@ -111,8 +133,7 @@ def _tardy_orders(ci: CompiledInstance, schedule: Sequence[Assignment]) -> int:
 
 
 TOTAL_TARDINESS = Objective(
-    name="total_tardiness", evaluate=_total_tardiness, cpsat=_tardiness_cpsat,
-    spread=lambda ci: len(_due_orders(ci)) * static_horizon(ci),  # each T_k moves at most as far as C_k
+    name="total_tardiness", evaluate=_total_tardiness, cpsat=_tardiness_cpsat, spread=_tardiness_spread,
 )
 TARDY_ORDERS = Objective(
     name="tardy_orders", evaluate=_tardy_orders, cpsat=_tardy_orders_cpsat,

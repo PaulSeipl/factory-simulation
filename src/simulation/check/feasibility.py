@@ -1,5 +1,5 @@
-"""Feasibility checker for the base model (math/01_basic-fjsp.md, C1-C5), revised plans (math/05, C6-C7) and
-machine runs of carriers (math/03_loads.md, C8-C9, C10 batches).
+"""Feasibility checker for the base model (math/01_basic-fjsp.md, C1-C5), revised plans (math/05, C6-C7),
+machine runs of carriers (math/03_loads.md, C8-C9, C10 batches) and workers (math/04_workers.md, C11-C14).
 
 Written independently of every planner and solver: it only reads the compiled
 instance and the assignments, and reports every violated constraint. Test oracle
@@ -11,8 +11,9 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from simulation.model.compiled import CompiledInstance, OpKey
-from simulation.model.schedule import Assignment
+from simulation.calendar import day_index, day_start, is_working_day, minute_of_day
+from simulation.model.compiled import CompiledInstance, OpKey, share_interval
+from simulation.model.schedule import Assignment, Break
 
 if TYPE_CHECKING:
     from simulation.sim.snapshot import FrozenOperation, Snapshot
@@ -20,35 +21,48 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class Violation:
-    constraint: str  # "C1".."C5" (math/01), "C6", "C7" (math/05), "C8".."C10" (math/03); "C0" = not in the instance
+    # "C1".."C5" (math/01), "C6", "C7" (math/05), "C8".."C10" (math/03), "C11".."C14" (math/04); "C0" = not in the
+    # instance
+    constraint: str
     ops: tuple[OpKey, ...]
     message: str
 
 
 def check_schedule(
-    ci: CompiledInstance, assignments: Iterable[Assignment], snapshot: Snapshot | None = None
+    ci: CompiledInstance,
+    assignments: Iterable[Assignment],
+    snapshot: Snapshot | None = None,
+    breaks: Iterable[Break] = (),
 ) -> list[Violation]:
     """Return all violations; an empty list means the schedule is feasible.
 
     With a snapshot (a plan revised at time snapshot.t), the frozen operations must appear exactly as in
     the snapshot (C7, realized or expected times, so C2 is not checked for them) and no other operation
-    may start before snapshot.t (C6).
+    may start before snapshot.t (C6). `breaks`: the planned breaks of the workers (C14, only with a calendar).
     """
     by_op, violations = assigned_exactly_once(ci, assignments)
     frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
     for o, a in by_op.items():
         key = ci.op_keys[o]
         p_of = {ci.machine_ids[m]: p for m, p in ci.options[o]}
+        if (fixed := ci.fixed_duration[o]) is not None:  # operation without machine (math/04)
+            on_machine = None if a.machine is None else Violation(
+                "C11", (key,), f"{key} has no machine, planned on {a.machine}")
+            duration = on_machine or (None if o in frozen else wrong_duration(key, a, fixed))
+        else:
+            duration = not_eligible(key, a.machine, p_of) or (
+                None if o in frozen else wrong_duration(key, a, p_of[a.machine]))
         found = [
-            not_eligible(key, a.machine, p_of)
-            or (None if o in frozen else wrong_duration(key, a, p_of[a.machine])),
+            duration,
+            *worker_shares_wrong(ci, o, a),
             *starts_before_predecessors(ci, o, a, by_op),
             starts_before_release(key, a.start, ci.release[o]),
             frozen_changed(key, a, frozen[o]) if o in frozen else None,
             starts_before_t(key, a.start, snapshot.t) if snapshot and o not in frozen else None,
         ]
         violations += [v for v in found if v]
-    return violations + run_on_several_machines(ci, by_op) + machine_overlaps(ci, by_op)
+    return (violations + run_on_several_machines(ci, by_op) + machine_overlaps(ci, by_op)
+            + worker_overlaps(ci, by_op) + outside_shift(ci, by_op) + break_violations(ci, by_op, breaks))
 
 
 def assigned_exactly_once(
@@ -145,6 +159,8 @@ def machine_overlaps(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> l
     violations = []
     for o, a in by_op.items():
         g = in_group.get(o)
+        if a.machine is None:  # operation without machine (C11 if it should have one)
+            continue
         if ci.batch_capacity[o] > 1:
             batches[a.machine, a.start, a.end].append(o)
         elif g is None or not all(q in by_op for q in g):
@@ -168,6 +184,105 @@ def machine_overlaps(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> l
                 for s2, e2, ops2 in running
             ]
             running.append((s, e, ops))
+    return violations
+
+
+def worker_shares_wrong(ci: CompiledInstance, o: int, a: Assignment) -> list[Violation]:
+    """C11: one worker per share, known and qualified (W_eta)."""
+    key, shares = ci.op_keys[o], ci.shares[o]
+    if len(a.workers) != len(shares):
+        return [Violation("C11", (key,), f"{key}: {len(a.workers)} workers for {len(shares)} shares")]
+    return [
+        Violation("C11", (key,), f"{key}: {w} not qualified for the {s.kind} share, qualified: "
+                                 f"{[ci.worker_ids[i] for i in s.workers]}")
+        for s, w in zip(shares, a.workers, strict=True)
+        if w not in {ci.worker_ids[i] for i in s.workers}
+    ]
+
+
+def _worker_intervals(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> dict[str, list[tuple[int, int, int]]]:
+    """Worker -> [(from, to, op)] over all shares; a batch (one oven run) counts once, with its first member."""
+    seen_batches: set[tuple[str | None, int, int]] = set()
+    out: dict[str, list[tuple[int, int, int]]] = defaultdict(list)
+    for o, a in sorted(by_op.items()):
+        if len(a.workers) != len(ci.shares[o]):
+            continue  # reported under C11
+        if ci.batch_capacity[o] > 1:
+            if (a.machine, a.start, a.end) in seen_batches:
+                continue
+            seen_batches.add((a.machine, a.start, a.end))
+        for s, w in zip(ci.shares[o], a.workers, strict=True):
+            if w in ci.worker_ids:  # unknown workers are reported under C11
+                out[w].append((*share_interval(s, a.start, a.end), o))
+    return out
+
+
+def worker_overlaps(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> list[Violation]:
+    """C12: a worker does one thing at a time (half-open share intervals). C11: the members of one batch carry the
+    same workers (one run, one loading and one removal)."""
+    violations = []
+    batches: dict[tuple[str | None, int, int], list[int]] = defaultdict(list)
+    for o, a in by_op.items():
+        if ci.batch_capacity[o] > 1:
+            batches[a.machine, a.start, a.end].append(o)
+    for ops in batches.values():
+        if len({by_op[o].workers for o in ops}) > 1:
+            violations.append(Violation("C11", tuple(ci.op_keys[o] for o in ops),
+                                        f"{_label(ci, tuple(ops))} with different workers per member"))
+    for w, intervals in _worker_intervals(ci, by_op).items():
+        intervals.sort()
+        running: list[tuple[int, int, int]] = []
+        for s, e, o in intervals:
+            running = [iv for iv in running if iv[1] > s]
+            violations += [Violation("C12", (ci.op_keys[o2], ci.op_keys[o]),
+                                     f"{w}: {ci.op_keys[o2]} [{s2},{e2}) and {ci.op_keys[o]} [{s},{e}) overlap")
+                           for s2, e2, o2 in running]
+            running.append((s, e, o))
+    return violations
+
+
+def outside_shift(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> list[Violation]:
+    """C13 (only with a calendar): every share lies within one working day in [shift start, shift end + max
+    overtime]; machines run at any time."""
+    if (cal := ci.calendar) is None:
+        return []
+    latest = cal.shift_end + cal.max_overtime
+    return [
+        Violation("C13", (ci.op_keys[o],), f"{w} on {ci.op_keys[o]} [{s},{e}) outside the shift window of day {d}")
+        for w, intervals in _worker_intervals(ci, by_op).items()
+        for s, e, o in intervals
+        if not (is_working_day(cal, d := day_index(cal, s)) and minute_of_day(cal, s) >= cal.shift_start
+                and e - day_start(cal, d) <= latest)
+    ]
+
+
+def break_violations(ci: CompiledInstance, by_op: Mapping[int, Assignment], breaks: Iterable[Break]) -> list[Violation]:
+    """C14 (only with a calendar): exactly one break per worker on each day with shares, starting in
+    [break_earliest, break_latest], and no share during a break."""
+    if (cal := ci.calendar) is None:
+        return []
+    violations = []
+    per_day: dict[tuple[str, int], list[int]] = defaultdict(list)
+    for b in breaks:
+        if b.worker not in ci.worker_ids:
+            violations.append(Violation("C14", (), f"break of unknown worker {b.worker}"))
+            continue
+        per_day[b.worker, day_index(cal, b.start)].append(b.start)
+        if not cal.break_earliest <= (m := minute_of_day(cal, b.start)) <= cal.break_latest:
+            violations.append(Violation("C14", (), f"break of {b.worker} at {m // 60:02d}:{m % 60:02d}, outside "
+                                                   "the break window"))
+    violations += [Violation("C14", (), f"{w}: {len(starts)} breaks on day {d}")
+                   for (w, d), starts in per_day.items() if len(starts) > 1]
+    for w, intervals in _worker_intervals(ci, by_op).items():
+        violations += [Violation("C14", (), f"{w}: no break on day {d}")
+                       for d in sorted({day_index(cal, s) for s, _, _ in intervals}) if (w, d) not in per_day]
+        violations += [
+            Violation("C14", (ci.op_keys[o],),
+                      f"{w} on {ci.op_keys[o]} [{s},{e}) during the break [{b},{b + cal.break_length})")
+            for s, e, o in intervals
+            for b in per_day.get((w, day_index(cal, s)), [])
+            if s < b + cal.break_length and b < e
+        ]
     return violations
 
 

@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from statistics import mean
 from typing import TYPE_CHECKING
 
+from simulation.calendar import days_late
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment
 
@@ -41,4 +42,8 @@ def run_metrics(ci: CompiledInstance, plan: Sequence[Assignment], result: Execut
             "tardy_orders": sum(lk > 0 for lk in lateness),
             "max_lateness": max(lateness),
         }
+        if cal := ci.calendar:  # the objective's unit: missed shipping cutoffs (math/04_workers.md)
+            metrics["tardy_days"] = sum(
+                days_late(cal, d, order_end[k]) for k, d in zip(ci.order_ids, ci.due_date, strict=True) if d is not None
+            )
     return metrics

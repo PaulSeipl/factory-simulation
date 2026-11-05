@@ -16,7 +16,7 @@ PATHS = [DATA / "instances" / "toy-3x3.json", *sorted((DATA / "benchmarks" / "br
 # operations listed against precedence order, so topo_order must actually sort
 UNORDERED = Instance.model_validate(
     {
-        "schema_version": "0.5",
+        "schema_version": "0.6",
         "name": "unordered",
         "machines": ["M1", "M2"],
         "orders": [

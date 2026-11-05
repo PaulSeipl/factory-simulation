@@ -13,12 +13,32 @@ from pydantic import (
     model_validator,
 )
 
+from simulation.calendar import next_cutoff
+
 ORDER = "order"  # scope: the operation acts on all parts of the order
 CARRIER = "carrier"  # scope: executed by every carrier that holds parts of the order (math/03_loads.md)
 
 
 def _duplicates(ids) -> list[str]:
     return sorted(k for k, n in Counter(ids).items() if n > 1)
+
+
+class WorkerShare(BaseModel):
+    """Worker time of an operation (math/04_workers.md): the whole operation, or a prefix and/or a suffix of it
+    (e.g. oven: loading and removal around a fixed program); the rest runs without a worker. Prefix and suffix
+    may be served by different workers. qualified: allowed workers, None = every worker of the instance."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    whole: bool = False
+    prefix: NonNegativeInt = 0
+    suffix: NonNegativeInt = 0
+    qualified: tuple[str, ...] | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def check_kind(self):
+        if self.whole == bool(self.prefix + self.suffix):
+            raise ValueError("worker share: either whole, or a prefix and/or suffix > 0")
+        return self
 
 
 class Operation(BaseModel):
@@ -35,6 +55,8 @@ class Operation(BaseModel):
     # carrier operations: part type on the carrier that executes it (e.g. "primary" on a blank, "secondary" on a
     # build plate); None: the order's only carrier kind
     carries: str | None = None
+    duration: PositiveInt | None = None  # operation without a machine (manual step, rest); exclusive with options
+    worker: WorkerShare | None = None  # order operations; carrier operations take it from their carrier step
 
 
 class Part(BaseModel):
@@ -79,6 +101,9 @@ class CarrierStep(BaseModel):
     # p-batch decided by the planner (e.g. oven): up to this many carriers share one machine run, starting and
     # ending together; the program fixes the duration (no deviation in scenarios). None: one carrier per operation
     batch_capacity: int | None = Field(default=None, ge=2)
+    worker: WorkerShare | None = None  # of the main operation; for a batch step one share per machine run
+    setup_attended: bool = False  # setup / removal operations of the runs need a worker for their whole duration
+    removal_attended: bool = False
 
 
 class Carrier(BaseModel):
@@ -99,9 +124,39 @@ class Run(BaseModel):
     duration: PositiveInt | None = None  # reported by nesting for this layout; overrides the estimator
 
 
+class Calendar(BaseModel):
+    """Work calendar (math/04_workers.md, section 2): times are minutes of the day, `origin` the minute of the week
+    (Monday 00:00 = 0) at t = 0; days 0 = Monday ... 6 = Sunday. Defaults: the dental factory (user, 2026-11-05)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    origin: NonNegativeInt = 480  # t = 0 is Monday 08:00
+    shift_start: NonNegativeInt = 480
+    shift_end: PositiveInt = 1050
+    break_earliest: NonNegativeInt = 720  # break start window [earliest, latest]
+    break_latest: NonNegativeInt = 780
+    break_length: PositiveInt = 60
+    max_overtime: NonNegativeInt = 120  # shift end at most shift_end + max_overtime
+    cutoff: NonNegativeInt = 720  # courier pickup on every working day; due dates lie on cutoffs
+    working_days: tuple[int, ...] = (0, 1, 2, 3, 4)
+
+    @model_validator(mode="after")
+    def check_times(self):
+        if not self.shift_start < self.break_earliest <= self.break_latest:
+            raise ValueError("calendar: need shift_start < break_earliest <= break_latest")
+        if self.break_latest + self.break_length > self.shift_end:
+            raise ValueError("calendar: a break starting at break_latest must end within the shift")
+        if self.shift_end + self.max_overtime > 1440:
+            raise ValueError("calendar: shift_end + max_overtime beyond midnight")
+        if self.cutoff >= 1440 or self.origin >= 7 * 1440:
+            raise ValueError("calendar: cutoff must be a minute of the day, origin a minute of the week")
+        if not self.working_days or _duplicates(self.working_days) or not set(self.working_days) <= set(range(7)):
+            raise ValueError(f"calendar: working_days must be distinct days 0..6, got {self.working_days}")
+        return self
+
+
 class Instance(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal["0.5"]
+    schema_version: Literal["0.6"]
     name: str
     time_unit: Literal["s", "min", "h"] = "min"
     machines: tuple[str, ...]
@@ -109,6 +164,8 @@ class Instance(BaseModel):
     carrier_steps: dict[str, CarrierStep] = {}
     carriers: tuple[Carrier, ...] = ()
     runs: tuple[Run, ...] = ()
+    calendar: Calendar | None = None  # without: no shifts, tardiness in minutes
+    workers: tuple[str, ...] = ()  # individual workers (math/04_workers.md)
 
     @model_validator(mode="after")
     def check_references(self):
@@ -117,9 +174,20 @@ class Instance(BaseModel):
         if dups := _duplicates(o.id for o in self.orders):
             raise ValueError(f"duplicate order IDs: {dups}")
         machines = set(self.machines)
+        if dups := _duplicates(self.workers):
+            raise ValueError(f"duplicate worker IDs: {dups}")
+        if clash := sorted(machines & set(self.workers)):
+            raise ValueError(f"IDs used for workers and machines: {clash}")
         for step, cs in self.carrier_steps.items():
             if unknown := sorted(set(cs.options) - machines):
                 raise ValueError(f"carrier step {step}: unknown machines {unknown}")
+            self._check_share(f"carrier step {step}", cs.worker, min(cs.options.values()))
+            if cs.setup_attended and not cs.setup:
+                raise ValueError(f"carrier step {step}: setup_attended without setup")
+            if cs.removal_attended and not cs.removal:
+                raise ValueError(f"carrier step {step}: removal_attended without removal")
+            if (cs.setup_attended or cs.removal_attended) and not self.workers:
+                raise ValueError(f"carrier step {step}: attended setup or removal, but the instance has no workers")
             if cs.batch_capacity is not None and (cs.setup or cs.removal or cs.estimator):
                 raise ValueError(f"carrier step {step}: a batch step has no setup, removal or estimator")
             if cs.batch_capacity is not None and (cs.runs != "none" or any(r.step == step for r in self.runs)):
@@ -129,9 +197,14 @@ class Instance(BaseModel):
                                  "'per_carrier')")
             if cs.runs != "given" and any(r.step == step for r in self.runs):
                 raise ValueError(f"carrier step {step}: runs are given, but the step declares runs={cs.runs!r}")
+        if self.calendar is not None and self.time_unit != "min":
+            raise ValueError("a calendar needs time_unit 'min' (calendar times are minutes)")
         for order in self.orders:
             if order.due_date is not None and order.due_date < order.release:
                 raise ValueError(f"order {order.id}: due date {order.due_date} before release {order.release}")
+            due = order.due_date
+            if self.calendar and due is not None and next_cutoff(self.calendar, due) != due:
+                raise ValueError(f"order {order.id}: due date {order.due_date} is not a shipping cutoff")
             if dups := _duplicates(p.id for p in order.parts):
                 raise ValueError(f"order {order.id}: duplicate part IDs: {dups}")
             for part in order.parts:
@@ -148,6 +221,12 @@ class Instance(BaseModel):
                 if op.scope == CARRIER:
                     if op.options is not None:
                         raise ValueError(f"{where}: carrier operation with options (durations come from carrier_steps)")
+                    if op.duration is not None:
+                        raise ValueError(f"{where}: carrier operation with duration (durations come from "
+                                         "carrier_steps; machine-less carrier steps are not supported)")
+                    if op.worker is not None:
+                        raise ValueError(f"{where}: carrier operation with a worker share (set it on the carrier "
+                                         "step)")
                     if op.step not in self.carrier_steps:
                         raise ValueError(f"{where}: no carrier step {op.step!r}")
                     if op.carries is not None and op.carries not in {p.type for p in order.parts}:
@@ -155,12 +234,17 @@ class Instance(BaseModel):
                 else:
                     if op.carries is not None:
                         raise ValueError(f"{where}: carries only for carrier operations")
-                    if op.options is None:
-                        raise ValueError(f"{where}: options missing")
+                    if op.options is not None and op.duration is not None:
+                        raise ValueError(f"{where}: options and duration are exclusive")
+                    if op.options is None and op.duration is None:
+                        raise ValueError(f"{where}: options or duration missing")
+                    if op.duration is not None and op.worker is None:
+                        raise ValueError(f"{where}: an operation without machine needs a worker share")
                     if op.role is not None:
                         raise ValueError(f"{where}: role {op.role!r} only for carrier operations")
-                    if unknown := sorted(set(op.options) - machines):
+                    if unknown := sorted(set(op.options or ()) - machines):
                         raise ValueError(f"{where}: unknown machines {unknown}")
+                    self._check_share(where, op.worker, op.duration or min(op.options.values()))
                 if dups := _duplicates(op.predecessors):
                     raise ValueError(f"{where}: duplicate predecessors {dups}")
                 if unknown := sorted(set(op.predecessors) - set(local)):
@@ -179,6 +263,19 @@ class Instance(BaseModel):
         except CycleError as e:
             raise ValueError(f"cycle across orders and carriers: {' -> '.join(map(str, e.args[1]))}") from e
         return self
+
+    def _check_share(self, where: str, share: WorkerShare | None, shortest: int):
+        # shortcut: checked against the shortest machine option; a run main operation whose estimated or reported
+        # duration is shorter is caught by the checker (C11), upgrade if that happens in real data
+        if share is None:
+            return
+        if not self.workers:
+            raise ValueError(f"{where}: worker share, but the instance has no workers")
+        if unknown := sorted(set(share.qualified or ()) - set(self.workers)):
+            raise ValueError(f"{where}: unknown workers {unknown}")
+        if share.prefix + share.suffix > shortest:
+            raise ValueError(f"{where}: prefix + suffix {share.prefix + share.suffix} longer than the operation "
+                             f"({shortest})")
 
     def _check_carriers(self):
         owners = [*(o.id for o in self.orders), *(c.id for c in self.carriers), *(r.id for r in self.runs)]
@@ -320,6 +417,12 @@ class Node(NamedTuple):
     orders: list[str]  # orders the operation serves
     # run operations: one machine, blocked from the first start to the last end
     group: tuple[tuple[str, str], ...] | None
+    shares: tuple[WorkerShare, ...] = ()  # worker shares (math/04_workers.md)
+    duration: int | None = None  # operations without machine (options empty)
+
+
+def _shares(share: WorkerShare | None) -> tuple[WorkerShare, ...]:
+    return () if share is None else (share,)
 
 
 def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
@@ -364,10 +467,13 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
         for i, key in enumerate(keys):
             if key != main_key:
                 options = dict.fromkeys(step.options, step.setup if i == 0 else step.removal)
+                attended = step.setup_attended if i == 0 else step.removal_attended
+                shares = (WorkerShare(whole=True),) if attended else ()
             else:  # same estimate on every eligible machine (assumption: identical printers)
                 options = dict(step.options) if main is None else dict.fromkeys(step.options, main)
+                shares = _shares(step.worker)
             ps = list(dict.fromkeys(entry)) if i == 0 else [keys[i - 1]]
-            nodes[key] = Node(options, ps, list(dict.fromkeys(orders)), tuple(keys))
+            nodes[key] = Node(options, ps, list(dict.fromkeys(orders)), tuple(keys), shares)
 
     def preds(k: str, op: Operation, cid: str | None = None) -> list[tuple[str, str]]:
         out = []
@@ -384,7 +490,8 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
     for o in inst.orders:
         for op in o.operations:
             if op.scope != CARRIER:
-                nodes[o.id, op.id] = Node(dict(op.options), preds(o.id, op), [o.id], None)
+                nodes[o.id, op.id] = Node(dict(op.options or {}), preds(o.id, op), [o.id], None,  # {}: no machine
+                                          _shares(op.worker), op.duration)
     runs: dict[str, tuple[list, list]] = {r.id: ([], []) for r in inst.runs}  # entry predecessors, orders
     for c in inst.carriers:
         # same IDs and steps for all orders on a carrier
@@ -399,7 +506,7 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
                 add_run(keys_of(c.id, op.step, op.id, f"{op.id}/"), step, _estimate(inst, op.step, c.parts), ps,
                         members[c.id], (c.id, op.id))
             else:
-                nodes[c.id, op.id] = Node(dict(step.options), ps, members[c.id], None)
+                nodes[c.id, op.id] = Node(dict(step.options), ps, members[c.id], None, _shares(step.worker))
     for r in inst.runs:
         entry, orders = runs[r.id]
         add_run(run_keys(r), inst.carrier_steps[r.step], run_duration(inst, r), entry, orders, (r.id, r.step))

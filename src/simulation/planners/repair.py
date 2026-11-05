@@ -11,7 +11,7 @@ starts of running operations and planned durations, never the scenario.
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from simulation.model.compiled import CompiledInstance
+from simulation.model.compiled import CompiledInstance, reject_workers
 from simulation.model.schedule import Assignment
 from simulation.sim.des import planned_batches
 
@@ -70,6 +70,7 @@ def shift_repair(
 
 def repair(ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignment]) -> list[Assignment]:
     """Shift repair with the planner interface: (ci, snapshot, current plan) -> repaired complete plan."""
+    reject_workers(ci, "repair")
     machine, planned_start, planned_end = [0] * ci.n_ops, [0] * ci.n_ops, [0] * ci.n_ops
     for a in plan:
         o = ci.op_index[a.order_id, a.op_id]

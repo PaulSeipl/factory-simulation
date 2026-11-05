@@ -1,0 +1,566 @@
+{
+  "$defs": {
+    "Calendar": {
+      "additionalProperties": false,
+      "description": "Work calendar (math/04_workers.md, section 2): times are minutes of the day, `origin` the minute of the week\n(Monday 00:00 = 0) at t = 0; days 0 = Monday ... 6 = Sunday. Defaults: the dental factory (user, 2026-11-05).",
+      "properties": {
+        "origin": {
+          "default": 480,
+          "minimum": 0,
+          "title": "Origin",
+          "type": "integer"
+        },
+        "shift_start": {
+          "default": 480,
+          "minimum": 0,
+          "title": "Shift Start",
+          "type": "integer"
+        },
+        "shift_end": {
+          "default": 1050,
+          "exclusiveMinimum": 0,
+          "title": "Shift End",
+          "type": "integer"
+        },
+        "break_earliest": {
+          "default": 720,
+          "minimum": 0,
+          "title": "Break Earliest",
+          "type": "integer"
+        },
+        "break_latest": {
+          "default": 780,
+          "minimum": 0,
+          "title": "Break Latest",
+          "type": "integer"
+        },
+        "break_length": {
+          "default": 60,
+          "exclusiveMinimum": 0,
+          "title": "Break Length",
+          "type": "integer"
+        },
+        "max_overtime": {
+          "default": 120,
+          "minimum": 0,
+          "title": "Max Overtime",
+          "type": "integer"
+        },
+        "cutoff": {
+          "default": 720,
+          "minimum": 0,
+          "title": "Cutoff",
+          "type": "integer"
+        },
+        "working_days": {
+          "default": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "items": {
+            "type": "integer"
+          },
+          "title": "Working Days",
+          "type": "array"
+        }
+      },
+      "title": "Calendar",
+      "type": "object"
+    },
+    "Carrier": {
+      "additionalProperties": false,
+      "description": "A build plate with its parts, bound from the forming to the separating operation (nesting output).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "parts": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Parts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "parts"
+      ],
+      "title": "Carrier",
+      "type": "object"
+    },
+    "CarrierStep": {
+      "additionalProperties": false,
+      "description": "Durations of a carrier step; setup and removal only for steps executed in runs (0: no such operation).\n\nruns: \"none\" (one operation per carrier), \"given\" (runs from nesting, Instance.runs) or \"per_carrier\" (every\ncarrier is its own run, e.g. milling the parts of one carrier; math/03_loads.md).\nThe main operation of a run takes, in this order: the duration reported by nesting (Run.duration), the\nestimate from the parts of the run (if an estimator is given), the constant per machine in options.",
+      "properties": {
+        "options": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "minProperties": 1,
+          "title": "Options",
+          "type": "object"
+        },
+        "runs": {
+          "default": "none",
+          "enum": [
+            "none",
+            "given",
+            "per_carrier"
+          ],
+          "title": "Runs",
+          "type": "string"
+        },
+        "setup": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Setup",
+          "type": "integer"
+        },
+        "removal": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Removal",
+          "type": "integer"
+        },
+        "estimator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunEstimator"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "batch_capacity": {
+          "anyOf": [
+            {
+              "minimum": 2,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Batch Capacity"
+        },
+        "worker": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkerShare"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "setup_attended": {
+          "default": false,
+          "title": "Setup Attended",
+          "type": "boolean"
+        },
+        "removal_attended": {
+          "default": false,
+          "title": "Removal Attended",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "options"
+      ],
+      "title": "CarrierStep",
+      "type": "object"
+    },
+    "Operation": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "step": {
+          "title": "Step",
+          "type": "string"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              "minProperties": 1,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Options"
+        },
+        "predecessors": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Predecessors",
+          "type": "array"
+        },
+        "scope": {
+          "default": "order",
+          "title": "Scope",
+          "type": "string"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "enum": [
+                "form",
+                "separate"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "carries": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carries"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration"
+        },
+        "worker": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkerShare"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "step"
+      ],
+      "title": "Operation",
+      "type": "object"
+    },
+    "Order": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "release": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Release",
+          "type": "integer"
+        },
+        "due_date": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Due Date"
+        },
+        "parts": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Part"
+          },
+          "title": "Parts",
+          "type": "array"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/Operation"
+          },
+          "title": "Operations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "operations"
+      ],
+      "title": "Order",
+      "type": "object"
+    },
+    "Part": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "times": {
+          "additionalProperties": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "default": {},
+          "title": "Times",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "Part",
+      "type": "object"
+    },
+    "Run": {
+      "additionalProperties": false,
+      "description": "A machine run whose load is several carriers, e.g. up to four plates in one print (nesting output).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "step": {
+          "title": "Step",
+          "type": "string"
+        },
+        "carriers": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Carriers",
+          "type": "array"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration"
+        }
+      },
+      "required": [
+        "id",
+        "step",
+        "carriers"
+      ],
+      "title": "Run",
+      "type": "object"
+    },
+    "RunEstimator": {
+      "additionalProperties": false,
+      "description": "Parameters of estimate_run_duration (an assumption until validated with Fidentis data, math/03_loads.md).",
+      "properties": {
+        "fixed": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Fixed",
+          "type": "integer"
+        },
+        "share": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Share",
+          "type": "number"
+        }
+      },
+      "required": [
+        "share"
+      ],
+      "title": "RunEstimator",
+      "type": "object"
+    },
+    "WorkerShare": {
+      "additionalProperties": false,
+      "description": "Worker time of an operation (math/04_workers.md): the whole operation, or a prefix and/or a suffix of it\n(e.g. oven: loading and removal around a fixed program); the rest runs without a worker. Prefix and suffix\nmay be served by different workers. qualified: allowed workers, None = every worker of the instance.",
+      "properties": {
+        "whole": {
+          "default": false,
+          "title": "Whole",
+          "type": "boolean"
+        },
+        "prefix": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Prefix",
+          "type": "integer"
+        },
+        "suffix": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Suffix",
+          "type": "integer"
+        },
+        "qualified": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Qualified"
+        }
+      },
+      "title": "WorkerShare",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "0.6",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "time_unit": {
+      "default": "min",
+      "enum": [
+        "s",
+        "min",
+        "h"
+      ],
+      "title": "Time Unit",
+      "type": "string"
+    },
+    "machines": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Machines",
+      "type": "array"
+    },
+    "orders": {
+      "items": {
+        "$ref": "#/$defs/Order"
+      },
+      "title": "Orders",
+      "type": "array"
+    },
+    "carrier_steps": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CarrierStep"
+      },
+      "default": {},
+      "title": "Carrier Steps",
+      "type": "object"
+    },
+    "carriers": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Carrier"
+      },
+      "title": "Carriers",
+      "type": "array"
+    },
+    "runs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Run"
+      },
+      "title": "Runs",
+      "type": "array"
+    },
+    "calendar": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Calendar"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "workers": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Workers",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "name",
+    "machines",
+    "orders"
+  ],
+  "title": "Instance",
+  "type": "object"
+}

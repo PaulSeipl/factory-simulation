@@ -236,7 +236,7 @@ def m_cycle_through_runs(d):
     (m_unknown_scope, r"order A, op mill: unknown scope 'tertiary'"),
     (m_carrier_op_with_options, r"order A, op oven: carrier operation with options"),
     (m_no_carrier_step, r"order A, op oven: no carrier step 'bake'"),
-    (m_options_missing, r"order A, op mill: options missing"),
+    (m_options_missing, r"order A, op mill: options or duration missing"),
     (m_role_on_order_op, r"order A, op finish: role 'separate' only for carrier operations"),
     (m_no_forming_op, r"order C: carrier operations must form one chain from a forming to a separating"),
     (m_unknown_machine_in_step, r"carrier step saw: unknown machines \['S9'\]"),
