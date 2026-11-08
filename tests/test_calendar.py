@@ -6,7 +6,16 @@ t = 0 is Monday 08:00 (origin 480); Monday 12:00 is t = 240, Tuesday 00:00 is t 
 import pytest
 from pydantic import ValidationError
 
-from simulation.calendar import cutoffs, day_index, day_start, days_late, is_working_day, minute_of_day, next_cutoff
+from simulation.calendar import (
+    cutoffs,
+    day_index,
+    day_start,
+    days_late,
+    is_working_day,
+    minute_of_day,
+    next_cutoff,
+    next_start,
+)
 from simulation.model.instance import Calendar, Instance
 
 DAY = 1440
@@ -53,6 +62,34 @@ def test_weekend_counts_one_day():
 def test_other_origin_and_working_days():
     cal = Calendar(origin=0, working_days=(0, 2))  # t = 0 is Monday 00:00; Monday and Wednesday only
     assert cutoffs(cal, 3 * DAY) == [720, 2 * DAY + 720]
+
+
+# --- next_start: earliest start of a share inside the shift, outside the break (no overtime: latest = 17:30) ----
+
+SHIFT_END, WITH_OVERTIME = 1050, 1170  # minutes of the day: 17:30, 19:30
+
+
+@pytest.mark.parametrize(("t", "length", "latest", "expected"), [
+    (10, 60, SHIFT_END, 10),  # inside the morning
+    (180, 60, SHIFT_END, 180),  # ends exactly at the break start 12:00 (240)
+    (200, 60, SHIFT_END, 300),  # would cross 12:00-13:00: after the break
+    (250, 30, SHIFT_END, 300),  # starts during the break: after it
+    (540, 60, SHIFT_END, DAY),  # 17:00 + 60 > 17:30: Tuesday 08:00
+    (540, 60, WITH_OVERTIME, 540),  # with overtime it fits before 19:30
+    (4 * DAY + 540, 60, SHIFT_END, 7 * DAY),  # Friday 17:00 -> Monday 08:00
+    (5 * DAY + 120, 10, SHIFT_END, 7 * DAY),  # Saturday 10:00 -> Monday 08:00
+    (DAY - 40, 10, SHIFT_END, DAY),  # Tuesday 07:20 -> 08:00
+    (0, 300, WITH_OVERTIME, 300),  # 5 hours: only the afternoon until 19:30 is long enough
+], ids=["morning", "touching-break", "past-break", "in-break", "next-day", "overtime", "friday", "weekend",
+        "before-shift", "long-afternoon"])
+def test_next_start(t, length, latest, expected):
+    assert next_start(CAL, t, length, latest) == expected
+
+
+def test_next_start_rejects_a_share_longer_than_both_shift_parts():
+    # morning 08:00-12:00 (240), afternoon 13:00-17:30 (270): 300 minutes fit nowhere without overtime
+    with pytest.raises(ValueError, match="longer than"):
+        next_start(CAL, 0, 300, SHIFT_END)
 
 
 # --- validation: one negative test per rule -------------------------------------

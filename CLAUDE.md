@@ -54,14 +54,14 @@ A feature (e.g. loads, workers, JPC) is only done when it is included in:
 
 ## Mathematical documentation (`math/`)
 
-`math/` documents the formal model and is the basis for the modeling chapter of the thesis. The folder is **not** in the Git repository (it is listed in `.gitignore`).
+`math/` documents the formal model and is the basis for the modeling chapter of the thesis. The folder is tracked in the Git repository (since commit `6463434`), so change-log entries and protocol entries carry commit hashes.
 
 **Mandatory:** After every implementation or change of the model, a constraint, an objective function or a rescheduling rule, `math/` is updated **in the same step**. A step that changes the model is not complete without this documentation. If code and `math/` contradict each other, report it; do not silently adjust one of them.
 
 **Structure:**
 - `math/README.md`: overview and index of all files, one sentence per file
 - `math/notation.md`: central notation (sets, indices, parameters, variables). Add new symbols **here first**; never assign a symbol twice or inconsistently.
-- One file per model component, numbered: e.g. `01_basic-fjsp.md`, `02_precedence-jpc.md`, `03_loads.md`, `04_workers.md`, `05_rescheduling-frozen-part.md`
+- One file per model component, numbered: e.g. `01_basic-fjsp.md`, `02_precedence-jpc.md`, `03_carriers.md`, `04_workers.md`, `05_rescheduling-frozen-part.md`
 - `math/references.md`: all sources in one place
 - `math/protocol.md`: working protocol, one entry per pass (decisions, work, findings, open points), newest first
 

@@ -10,7 +10,7 @@ Introduced in: [01](01_basic-fjsp.md) = `01_basic-fjsp.md`.
 | $\mathcal{K}$, $k$ | set of orders, order index | `Instance.orders`, `CompiledInstance.order_ids` | [01](01_basic-fjsp.md) |
 | $O$, $o$ | set of all operations, operation index (global) | `CompiledInstance.op_keys` / `op_index` | [01](01_basic-fjsp.md) |
 | $O_k \subseteq O$ | operations of order $k$ | `Order.operations` | [01](01_basic-fjsp.md) |
-| $k(o)$ | order(s) that operation $o$ serves: one for order operations, all orders on the carrier(s) for carrier and run operations ([03](03_loads.md)) | `CompiledInstance.op_orders` | [01](01_basic-fjsp.md) |
+| $k(o)$ | order(s) that operation $o$ serves: one for order operations, all orders on the carrier(s) for carrier and run operations ([03](03_carriers.md)) | `CompiledInstance.op_orders` | [01](01_basic-fjsp.md) |
 | $M$, $m$ | set of machines, machine index | `Instance.machines`, `CompiledInstance.machine_ids` | [01](01_basic-fjsp.md) |
 | $M_o \subseteq M$ | eligible machines of operation $o$, $M_o \neq \emptyset$ | keys of `Operation.options` | [01](01_basic-fjsp.md) |
 | $O^{\emptyset} \subseteq O$ | operations without a machine (manual steps, rest); $M_o = \emptyset$, fixed duration $p_o$ | `Operation.duration` | [04](04_workers.md) |
@@ -18,19 +18,19 @@ Introduced in: [01](01_basic-fjsp.md) = `01_basic-fjsp.md`.
 | $\mathcal{A}_o$, $\eta$ | worker shares of operation $o$ (whole, prefix, suffix), share index ($\sigma$ is taken by the scenarios) | `Operation.worker`, `CarrierStep.worker`, `setup_attended`, `removal_attended` | [04](04_workers.md) |
 | $W_\eta \subseteq W$ | workers qualified for share $\eta$ (default all) | `WorkerShare.qualified` | [04](04_workers.md) |
 | $P \subseteq O \times O$ | precedence pairs $(o, o')$: $o$ must finish before $o'$ starts; only $k(o) = k(o')$ | `Operation.predecessors` | [01](01_basic-fjsp.md) |
-| $\Pi_k$ | parts of order $k$, each with a type | `Order.parts` | [03](03_loads.md) |
-| $\mathcal{B}$, $b$ | carriers (build plates with their parts) | `Instance.carriers` | [03](03_loads.md) |
-| $\Pi(b)$, $\mathcal{K}_b$, $\mathcal{B}_k$ | parts on carrier $b$; orders with parts on $b$; carriers holding parts of order $k$ | `Carrier.parts` | [03](03_loads.md) |
-| $\tau(b)$, $\tau(o)$, $\mathcal{B}_k^\tau$ | kind of carrier $b$ (type of its parts, e.g. blank: primary); part type carrier operation $o$ carries; carriers of kind $\tau$ holding parts of order $k$ | `carrier_kinds`, `Operation.carries` | [03](03_loads.md) |
-| $\operatorname{sc}(o)$ | scope of a route operation: order, a part type, or carrier | `Operation.scope` | [03](03_loads.md) |
-| $\mathcal{R}$, $G_R$ | runs (machine runs over several carriers); operations of run $R$ in sequence (setup, main, removal) | `Instance.runs`, `CompiledInstance.machine_groups` | [03](03_loads.md) |
-| $p_\pi$, $p_R$, $p^0$, $\lambda$, $\Pi(R)$ | time of part $\pi$ alone in a run step; duration of the main operation of run $R$; fixed part and share of the run-duration estimator; parts of all carriers of $R$ | `Part.times`, `RunEstimator` | [03](03_loads.md) |
+| $\Pi_k$ | parts of order $k$, each with a type | `Order.parts` | [03](03_carriers.md) |
+| $\mathcal{B}$, $b$ | carriers (build plates with their parts) | `Instance.carriers` | [03](03_carriers.md) |
+| $\Pi(b)$, $\mathcal{K}_b$, $\mathcal{B}_k$ | parts on carrier $b$; orders with parts on $b$; carriers holding parts of order $k$ | `Carrier.parts` | [03](03_carriers.md) |
+| $\tau(b)$, $\tau(o)$, $\mathcal{B}_k^\tau$ | kind of carrier $b$ (type of its parts, e.g. blank: primary); part type carrier operation $o$ carries; carriers of kind $\tau$ holding parts of order $k$ | `carrier_kinds`, `Operation.carries` | [03](03_carriers.md) |
+| $\operatorname{sc}(o)$ | scope of a route operation: order, a part type, or carrier | `Operation.scope` | [03](03_carriers.md) |
+| $\mathcal{R}$, $G_R$ | runs (machine runs over several carriers); operations of run $R$ in sequence (setup, main, removal) | `Instance.runs`, `CompiledInstance.machine_groups` | [03](03_carriers.md) |
+| $p_\pi$, $p_R$, $p^0$, $\lambda$, $\Pi(R)$ | time of part $\pi$ alone in a run step; duration of the main operation of run $R$; fixed part and share of the run-duration estimator; parts of all carriers of $R$ | `Part.times`, `RunEstimator` | [03](03_carriers.md) |
 | $n_k$, $Q$, $Q_R$ | size of the carried part of order $k$ (number of counted parts, dental: telescopes); carrier capacity in size units; maximum carriers per run (generator) | `CarrierGeneratorParams` | [21](21_instance-generator.md) |
-| $\rho_s$ | run mode of carrier step $s$: none, given (nesting), per carrier | `CarrierStep.runs` | [03](03_loads.md) |
-| $c_s$ | batch capacity of carrier step $s$ (carriers per machine run decided by the planner, p-batch) | `CarrierStep.batch_capacity` | [03](03_loads.md) |
-| $u_j$, $S^B_j$, $z_{j,m}$, $y_{o,j}$ | CP-SAT batch slot $j$: used, start, machine choice; operation $o$ in slot $j$ | [03](03_loads.md) |
-| $\operatorname{ex}_b(o)$ | operations executing carrier operation $o$ for carrier $b$ (its own operation or the run's), with $\operatorname{first}$, $\operatorname{last}$ | `operation_graph` | [03](03_loads.md) |
-| $P^*$ | precedence pairs of the compiled graph, crossing orders only through carrier and run operations | `CompiledInstance.predecessors` | [03](03_loads.md) |
+| $\rho_s$ | run mode of carrier step $s$: none, given (nesting), per carrier | `CarrierStep.runs` | [03](03_carriers.md) |
+| $c_s$ | batch capacity of carrier step $s$ (carriers per machine run decided by the planner, p-batch) | `CarrierStep.batch_capacity` | [03](03_carriers.md) |
+| $u_j$, $S^B_j$, $z_{j,m}$, $y_{o,j}$ | CP-SAT batch slot $j$: used, start, machine choice; operation $o$ in slot $j$ | [03](03_carriers.md) |
+| $\operatorname{ex}_b(o)$ | operations executing carrier operation $o$ for carrier $b$ (its own operation or the run's), with $\operatorname{first}$, $\operatorname{last}$ | `operation_graph` | [03](03_carriers.md) |
+| $P^*$ | precedence pairs of the compiled graph, crossing orders only through carrier and run operations | `CompiledInstance.predecessors` | [03](03_carriers.md) |
 
 Note: $\mathcal{K}$ instead of the common $J$ ("jobs"), because "Job" denotes a machine run in the MES (see terminology in `CLAUDE.md`).
 
@@ -67,6 +67,10 @@ calendar ([04](04_workers.md)).
 | $S_o$ | $\mathbb{Z}_{\ge 0}$ | start time of $o$ | [01](01_basic-fjsp.md) |
 | $C_o$ | $\mathbb{Z}_{\ge 0}$ | completion time of $o$ | [01](01_basic-fjsp.md) |
 | $C_{\max}$ | $\mathbb{Z}_{\ge 0}$ | makespan | [01](01_basic-fjsp.md) |
+| $y_{\eta,w}$ | $\{0,1\}$ | 1 iff worker $w$ serves share $\eta$ | [04](04_workers.md) |
+| $I_\eta = [\underline{I}_\eta, \overline{I}_\eta)$ | interval | worker time of share $\eta$ (whole, prefix or suffix of its operation) | [04](04_workers.md) |
+| $b_{w,d}$ | $\mathbb{Z}_{\ge 0}$ | break start of worker $w$ on day $d$ (not the maximum late offset $b$ of [22](22_scenarios.md)) | [04](04_workers.md) |
+| $\hat b_{w,d}$ | $\mathbb{Z}_{\ge 0}$ | realized break start, started by snapshot time $t$ (part of the snapshot) | [04](04_workers.md) |
 
 ## Derived quantities (solution methods)
 
@@ -80,6 +84,7 @@ calendar ([04](04_workers.md)).
 | $w_k$ | remaining work of order $k$: $\sum \underline{p}_o$ over its unscheduled operations | [11](11_dispatching-rules.md) |
 | $\ell_o$ | longest remaining path from $o$ (inclusive) within its order, measured with $\underline{p}$ | [11](11_dispatching-rules.md) |
 | $m(o)$ | machine assigned to $o$ by the assignment rule | [11](11_dispatching-rules.md) |
+| $V_w$ | worker load of $w$: total length of the shares booked for $w$ so far ($W$ is the worker set; $V$ in [L] means operations, not ours) | [11](11_dispatching-rules.md) |
 
 ## Correspondence to the sources
 

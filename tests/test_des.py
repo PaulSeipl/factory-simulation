@@ -65,7 +65,8 @@ def test_replay_of_rule_plan_equals_plan_and_keeps_its_makespan(path):
 def test_replay_of_cpsat_plan_equals_plan_and_keeps_its_makespan(path):
     # any CP-SAT solution (optimal or not): its objective value is the makespan the DES must realize
     ci = compiled(path)
-    result = solve(ci, time_limit=1, hint=best_dispatch(ci)[1])
+    # work-based limit: reproducible under machine load (wall-clock 1 s found nothing for Mk10 under load)
+    result = solve(ci, time_limit=60, hint=best_dispatch(ci)[1], deterministic_time=0.05)
     assert result.status in ("OPTIMAL", "FEASIBLE")
     realized = replay(ci, result.schedule).schedule
     assert by_op(realized) == by_op(result.schedule)

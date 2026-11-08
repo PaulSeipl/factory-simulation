@@ -1,10 +1,12 @@
 """Metrics of one execution run: efficiency, stability against the start plan, effort (math/23_metrics.md)."""
 
+from collections import defaultdict
 from collections.abc import Sequence
 from statistics import mean
 from typing import TYPE_CHECKING
 
-from simulation.calendar import days_late
+from simulation.calendar import day_index, day_start, days_late, minute_of_day
+from simulation.check.feasibility import worker_intervals
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment
 
@@ -46,4 +48,32 @@ def run_metrics(ci: CompiledInstance, plan: Sequence[Assignment], result: Execut
             metrics["tardy_days"] = sum(
                 days_late(cal, d, order_end[k]) for k, d in zip(ci.order_ids, ci.due_date, strict=True) if d is not None
             )
+    if ci.worker_ids:  # worker metrics (math/04_workers.md, math/23_metrics.md)
+        metrics |= _worker_metrics(ci, result)
     return metrics
+
+
+def _worker_metrics(ci: CompiledInstance, result: ExecutionResult) -> dict[str, int]:
+    """Oven overstay and swaps from the factory log; with a calendar overtime, overruns past shift end + max
+    overtime, and break postponement and spread, from the realized share intervals and breaks."""
+    out = {"overstay": sum(r["minutes"] for r in result.log if r["type"] == "OVERSTAY"),
+           "swaps": sum(r["type"] == "SWAP" for r in result.log)}
+    if (cal := ci.calendar) is None:
+        return out
+    by_op = {ci.op_index[a.order_id, a.op_id]: a for a in result.schedule}
+    last_end: dict[tuple[str, int], int] = {}  # (worker, day) -> end of its last share
+    overruns = 0
+    for w, intervals in worker_intervals(ci, by_op).items():
+        for s, e, _ in intervals:
+            d = day_index(cal, s)
+            last_end[w, d] = max(last_end.get((w, d), 0), e)
+            overruns += e > day_start(cal, d) + cal.shift_end + cal.max_overtime
+    per_day: dict[int, list[int]] = defaultdict(list)
+    for b in result.breaks:
+        per_day[day_index(cal, b.start)].append(b.start)
+    return out | {
+        "overtime": sum(max(0, e - day_start(cal, d) - cal.shift_end) for (_, d), e in last_end.items()),
+        "overruns": overruns,
+        "break_postponement": sum(max(0, minute_of_day(cal, b.start) - cal.break_earliest) for b in result.breaks),
+        "break_spread": sum(max(starts) - min(starts) for starts in per_day.values()),
+    }

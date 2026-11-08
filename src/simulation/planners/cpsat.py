@@ -9,7 +9,7 @@ fixed intervals with the times of the snapshot (C7), all others start at t at th
 a reference plan and a change budget, at most that many operations not started may run on another
 machine than in the reference plan.
 
-Runs (math/03_loads.md): the operations of a run choose the same machine (C8), and instead of their own
+Runs (math/03_carriers.md): the operations of a run choose the same machine (C8), and instead of their own
 intervals one interval from the start of the first to the end of the last operation enters the machine's
 no-overlap constraint (C9: the machine is blocked also while the removal waits).
 
@@ -50,6 +50,7 @@ def solve(
     snapshot: Snapshot | None = None,
     reference: Sequence[Assignment] | None = None,
     change_budget: int | None = None,
+    deterministic_time: float | None = None,  # work-based limit: same result under any machine load (1 worker)
 ) -> CpSatResult:
     reject_workers(ci, "CP-SAT")
     frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
@@ -148,6 +149,8 @@ def solve(
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = time_limit
+    if deterministic_time is not None:
+        solver.parameters.max_deterministic_time = deterministic_time
     solver.parameters.num_workers = workers
     solver.parameters.random_seed = seed
     status = solver.solve(model)

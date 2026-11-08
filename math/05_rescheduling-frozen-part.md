@@ -35,6 +35,9 @@ $$\bar S'_o \ge t \qquad \forall o \text{ not started at } t$$
 (C7) The frozen part is unchanged: finished operations keep their realized times, running operations their machine and realized start.
 $$\bar m'(o) = \bar m(o),\ \bar S'_o = \hat S_o \qquad \forall o \text{ started at } t$$
 
+With workers and a calendar, C6 and C7 also hold for breaks (C6$^b$, C7$^b$), and a forced postponement past the
+break window is allowed (C14$^f$); see [04](04_workers.md) §3.
+
 **Shift repair.** Machine and order per machine stay as planned. Known end of a blocker:
 $$E_q = \begin{cases} \hat C_q & q \text{ finished} \\ \tilde C_q = \max(\hat S_q + p_{q,\bar m(q)},\ t+1) & q \text{ running} \\ \bar C'_q & q \text{ not started (already repaired)} \end{cases}$$
 
@@ -47,7 +50,7 @@ Consequences:
 - Without any deviation $\beta'_o = \beta_o$ and the plan is unchanged; gaps in the plan (e.g. of a CP-SAT plan) are kept. This keeps the zero-disturbance test valid.
 - An early finish pulls only the operations forward that were waiting for it (left shift); a late finish pushes them back (right shift).
 - C6 holds since $\beta'_o \ge t$; C7 holds since started operations are not touched; C3–C5 hold for the planned durations by construction.
-- A batch (operations of a batch step with the same machine and planned start, [03](03_loads.md)) moves as one: within the batch nobody waits for a fellow member, and all members start at the latest start any of them needs.
+- A batch (operations of a batch step with the same machine and planned start, [03](03_carriers.md)) moves as one: within the batch nobody waits for a fellow member, and all members start at the latest start any of them needs.
 - The repair uses only the snapshot information (realized past, starts of running operations, planned durations), never the scenario.
 
 **Trigger.** At every repair that changes the plan, three metrics compare the repaired plan with the **anchor** $\bar S^A_o, \bar C^A_o$: the plan the last complete rescheduling settled on (accepted: its new plan; rejected: the repaired plan it was compared with), at first the start plan:
@@ -178,4 +181,5 @@ With the OVERDUE event the means are unchanged on mk01 (overruns are seen throug
 | 2026-10-30 | uncommitted | Trigger on the planner's objective ($\delta_f$) and periodic safety net ($\tau$, hybrid policy, WAKE event); hand-checked toy cases. |
 | 2026-10-30 | uncommitted | Frozen horizon and anti-thrashing from Shiau et al. (2026) recorded as open points. |
 | 2026-11-03 | uncommitted | Repair moves batches as one. |
+| 2026-11-08 | uncommitted | C6 and C7 for breaks, forced postponement (reference to [04](04_workers.md) §3). |
 | 2026-11-04 | uncommitted | Mean start deviation $\Delta S_{\mathrm{mean}}$ as a third trigger (`max_mean_shift`), max kept for the ablation; sources for deviation triggers; open: direction of the triggers. Tardiness-trigger examples in notebook `04_rescheduling`. |

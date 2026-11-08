@@ -49,6 +49,7 @@ Not affected: the metrics evaluate runs; the planners still minimize the makespa
 ## 5. Implementation in code
 
 - `simulation.metrics.run_metrics(ci, plan, result) -> dict`: one flat record per run with the keys `planned_makespan`, `makespan` (M1), `mean_flow_time` (M2), `mean_start_deviation` (M3), `machine_changes` (M4), `repairs`, `reschedulings`, `accepted_reschedulings`, `planner_time` (M5), and with due dates `total_tardiness`, `tardy_orders`, `max_lateness` (M6). The M6 keys are left out for instances without due dates, so that all rows of one experiment have the same columns (one CSV per instance set). `plan` is the start plan, `result` the `ExecutionResult` of `simulation.control.rescheduling.execute`.
+- **M7 worker metrics** (instances with workers, [04](04_workers.md)): `overstay` (sum of the OVERSTAY minutes of the factory log: oven removals delayed by a busy worker), `swaps` (number of SWAP records); with a work calendar in addition, from the realized share intervals (`check.feasibility.worker_intervals`, realized share lengths) and the realized breaks (`ExecutionResult.breaks`): `overtime` $= \sum_{w,d} \max(0,\ e_{w,d} - h^{\mathrm{E}})$ with $e_{w,d}$ the end of worker $w$'s last share on day $d$ (minutes after the regular shift end), `overruns` (shares ending after $h^{\mathrm{E}} + \bar O$), `break_postponement` $= \sum_{\text{breaks}} \max(0, \operatorname{mod}(b) - h^{\mathrm{B}-})$, `break_spread` $= \sum_d (\max_w b_{w,d} - \min_w b_{w,d})$ over the days with breaks. Own definitions; the planned objective terms (spec §5) will use the same quantities. Hand values (`tests/test_worker_snapshot_metrics.py`): packaging 19:00–19:40 → overtime 130, 1 overrun; A's break at 12:20, B's at 12:00 → postponement 20, spread 20; one swap; one-worker oven removal 3 minutes late → overstay 3; without disturbance all 0.
 - The planner time is measured in `_reschedule` around the planner call (`time.perf_counter`) and stored in each `REPLAN` record as `planner_time`. It is the only non-deterministic value of a run.
 - `simulation.io.json_loader.write_csv(rows, path)`: results as CSV, one row per run.
 - Tests (`tests/test_metrics.py`), hand-computed on the toy plan (releases A 0, B 2, C 4):
@@ -90,6 +91,7 @@ CP-SAT, which minimizes the makespan only, has the lowest makespan but a higher 
 
 | Date | Commit | Change |
 |---|---|---|
+| 2026-11-06 | uncommitted | M7 worker metrics: overstay, swaps; with a calendar overtime, overruns, break postponement and spread; hand values in `tests/test_worker_snapshot_metrics.py`. |
 | 2026-10-30 | uncommitted | First version: M1–M5, planner time in the decision log, CSV output. |
 | 2026-10-30 | uncommitted | Definition of the sequence deviation of Wu et al. (1993) read and recorded. |
 | 2026-10-30 | uncommitted | M6 due-date metrics (total tardiness, tardy orders, maximum lateness); test with hand values (a3 overrun, due dates 10/11/10: lateness 4, 5, 0). |

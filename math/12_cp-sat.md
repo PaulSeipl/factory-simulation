@@ -29,9 +29,9 @@ No new symbols in [notation.md](notation.md). Solver-internal objects:
 
 All optional intervals of an operation share its start variable $S_o$. The official OR-Tools FJSP example instead creates separate start/end variables per alternative and links them with `only_enforce_if` (Google OR-Tools, `flexible_job_shop_sat` example). Both are equivalent here because the processing time is fixed per machine; the shared start needs fewer variables and no reified constraints. Absent intervals are ignored by `add_no_overlap`, so only the chosen machine is occupied.
 
-**Runs** ([03](03_loads.md)): C8 as $x_{o,m} = x_{\operatorname{first}(G_R),m}$ for all operations of a run; C9 as one optional interval per run and machine, $[S_{\operatorname{first}(G_R)}, C_{\operatorname{last}(G_R)})$ with variable size and presence $x_{\operatorname{first}(G_R),m}$ (`new_optional_interval_var`), which replaces the intervals of the run's operations in `add_no_overlap`. Frozen operations of a run enter only through this span.
+**Runs** ([03](03_carriers.md)): C8 as $x_{o,m} = x_{\operatorname{first}(G_R),m}$ for all operations of a run; C9 as one optional interval per run and machine, $[S_{\operatorname{first}(G_R)}, C_{\operatorname{last}(G_R)})$ with variable size and presence $x_{\operatorname{first}(G_R),m}$ (`new_optional_interval_var`), which replaces the intervals of the run's operations in `add_no_overlap`. Frozen operations of a run enter only through this span.
 
-**Batches** ([03](03_loads.md)): batch slots per family of operations (same machines, durations and capacity): slot presence $u_j$, start $S^B_j$, machine $z_{j,m}$, assignment $y_{o,j}$ (`only_enforce_if` for equal start and machine), capacity $\sum_o y_{o,j} \le c\,u_j$, one optional interval per slot and machine in `add_no_overlap` instead of the operations' intervals; symmetry breaking by slot order.
+**Batches** ([03](03_carriers.md)): batch slots per family of operations (same machines, durations and capacity): slot presence $u_j$, start $S^B_j$, machine $z_{j,m}$, assignment $y_{o,j}$ (`only_enforce_if` for equal start and machine), capacity $\sum_o y_{o,j} \le c\,u_j$, one optional interval per slot and machine in `add_no_overlap` instead of the operations' intervals; symmetry breaking by slot order.
 
 ## 4. Objective function
 

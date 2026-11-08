@@ -22,9 +22,9 @@ New symbols, registered in [notation.md](notation.md):
 
 ## 3. Events and execution semantics
 
-**Carriers and runs** ([03](03_loads.md)): carrier and run operations are ordinary operations of the compiled graph, so the event logic is unchanged. A run blocks its machine between its main operation and a waiting removal because the DES keeps the planned order per machine: the next operation on the machine is the removal, nothing else may start before it (test `test_late_removal_blocks_the_printer`).
+**Carriers and runs** ([03](03_carriers.md)): carrier and run operations are ordinary operations of the compiled graph, so the event logic is unchanged. A run blocks its machine between its main operation and a waiting removal because the DES keeps the planned order per machine: the next operation on the machine is the removal, nothing else may start before it (test `test_late_removal_blocks_the_printer`).
 
-**Batches** ([03](03_loads.md)): operations of a batch step planned on one machine with the same start start jointly once all are ready; the largest late offset among them delays the batch; their duration does not deviate (fixed program).
+**Batches** ([03](03_carriers.md)): operations of a batch step planned on one machine with the same start start jointly once all are ready; the largest late offset among them delays the batch; their duration does not deviate (fixed program).
 
 **Plan validation.** Before the run, the plan is checked with the feasibility checker (C1–C5, [01](01_basic-fjsp.md) §5). An infeasible plan raises `PlanNotExecutable` with all violations. Without this check, waiting would silently repair a broken plan (e.g. two overlapping operations would simply run one after the other).
 
@@ -65,6 +65,8 @@ A start cannot enable another start at the same $t$ (it occupies a machine and c
 
 **Work calendar** (phase 2 task 2; user rules and own defaults, 2026-11-05). With a calendar, a worker starts a share only (i) on a working day at or after $h^{\mathrm{S}}$, (ii) not during or while due for a break, and (iii) if the *planned* share length fits before $h^{\mathrm{E}} + \bar O$ (planned, not realized: no leakage); otherwise a WAKE event is pushed for the next possible time (next shift start, end of the break), so Friday 19:20 waits until Monday 08:00. A share that then runs past $h^{\mathrm{E}} + \bar O$ is finished, not preempted (overrun, visible as C13 on the realized schedule). Planned breaks are taken at their planned start; a worker busy then takes it right after the current share (individual postponement, possibly beyond the window: visible as C14). The DES invents no break for a day without a planned one (the planning tool plans breaks; a missing break on such a day shows as C14). Realized breaks are returned with the result (`SimResult.breaks`), and realized share lengths with each assignment (`Assignment.share_lengths`), so that the checker evaluates the realized worker times. Overtime is read off the realized schedule (metrics, task 4).
 
+**Swap rule** (phase 2 task 3; user 2026-11-05, tie-break own). When a share is due (the operation could start, or its machine part has ended) and its planned worker is busy (on a share or a break), a worker $v \in W_\eta$ takes it if $v$ is free now, may work now (shift window, no break due) and its next planned share starts no earlier than $t + a_\eta$ ($a_\eta$ the planned share length; planned values only, no leakage). Among several, the one with the most room before its next planned share, then the lowest index. The share moves from the planned worker's order to the front of $v$'s remaining order, all members of a batch get $v$, and the DES writes $v$ into its current plan (`current_plan()`), so a later repair sees the real state. Without disturbances no worker is busy at a due share (the plan is feasible), so the rule never fires and the zero-disturbance test holds. It also applies to the oven removal and can thereby avoid an overstay. Logged as SWAP (share kind, planned and actual worker).
+
 The log contains one START record (actual start) and one COMPLETE record per operation, and an OVERSTAY record (minutes) per delayed removal; PLANNED_START, LATE_START and OVERDUE events are internal. Decisions of the planning tool (REPAIR, REPLAN) are recorded by the planning tool ([05](05_rescheduling-frozen-part.md)).
 
 ## 4. State
@@ -82,7 +84,7 @@ The log contains one START record (actual start) and one COMPLETE record per ope
 | `released` | operations released to the shop floor but not started |
 | `start[o]`, `end[o]` | $\hat S_o$, $\hat C_o$ once known |
 
-The realized durations, start offsets and the planned order per machine are fixed for the run and not part of the state. Workers and carriers (plates) enter together with their model components (`04_workers`, [03](03_loads.md)).
+The realized durations, start offsets and the planned order per machine are fixed for the run and not part of the state. Workers and carriers (plates) enter together with their model components (`04_workers`, [03](03_carriers.md)).
 
 ## 5. Implementation in code
 
@@ -142,6 +144,10 @@ First robustness observation (notebook, one run, 30 scenario seeds per row, same
 | running | $\hat S_o \le t < \hat C_o$ | **frozen**: machine and $\hat S_o$ fixed, expected completion $\tilde C_o$ |
 | free | not started | absent: everything about it may be replanned |
 
+**Workers in the snapshot** (phase 2 task 4). `FrozenOperation.machine` is `None` for operations without machine; their expected completion uses the fixed duration $p_o$. `FrozenOperation.workers` holds the actual worker of every started share and `None` for a share not started yet: the removal of a running oven (suffix) may still be given to another worker, by the swap rule or by rescheduling. After a swap the snapshot shows the actual worker. C7 keeps the workers of the started shares ([04](04_workers.md)). `Snapshot.breaks` holds the breaks started by
+$t$ with their realized starts $\hat b_{w,d}$ (a postponed break with its actual start); breaks planned but not yet
+started are not in the snapshot, the planner decides them anew (C6$^b$, C7$^b$, C14$^f$ in [04](04_workers.md)).
+
 Finished and running operations together form the **frozen part** of the factory (later also started loads). The expected completion of a running operation uses the planned processing time, never the scenario:
 
 $$\tilde C_o = \max\big(\hat S_o + p_{o,\bar m(o)},\ t + 1\big)$$
@@ -188,5 +194,8 @@ Snapshots are Pydantic models (`Snapshot`, `FrozenOperation`) and can be stored 
 | 2026-10-30 | uncommitted | WAKE event for time points requested by the planning tool; `has_unstarted`. |
 | 2026-11-02 | uncommitted | Carriers and runs run unchanged; blocking of a run through the planned order per machine. |
 | 2026-11-03 | uncommitted | Batches: joint start, fixed duration. |
+| 2026-11-06 | uncommitted | Snapshot with workers (phase 2, task 4): machine optional, workers of started shares, expected end of machine-less operations; `ExecutionResult.breaks`. |
+| 2026-11-06 | uncommitted | Swap rule (phase 2, task 3): free qualified worker takes a due share of a busy one if it fits before its next planned share; SWAP log; tests `tests/test_des_swap.py`. |
 | 2026-11-05 | uncommitted | Work calendar (phase 2, task 2): shift window with wake-ups, planned breaks taken or postponed, realized breaks and share lengths in the result; tests `tests/test_des_calendar.py`. |
 | 2026-11-05 | uncommitted | Workers (phase 2, task 1): shares in planned order per worker, suffix with OVERSTAY, machine-less operations, SHARE_END and SUFFIX_DUE events; `Simulation(..., breaks)`, `replay(..., breaks)`, `SimResult.breaks`; tests `tests/test_des_workers.py`. |
+| 2026-11-08 | uncommitted | `Snapshot.breaks`: breaks started by $t$ with their realized starts. |

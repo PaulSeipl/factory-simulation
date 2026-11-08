@@ -16,7 +16,7 @@ from pydantic import (
 from simulation.calendar import next_cutoff
 
 ORDER = "order"  # scope: the operation acts on all parts of the order
-CARRIER = "carrier"  # scope: executed by every carrier that holds parts of the order (math/03_loads.md)
+CARRIER = "carrier"  # scope: executed by every carrier that holds parts of the order (math/03_carriers.md)
 
 
 def _duplicates(ids) -> list[str]:
@@ -76,7 +76,7 @@ class Order(BaseModel):
 
 
 class RunEstimator(BaseModel):
-    """Parameters of estimate_run_duration (an assumption until validated with Fidentis data, math/03_loads.md)."""
+    """Parameters of estimate_run_duration (an assumption until validated with Fidentis data, math/03_carriers.md)."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
     fixed: NonNegativeInt = 0  # minutes per run, independent of its content
@@ -87,7 +87,7 @@ class CarrierStep(BaseModel):
     """Durations of a carrier step; setup and removal only for steps executed in runs (0: no such operation).
 
     runs: "none" (one operation per carrier), "given" (runs from nesting, Instance.runs) or "per_carrier" (every
-    carrier is its own run, e.g. milling the parts of one carrier; math/03_loads.md).
+    carrier is its own run, e.g. milling the parts of one carrier; math/03_carriers.md).
     The main operation of a run takes, in this order: the duration reported by nesting (Run.duration), the
     estimate from the parts of the run (if an estimator is given), the constant per machine in options.
     """
@@ -388,7 +388,7 @@ def _chain(order: Order, kind: str | None) -> list[Operation]:
 
 
 def estimate_run_duration(part_times: Sequence[int], fixed: int, share: float) -> int:
-    """Duration of a run from the times of its parts processed alone (math/03_loads.md, step 4).
+    """Duration of a run from the times of its parts processed alone (math/03_carriers.md, step 4).
 
     Neither a p-batch (max) nor an s-batch (sum): fixed + share * sum, rounded half up and clamped to
     [max, sum]. The form and its parameters are assumptions until validated with Fidentis data.
@@ -426,7 +426,7 @@ def _shares(share: WorkerShare | None) -> tuple[WorkerShare, ...]:
 
 
 def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
-    """All operations keyed by (owner, op_id); owners are orders, carriers and runs (math/03_loads.md).
+    """All operations keyed by (owner, op_id); owners are orders, carriers and runs (math/03_carriers.md).
 
     One rule derives every synchronization: a carrier operation of an order is executed by the corresponding
     operation of every carrier that holds parts of the order (for a run step: by the carrier's run), and the

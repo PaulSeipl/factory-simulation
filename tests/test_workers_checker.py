@@ -77,6 +77,19 @@ def test_break_violations(breaks, message):
     assert [v.constraint for v in violations] == ["C14"] and message in violations[0].message
 
 
+def test_wrong_number_of_share_lengths():
+    rows = [a.model_copy(update={"share_lengths": (15, 1)}) if a.op_id == "print" else a for a in plan()]
+    assert constraints(rows) == ["C11"]
+
+
+def test_realized_share_lengths_replace_the_planned_ones():
+    # k2 packaging by A at [80, 100) overlaps A's planned Gegenbetten prefix [60, 90), not a realized one of 15
+    rows = plan(k2_pack=(None, 80, 100, ("A",)))
+    assert constraints(rows) == ["C12"]
+    shorter = [a.model_copy(update={"share_lengths": (15,)}) if a.op_id == "gb" else a for a in rows]
+    assert constraints(shorter) == []
+
+
 def test_share_touching_break_is_allowed():
     assert check_schedule(CI, plan(k1_pack=(None, 220, 240, ("A",))), breaks=BREAKS) == []
 

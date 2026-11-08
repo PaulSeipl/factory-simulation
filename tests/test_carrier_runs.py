@@ -1,4 +1,4 @@
-"""Runs per carrier (math/03_loads.md, G3/G4): a carrier step with runs="per_carrier" (e.g. milling the parts of one
+"""Runs per carrier (math/03_carriers.md, G3/G4): a carrier step with runs="per_carrier" (e.g. milling the parts of one
 carrier) gives every carrier its own run of setup, main operation and removal; no nesting input."""
 
 import pytest

@@ -80,8 +80,10 @@ def test_repair_without_disturbance_changes_nothing(plan):
 def test_zero_disturbance_with_repair_for_cpsat_plans(path):
     # CP-SAT plans may contain gaps; the repair must not close them without a deviation
     ci = compiled(path)
-    plan = solve(ci, time_limit=1, workers=1, hint=best_dispatch(ci)[1]).schedule
-    assert by_op(execute(ci, plan, policy=REPAIR).schedule) == by_op(plan)
+    # deterministic limit: a wall-clock second found no solution for Mk10 under the load of the full suite
+    result = solve(ci, time_limit=60, workers=1, hint=best_dispatch(ci)[1], deterministic_time=0.05)
+    assert result.schedule, result.status
+    assert by_op(execute(ci, result.schedule, policy=REPAIR).schedule) == by_op(result.schedule)
 
 
 def test_early_finish_is_used_only_with_repair():

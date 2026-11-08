@@ -7,9 +7,7 @@ from simulation.model.compiled import Share, compile_instance, share_interval
 from simulation.model.instance import Instance
 from simulation.objectives import static_horizon
 from simulation.planners.cpsat import solve
-from simulation.planners.dispatching import dispatch, ect, spt
 from simulation.planners.repair import repair
-from simulation.sim.des import Simulation
 
 ORDER = {
     "schema_version": "0.6", "name": "workers", "machines": ["P"], "workers": ["W1", "W2"],
@@ -87,12 +85,10 @@ def test_static_horizon_counts_fixed_durations():
     assert static_horizon(CI) == 60 + 90 + 20
 
 
-@pytest.mark.parametrize("consumer", [
-    lambda ci: Simulation(ci, []),
-    lambda ci: dispatch(ci, spt, ect),
+@pytest.mark.parametrize("consumer", [  # DES since phase 2, dispatching since phase 3 (test_dispatching_workers.py)
     lambda ci: solve(ci, time_limit=1),
     lambda ci: repair(ci, None, []),
-], ids=["des", "dispatching", "cpsat", "repair"])
+], ids=["cpsat", "repair"])
 @pytest.mark.parametrize("ci", [CI, CARRIERS], ids=["machine-less", "carrier-shares"])
 def test_consumers_reject_workers(consumer, ci):
     with pytest.raises(NotImplementedError, match="workers"):

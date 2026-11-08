@@ -1,6 +1,6 @@
 # Terminology (binding)
 
-Single source for the terms used in code, `math/` and the thesis. Imported by `simulation/CLAUDE.md` and `seipl27/CLAUDE.md`; change terms only here. Formal definitions: [03_loads.md](03_loads.md) (carriers, loads, runs), [05_rescheduling-frozen-part.md](05_rescheduling-frozen-part.md) (repair, rescheduling).
+Single source for the terms used in code, `math/` and the thesis. Imported by `simulation/CLAUDE.md` and `seipl27/CLAUDE.md`; change terms only here. Formal definitions: [03_carriers.md](03_carriers.md) (carriers, loads, runs), [05_rescheduling-frozen-part.md](05_rescheduling-frozen-part.md) (repair, rescheduling).
 
 - **Order:** customer order
 - **Operation:** one processing step of an order; `id` is unique only within its order, `(order_id, op_id)` identifies an operation globally

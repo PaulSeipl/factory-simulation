@@ -54,8 +54,8 @@ Rest without any resource is the unattended remainder $p_o - a^{\mathrm{pre}}_o$
 may last longer than needed (minimum), so successors only need $S_{o'} \ge C_o$ as before (C3): no time lag on
 edges (revises protocol 2026-11-04 (2), block 2).
 
-*Planned:* break starts $b_{w,d}$, shift ends $e_{w,d}$, overtime $O_{w,d}$ (symbols to be added to `notation.md`
-with their step).
+*Planned:* shift ends $e_{w,d}$, overtime $O_{w,d}$ (symbols to be added to `notation.md` with their step); break
+starts $b_{w,d}$ and $y_{\eta,w}$, $I_\eta$ are in `notation.md` since 2026-11-08.
 
 ## 3. Constraints
 
@@ -82,6 +82,21 @@ validity, §2), so a share cannot cross into the next day.
 window, and no share overlaps it.
 $$\operatorname{mod}(b_{w,d}) \in [h^{\mathrm{B}-}, h^{\mathrm{B}+}],\qquad y_{\eta,w} = 1 \Rightarrow I_\eta \cap [b_{w,d}, b_{w,d} + L^{\mathrm{B}}) = \emptyset$$
 
+**Breaks in a revised plan** (against a snapshot at $t$, [05](05_rescheduling-frozen-part.md); the breaks
+$\hat b_{w,d}$ started by $t$ are part of the snapshot):
+
+(C6$^b$) A break not started is not planned before $t$: $b_{w,d} \ge t$ for every break not in the snapshot.
+
+(C7$^b$) Started breaks are unchanged: $b_{w,d} = \hat b_{w,d}$ for every break of the snapshot. They are realized
+history and are not checked against the window (like C2 for frozen operations).
+
+(C14$^f$) Forced postponement: a break not started may start after the window only if a started share of the
+worker covers the latest break start and the break starts exactly at that share's expected end:
+$$b_{w,d} > \operatorname{start}(d) + h^{\mathrm{B}+} \ \Rightarrow\ \exists \eta \text{ frozen}: y_{\eta,w} = 1,\ \underline{I}_\eta < \operatorname{start}(d) + h^{\mathrm{B}+} < \overline{I}_\eta = b_{w,d}$$
+It arises only from disturbances (an overrun or a late start of that share; user 2026-11-08: a planner must never
+cause it, forced by the frozen part it is the shortest delay). $I_\eta$ of a frozen share uses the snapshot's
+(expected) times and the planned share length, i.e. what a planner sees.
+
 Overtime $O_{w,d} = \max(0,\ \max_\eta \overline{I}_\eta - \operatorname{start}(d) - h^{\mathrm{E}})$ is bounded by
 C13 ($\le \bar O$) and otherwise a cost (§4, planned), not a constraint. The common break (same start for all) is a
 soft goal (spread penalty, §4), not a constraint. Rest without resource needs no constraint (C3 suffices, §2).
@@ -105,6 +120,14 @@ CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further
   `next_cutoff(cal, t)`, `days_late(cal, due, end)`. Plain functions on any object with the calendar's fields,
   so the compiled form can use them without Pydantic in the hot path: `CompiledInstance.calendar` is a
   `calendar.WeekCalendar` (frozen slots dataclass, same fields), `None` without a calendar.
+- `calendar.next_start(cal, t, length, latest)` (phase 3, task 1, for the dispatching rule): the earliest
+  $s \ge t$ such that $[s, s + \text{length})$ lies in one of the two parts of a working day's shift,
+  $[h^{\mathrm{S}}, h^{\mathrm{B}-})$ or $[h^{\mathrm{B}-} + L^{\mathrm{B}}, \text{latest})$, i.e. with the break at
+  its earliest start (the rule's fixed 12:00 break); `latest` is $h^{\mathrm{E}}$ without overtime or
+  $h^{\mathrm{E}} + \bar O$ with it. A share longer than both parts raises `ValueError` (it cannot be planned
+  without overtime, or at all). Tests in `tests/test_calendar.py` (by hand: morning, ending exactly at 12:00,
+  pushed past the break, starting in the break, next day, with overtime, Friday → Monday, weekend, before shift
+  start, a 5-hour share only in the long afternoon; the too-long case).
 - Format of workers (schema 0.6, still unpublished): `Instance.workers`; `WorkerShare(whole, prefix, suffix,
   qualified)` with exactly one of whole / prefix + suffix > 0; `Operation.duration` (exclusive with `options`,
   needs `Operation.worker`); `Operation.worker` only on order operations; `CarrierStep.worker` for the main
@@ -147,9 +170,43 @@ CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further
   Tests `tests/test_des_calendar.py` (by hand: late share with 10 minutes of overtime; share not fitting → next
   working day, Friday → Monday; overrun finished; break postponed from 12:00 to 12:20 while busy; no share starts
   during a break; 10 disturbed seeds leave only C2, overruns and postponed breaks).
-- Guards (until their phase): dispatching (`dispatch`), CP-SAT (`solve`) and repair (`repair`) raise `NotImplementedError` for instances with workers or machine-less operations
+- DES (phase 2, task 3): swap rule ([13](13_des.md) §3). Tests `tests/test_des_swap.py` (by hand: B packs k2 while A
+  is still on Gegenbetten; no swap when B's next share starts 5 minutes too early, swap when it fits exactly;
+  Gegenbetten (only A) is not swapped to B; W2 unloads the oven for a busy W1 (no overstay) and sets up the mill
+  run; no swap without disturbance; the current plan shows the actual worker). The one-worker overstay case
+  stays in `tests/test_des_workers.py`.
+- Snapshot and metrics (phase 2, task 4): `FrozenOperation.workers` (started shares; `None` for a pending oven
+  removal), C7 compares them; metrics `overstay`, `swaps` and with a calendar `overtime`
+  ($\sum_{w,d} \max(0,\ \text{last share end on day } d - h^{\mathrm{E}})$), `overruns`, `break_postponement`,
+  `break_spread`
+  ([23](23_metrics.md) M7). Tests `tests/test_worker_snapshot_metrics.py`.
+- Dispatching (phase 3, task 2, no calendar yet): `planners.dispatching.dispatch` books every share into a gap of
+  a qualified worker (least worker load $V_w$, then lowest index), waits for the workers in the candidate's
+  earliest start, books a batch's shares once, places run parts one after the other, and schedules machine-less
+  operations; details and hand examples in [11](11_dispatching-rules.md) §3, §5. Tests
+  `tests/test_dispatching_workers.py`.
+- Breaks through rescheduling, task 1 (plan `docs/superpowers/plans/2026-11-08-breaks-rescheduling.md`):
+  `Snapshot.breaks` (breaks started by $t$ with their realized start, filled by `snapshot(ci, plan, state, breaks)`
+  from the DES break state; `Simulation.snapshot()` passes its planned breaks). Checker with a snapshot:
+  `breaks_changed` (C7$^b$ started break missing or moved, C6$^b$ a new break before $t$); `break_violations` skips
+  the window check for the snapshot's breaks and accepts a forced postponement (C14$^f$, via the frozen share
+  intervals `_frozen_worker_time`). Tests `tests/test_snapshot_breaks.py` (by hand: A's break realized at 12:20
+  after a slow Gegenbetten prefix, snapshot at 12:30; a forced postponement at the expected end 311 of a
+  packaging overrunning past 13:00, snapshot at 13:10; a realized break at 13:45 kept as history; negative: moved
+  started break → C7, new break before $t$ → C6, forced break later than the share end → C14, no frozen share
+  covering 13:00 → C14, late break without snapshot → C14).
+- Dispatching from a snapshot (phase 3, task 4): started shares of frozen operations keep and occupy their workers
+  (C7), a pending removal gets a worker by the rule's choice. With a calendar it raises `NotImplementedError`:
+  breaks do not travel through rescheduling yet (`Snapshot` has no breaks, the planner interface returns only
+  assignments, `control.rescheduling.execute` starts the `Simulation` without breaks, so on a calendar instance
+  its checks would report missing breaks, C14).
+- Dispatching with the calendar (phase 3, task 3): shares only within the shift without overtime and outside the
+  fixed 12:00 break (`calendar.next_start` with latest $= h^{\mathrm{E}}$); `default_breaks(ci, plan)` gives the
+  plan's breaks (C14); machines run overnight, attended removals wait for the morning. See
+  [11](11_dispatching-rules.md) §3.
+- Guards (until their phase): CP-SAT (`solve`) and repair (`repair`) raise `NotImplementedError` for instances with workers or machine-less operations
   (`compiled.reject_workers`). Tests: `tests/test_worker_compile.py` (shares of the three order kinds, of the
-  oven batch and the attended mill run, intervals, instances without workers unchanged, horizon, 8 guard cases).
+  oven batch and the attended mill run, intervals, instances without workers unchanged, horizon, 4 guard cases).
 - Tests: `tests/test_calendar.py` (arithmetic by hand: Monday 12:00 is $t = 240$, Tuesday 00:00 is $t = 960$,
   weekend skipped, Friday 12:01 → Monday 12:00; one negative test per validation rule).
 
@@ -159,6 +216,10 @@ CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further
 - The cutoff is a working-day event: no courier on weekends (user: a missed Friday cutoff shipped on Monday is
   1 day late).
 - Real attended shares and durations from Fidentis: placeholders for now (user).
+- **19:30 is hard in the plan, soft in execution** (user, 2026-11-06): C13 forbids planned shares past
+  $h^{\mathrm{E}} + \bar O$; in the DES a share that started in time but runs longer is finished and counted as an
+  overrun (metric `overruns`, [23](23_metrics.md) M7), not interrupted. Interrupting it would create a preempted
+  operation, which no planner handles; out of scope.
 - **Fallback if the operation model is too complex for the planners (user, 2026-11-05):** the five kinds
   (machine and/or worker, whole / prefix / suffix, unattended rest) may be too much for CP-SAT or the GA. Two
   downgrades are kept open: (a) **prefix and unattended only** (no suffix; the oven removal then becomes its own
@@ -167,6 +228,10 @@ CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further
   own operations). Decide after the CP-SAT step (phase 4) by solve times on the dental example; the format keeps
   the general form, so a downgrade is a restriction in the generator, not a format change.
 - **[CHECK WITH FIDENTIS]** oven overstay as the highest objective level, oven blocked while parts wait (spec §5).
+- A running **prefix** is visible in the snapshot only with its planned length: if it overruns past 13:00, its
+  interval $I_\eta$ ends before 13:00, so C14$^f$ does not accept the forced break (mine, 2026-11-08). Whole shares
+  carry the expected end of their operation and work. Upgrade: realized or expected share ends in
+  `FrozenOperation`, if a disturbed run hits it (Task 4 sweep will show).
 
 ## 7. Sources
 
@@ -187,6 +252,11 @@ CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further
 | Date | Commit | Change |
 |---|---|---|
 | 2026-11-05 | uncommitted | Component created: design summary; work calendar implemented (`Calendar`, `simulation.calendar`, schema 0.6, due dates on cutoffs). |
+| 2026-11-06 | uncommitted | DES: shares, calendar, swap rule (phase 2, tasks 1–3). |
+| 2026-11-06 | uncommitted | Dispatching rule with shares and machine-less operations, no calendar (phase 3, task 2). |
+| 2026-11-07 | uncommitted | Dispatching rule with the calendar and `default_breaks` (phase 3, task 3). |
+| 2026-11-08 | uncommitted | Dispatching from a snapshot with workers, no calendar (phase 3, task 4); open point: breaks through rescheduling. |
+| 2026-11-08 | uncommitted | Breaks in the snapshot; (C6$^b$), (C7$^b$), (C14$^f$) in the checker; symbols $y_{\eta,w}$, $I_\eta$, $b_{w,d}$, $\hat b_{w,d}$ in `notation.md`. |
 | 2026-11-05 | uncommitted | Constraints (C1'), (C11)–(C14) and the checker; mini instance `toy-workers.json`. |
 | 2026-11-05 | uncommitted | Schedule format: machine optional, workers per assignment, breaks in the schedule. |
 | 2026-11-05 | uncommitted | Compilation of workers and shares (`Share`, `share_interval`, `fixed_duration`), guards in DES, rules, CP-SAT, repair; fallback options (prefix + unattended only, or fully attended operations) recorded in §6. |

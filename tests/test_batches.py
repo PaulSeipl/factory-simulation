@@ -1,4 +1,4 @@
-"""Batches decided by the planner, e.g. oven runs (math/03_loads.md, C10)."""
+"""Batches decided by the planner, e.g. oven runs (math/03_carriers.md, C10)."""
 
 import json
 from pathlib import Path

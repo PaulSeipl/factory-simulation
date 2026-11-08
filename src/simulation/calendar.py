@@ -55,6 +55,22 @@ def next_cutoff(cal, t: int) -> int:
     return next(c for c in cutoffs(cal, t + WEEK) if c >= t)
 
 
+def next_start(cal, t: int, length: int, latest: int) -> int:
+    """Earliest s >= t at which a share of `length` minutes lies within one working day, in [shift_start, latest]
+    (minutes of the day; shift_end for no overtime) and outside the break [break_earliest, + break_length).
+    The break is placed at its earliest start, as the dispatching rule does (math/11_dispatching-rules.md)."""
+    parts = ((cal.shift_start, cal.break_earliest), (cal.break_earliest + cal.break_length, latest))
+    if all(length > b - a for a, b in parts):
+        raise ValueError(f"share of {length} minutes longer than both parts of the shift {parts}")
+    for d in range(day_index(cal, t), day_index(cal, t) + 8):  # every week has a working day
+        if is_working_day(cal, d):
+            for a, b in parts:
+                s = max(t, day_start(cal, d) + a)
+                if s + length <= day_start(cal, d) + b:
+                    return s
+    raise AssertionError("unreachable: a working day within a week has room for the share")
+
+
 def days_late(cal, due: int, end: int) -> int:
     """Missed shipping cutoffs |{c : due <= c < end}|; `due` is itself a cutoff."""
     return sum(c >= due for c in cutoffs(cal, end - 1)) if end > due else 0

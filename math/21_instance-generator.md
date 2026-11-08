@@ -54,7 +54,7 @@ A template gives the operations of one order with their predecessors; per operat
 
 ## 4a. Instances with carriers
 
-A second generator builds instances with carriers ([03](03_loads.md)), stated generally and parameterized for the dental case (user, 2026-11-02):
+A second generator builds instances with carriers ([03](03_carriers.md)), stated generally and parameterized for the dental case (user, 2026-11-02):
 
 | General rule | Dental case |
 |---|---|
@@ -67,7 +67,7 @@ A second generator builds instances with carriers ([03](03_loads.md)), stated ge
 
 **Nesting emulation.** Nesting is external in the real process (it delivers carriers and print runs). The generator emulates it: orders in due-date order (then release, then index), carriers filled one after another (next fit) up to $Q$, consecutive carriers grouped into runs of $Q_R$. Priority classes (only parts of one class on a plate) are not modeled. Next fit keeps urgent parts together but can leave carriers underfilled; real nesting may fill them better.
 
-**Blanks** (second carrier kind, [03](03_loads.md) G1): if route operations carry the counted type, the counted parts (dental: primary parts) go on blanks, next fit in the same order up to the blank capacity $Q^B$, one part at a time, so an order may span two blanks. In the real process a worker composes the blank (whether a planner should, is open); the emulation stands in for it. **Steps per carrier** (`per_carrier`): every carrier is its own run (setup, main, removal); the main operation is the sum of the part times, a part's time being its size times `unit_time` (plate: telescopes, blank: one per primary part). **Machine pools** (`machine_pool`): several steps on the same machines (blank and carrier milling on the mills; separation and polishing on the bench, a stand-in for workers until the workers component (04, not written yet)).
+**Blanks** (second carrier kind, [03](03_carriers.md) G1): if route operations carry the counted type, the counted parts (dental: primary parts) go on blanks, next fit in the same order up to the blank capacity $Q^B$, one part at a time, so an order may span two blanks. In the real process a worker composes the blank (whether a planner should, is open); the emulation stands in for it. **Steps per carrier** (`per_carrier`): every carrier is its own run (setup, main, removal); the main operation is the sum of the part times, a part's time being its size times `unit_time` (plate: telescopes, blank: one per primary part). **Machine pools** (`machine_pool`): several steps on the same machines (blank and carrier milling on the mills; separation and polishing on the bench, a stand-in for workers until the workers component (04, not written yet)).
 
 Due dates (if a tightness set is given) are drawn before nesting from the lead-time bound $\Lambda_k$ incl. carrier steps ([06](06_due-dates.md)), own random stream as in `assign_due_dates`.
 

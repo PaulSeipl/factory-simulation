@@ -106,7 +106,7 @@
     },
     "CarrierStep": {
       "additionalProperties": false,
-      "description": "Durations of a carrier step; setup and removal only for steps executed in runs (0: no such operation).\n\nruns: \"none\" (one operation per carrier), \"given\" (runs from nesting, Instance.runs) or \"per_carrier\" (every\ncarrier is its own run, e.g. milling the parts of one carrier; math/03_loads.md).\nThe main operation of a run takes, in this order: the duration reported by nesting (Run.duration), the\nestimate from the parts of the run (if an estimator is given), the constant per machine in options.",
+      "description": "Durations of a carrier step; setup and removal only for steps executed in runs (0: no such operation).\n\nruns: \"none\" (one operation per carrier), \"given\" (runs from nesting, Instance.runs) or \"per_carrier\" (every\ncarrier is its own run, e.g. milling the parts of one carrier; math/03_carriers.md).\nThe main operation of a run takes, in this order: the duration reported by nesting (Run.duration), the\nestimate from the parts of the run (if an estimator is given), the constant per machine in options.",
       "properties": {
         "options": {
           "additionalProperties": {
@@ -413,7 +413,7 @@
     },
     "RunEstimator": {
       "additionalProperties": false,
-      "description": "Parameters of estimate_run_duration (an assumption until validated with Fidentis data, math/03_loads.md).",
+      "description": "Parameters of estimate_run_duration (an assumption until validated with Fidentis data, math/03_carriers.md).",
       "properties": {
         "fixed": {
           "default": 0,

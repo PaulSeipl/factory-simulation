@@ -11,6 +11,8 @@ class Assignment(BaseModel):
     start: NonNegativeInt
     end: int
     workers: tuple[str, ...] = ()  # one worker per share of the operation, in the order of CompiledInstance.shares
+    # realized share lengths (set by the DES, whose shares scale with the disturbance); empty: the planned lengths
+    share_lengths: tuple[int, ...] = ()
 
     @model_validator(mode="after")
     def check_interval(self):

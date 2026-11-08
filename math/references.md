@@ -68,7 +68,7 @@
   Used for: §18.1 Robustness and Reactive Decision Making, pp. 494–498 (confusion caused by regenerated plans, robustness measure with unchanged sequences, idle-time rule). Cited in [05](05_rescheduling-frozen-part.md).
 
 - Potts, C. N., & Kovalyov, M. Y. (2000). Scheduling with batching: A review. *European Journal of Operational Research*, 120(2), 228–249. https://doi.org/10.1016/S0377-2217(99)00153-8 (Zotero `26Z9YF55`)
-  Used for: batching machine (p-batch: several jobs at once, capacity, batch time = longest job; ovens) and serial batching (batch time = sum) ([03](03_loads.md)).
+  Used for: batching machine (p-batch: several jobs at once, capacity, batch time = longest job; ovens) and serial batching (batch time = sum) ([03](03_carriers.md)).
 
 - Shiau, J.-Y., Chen, P.-Y., & Fan, C.-Y. (2026). A stability-aware event-triggered rescheduling framework with bounded LLM judgment for production scheduling. Preprint, Research Square. https://doi.org/10.21203/rs.3.rs-11277628/v1 (Zotero `F5VQRD7Z`; not peer-reviewed)
   Used for: frozen horizon (machine and start kept; affected operations released), anti-thrashing ([05](05_rescheduling-frozen-part.md) §6); five stability measures incl. Kendall concordance of machine sequences ([23](23_metrics.md) §6).

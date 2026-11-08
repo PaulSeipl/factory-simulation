@@ -1,4 +1,4 @@
-"""Carriers and runs (math/03_loads.md): format, derived synchronization, checker C8 / C9."""
+"""Carriers and runs (math/03_carriers.md): format, derived synchronization, checker C8 / C9."""
 
 import json
 from pathlib import Path

@@ -14,19 +14,33 @@ A batch step (e.g. oven) is batched greedily: when an operation of it is chosen 
 other operations of a batch step that are ready by t and may use m with the same duration join it, in the order of
 the sequencing rule, up to the capacity.
 
-A run (setup, main operation, removal; math/03_loads.md) is dispatched as one unit: its first operation stands for
+A run (setup, main operation, removal; math/03_carriers.md) is dispatched as one unit: its first operation stands for
 the whole run, and when it is chosen the run's operations are placed back to back on one machine (C8, C9).
 
+Workers (math/04_workers.md): every share (whole, prefix, suffix) gets one qualified worker. The
+earliest start of a candidate also waits until every share finds a worker free for its interval (gap search in the
+worker's busy intervals: an oven removal planned later leaves its worker free in between); per share the free
+worker with the least worker load wins, then the lowest index. A batch's shares are planned once and all members
+carry the same workers; the parts of a run are placed one after the other on its machine, each part as soon as its
+workers allow (the machine stays blocked in between, C9). Operations without machine wait only for their workers.
+With a calendar, shares lie within the shift without overtime and outside 12:00 to 12:00 + break length (every
+worker breaks at the earliest break start, see default_breaks); machines run at any time, so a print may run
+overnight and its removal waits until the morning.
+
 From a snapshot (rescheduling, math/05_rescheduling-frozen-part.md): the frozen operations are kept as
-they are, their machines are busy until their (expected) end, and nothing new starts before snapshot.t.
+they are, their machines are busy until their (expected) end, and nothing new starts before snapshot.t. Their
+started shares keep their workers and occupy them (C7); a pending share of a frozen operation (the removal of a
+running oven) gets a worker by the rule above, the same for the whole batch. Not yet with a calendar.
 """
 
+from bisect import insort
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from simulation.model.compiled import CompiledInstance, reject_workers
-from simulation.model.schedule import Assignment
+from simulation.calendar import WEEK, day_index, day_start, next_start
+from simulation.model.compiled import CompiledInstance, Share, share_interval
+from simulation.model.schedule import Assignment, Break
 from simulation.objectives import MAKESPAN, Objective
 
 if TYPE_CHECKING:
@@ -99,8 +113,13 @@ def dispatch(
     assignment: AssignmentRule | None = None,
     snapshot: Snapshot | None = None,
 ) -> list[Assignment]:
-    reject_workers(ci, "dispatching")
-    min_p = [min(p for _, p in opts) for opts in ci.options]
+    if snapshot and ci.worker_ids and ci.calendar is not None:
+        # shortcut: breaks do not travel through rescheduling yet (snapshot without breaks, the rule's fixed 12:00
+        # break would ignore a break postponed in the DES); planned as its own task
+        raise NotImplementedError("dispatching from a snapshot with workers and a calendar is not supported yet "
+                                  "(math/04_workers.md)")
+    own = [dict(opts) or {None: ci.fixed_duration[o]} for o, opts in enumerate(ci.options)]  # machine None: no machine
+    min_p = [min(d.values()) for d in own]
     work_left = [0] * len(ci.order_ids)
     for o in range(ci.n_ops):
         for k in ci.op_orders[o]:
@@ -114,33 +133,97 @@ def dispatch(
         work_left, remaining_path,
     )
     open_preds = [len(preds) for preds in ci.predecessors]
-    duration = [dict(opts) for opts in ci.options]
+    duration = [dict(d) for d in own]
     run_of = {g[0]: g for g in ci.machine_groups}  # first operation -> the whole run
     for head, group in run_of.items():  # the head stands for the run: duration of the run on each machine
         duration[head] = {m: sum(duration[q][m] for q in group) for m in duration[head]}
     ready: dict[int, tuple[tuple[int, int], ...]] = {}  # ready operation -> machines it may still use
 
+    busy: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # per worker: sorted share intervals
+    worker_load = [0] * len(ci.worker_ids)
+
+    cal = ci.calendar
+
+    def free_from(w: int, s: int, n: int) -> int:
+        """Earliest s' >= s with [s', s' + n) free for worker w and, with a calendar, inside the shift without
+        overtime and outside the 12:00 break (calendar.next_start)."""
+        while True:
+            if cal is not None:
+                s = next_start(cal, s, n, cal.shift_end)
+            if (clash := next((b for a, b in busy[w] if a < s + n and s < b), None)) is None:
+                return s
+            s = clash
+
+    def worker_start(o: int, t: int, p: int) -> int:
+        """Earliest start >= t of o (duration p) at which every share finds a qualified worker free."""
+        spans, limit = _spans(ci.shares[o], p), t + 2 * WEEK + max((b for bs in busy for _, b in bs), default=0)
+        while (later := max((min(free_from(w, t + off, n) for w in sh.workers) - off for sh, off, n in spans),
+                            default=t)) > t:
+            if later > limit:  # the calendar repeats weekly: no fit within two weeks after all bookings, none ever
+                raise ValueError(f"{ci.op_keys[o]}: its shares never lie within the shifts at the same time")
+            t = later
+        return t
+
+    def book(w: int, s: int, e: int) -> None:
+        insort(busy[w], (s, e))
+        worker_load[w] += e - s
+
+    def pick(o: int, sh: Share, s: int, n: int) -> str:
+        """Book the free qualified worker for [s, s + n) with the least worker load, then the lowest index."""
+        free = [w for w in sh.workers if free_from(w, s, n) == s]
+        if not free:  # only for a pending frozen removal, whose time is fixed; new shares wait in worker_start
+            raise ValueError(f"{ci.op_keys[o]}: no qualified worker free for its {sh.kind} [{s},{s + n})")
+        w = min(free, key=lambda w: (worker_load[w], w))
+        book(w, s, s + n)
+        return ci.worker_ids[w]
+
+    def take_workers(o: int, t: int, p: int) -> tuple[str, ...]:
+        """Book a worker for every share of o started at t."""
+        return tuple(pick(o, sh, t + off, n) for sh, off, n in _spans(ci.shares[o], p))
+
     out: list[Assignment] = []
     frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
+    # worker time of the frozen part: the started shares as in the snapshot (C7), a batch's shares once; then a
+    # worker for every pending share (e.g. the removal of a running oven), the same for all members of a batch
+    workers_of: dict[int, list[str | None]] = {}
+    batch_lead: dict[tuple[str | None, int, int], int] = {}
+    for o, f in frozen.items():
+        if ci.batch_capacity[o] > 1 and (lead := batch_lead.setdefault((f.machine, f.start, f.end), o)) != o:
+            workers_of[o] = workers_of[lead]  # the same list: filled once for the whole batch
+            continue
+        workers_of[o] = list(f.workers)
+        for sh, w in zip(ci.shares[o], f.workers, strict=True):
+            if w is not None:
+                book(ci.worker_ids.index(w), *share_interval(sh, f.start, f.end))
+    for o, ws in workers_of.items():
+        for i, w in enumerate(ws):
+            if w is None:
+                s, e = share_interval(ci.shares[o][i], frozen[o].start, frozen[o].end)
+                ws[i] = pick(o, ci.shares[o][i], s, e - s)
+
     for o, f in frozen.items():  # the frozen part: kept unchanged, occupies its machine until its end
-        m = ci.machine_index[f.machine]
-        out.append(Assignment(order_id=f.order_id, op_id=f.op_id, machine=f.machine, start=f.start, end=f.end))
-        state.machine_free[m] = max(state.machine_free[m], f.end)
-        state.load[m] += duration[o][m]
+        out.append(Assignment(order_id=f.order_id, op_id=f.op_id, machine=f.machine, start=f.start, end=f.end,
+                              workers=tuple(workers_of[o])))
+        if f.machine is not None:
+            m = ci.machine_index[f.machine]
+            state.machine_free[m] = max(state.machine_free[m], f.end)
+            state.load[m] += duration[o][m]
         for k in ci.op_orders[o]:
             state.work_left[k] -= min_p[o]
         for s in ci.successors[o]:
             state.ready_at[s] = max(state.ready_at[s], f.end)
             open_preds[s] -= 1
 
-    for g in ci.machine_groups:  # a partly started run continues back to back on its machine (C8, C9)
+    for g in ci.machine_groups:  # a partly started run continues on its machine (C8, C9), parts wait for workers
         if (rest := [q for q in g if q not in frozen]) and len(rest) < len(g):
             m = ci.machine_index[frozen[g[0]].machine]
             start = max(t0, state.machine_free[m])
             for q in rest:
-                end = start + duration[q][m]
+                start = worker_start(q, start, own[q][m])
+                end = start + own[q][m]
                 owner, op_id = ci.op_keys[q]
-                out.append(Assignment(order_id=owner, op_id=op_id, machine=ci.machine_ids[m], start=start, end=end))
+                out.append(Assignment(order_id=owner, op_id=op_id, machine=ci.machine_ids[m], start=start, end=end,
+                                      workers=take_workers(q, start, own[q][m])))
                 state.load[m] += duration[q][m]
                 for k in ci.op_orders[q]:
                     state.work_left[k] -= min_p[q]
@@ -152,7 +235,7 @@ def dispatch(
             frozen.update(dict.fromkeys(rest))  # placed: never made ready below
 
     def make_ready(o: int) -> None:
-        if assignment is None:
+        if assignment is None or not ci.options[o]:  # an operation without machine has nothing to assign
             ready[o] = tuple(duration[o].items())
         else:
             # shortcut: assignment rules see the head's own duration (e.g. setup), not the whole run; fine while
@@ -167,13 +250,15 @@ def dispatch(
             make_ready(o)
 
     while ready:
-        candidates = [
-            (max(state.ready_at[o], state.machine_free[m]), o, m, p) for o, mps in ready.items() for m, p in mps
+        candidates = [  # a run's head (setup) waits for its own workers: own[o][m] is its own duration
+            (worker_start(o, max(state.ready_at[o], state.machine_free[m] if m is not None else 0), own[o][m]),
+             o, m, p)
+            for o, mps in ready.items() for m, p in mps
         ]
         t = min(c[0] for c in candidates)
         _, o, m, p = min(
             (c for c in candidates if c[0] == t),
-            key=lambda c: (*sequencing(ci, state, c[1], c[2], c[3]), c[1], c[2]),
+            key=lambda c: (*sequencing(ci, state, c[1], c[2], c[3]), c[1], c[2] is None, c[2] or 0),
         )
         batch = [o]
         if ci.batch_capacity[o] > 1:  # greedy: the ready operations that fit on m with the same duration join
@@ -183,20 +268,29 @@ def dispatch(
             batch += [q for q, _ in mates[:ci.batch_capacity[o] - 1]]
         for q in batch:
             del ready[q]
+            if m is None:
+                continue
             if assignment is None:
                 state.load[m] += p
             else:
                 state.backlog[m] -= p
 
-        state.machine_free[m] = t + p
+        if m is not None:  # before placing: ECT in make_ready reads it
+            state.machine_free[m] = t + p
         group = run_of.get(o)
-        start = t
-        for q in group or batch:  # a run back to back on one machine; a batch (or one operation) at t
-            if not group:
-                start = t
-            end = start + (dict(ci.options[q])[m] if group else p)
+        workers = take_workers(o, t, own[o][m])  # a batch's shares once, for all members
+        start = end = t
+        for i, q in enumerate(group or batch):  # a run part after part on one machine; a batch (or one op) at t
+            if group:
+                if i:  # the next part of the run as soon as its workers are free
+                    start = worker_start(q, start, own[q][m])
+                    workers = take_workers(q, start, own[q][m])
+                end = start + own[q][m]
+            else:
+                start, end = t, t + p
             owner, op_id = ci.op_keys[q]
-            out.append(Assignment(order_id=owner, op_id=op_id, machine=ci.machine_ids[m], start=start, end=end))
+            out.append(Assignment(order_id=owner, op_id=op_id, machine=None if m is None else ci.machine_ids[m],
+                                  start=start, end=end, workers=workers))
             for k in ci.op_orders[q]:
                 state.work_left[k] -= min_p[q]
             for s in ci.successors[q]:
@@ -207,8 +301,30 @@ def dispatch(
                 if open_preds[s] == 0:
                     make_ready(s)
             start = end
+        if group:
+            state.machine_free[m] = end  # later than t + p if a part waited for its workers (C9: blocked until then)
 
     return out
+
+
+def default_breaks(ci: CompiledInstance, plan: Sequence[Assignment]) -> tuple[Break, ...]:
+    """The rule's breaks (C14): every worker at the earliest break start on every day with one of its shares;
+    `dispatch` keeps every share out of that hour. Empty without a calendar."""
+    if (cal := ci.calendar) is None:
+        return ()
+    days = {
+        (w, day_index(cal, share_interval(sh, a.start, a.end)[0]))
+        for a in plan for sh, w in zip(ci.shares[ci.op_index[a.order_id, a.op_id]], a.workers, strict=True)
+    }
+    # shortcut: a day-0 break before t = 0 (origin after the break) is left out and reported by C14; fine while
+    # instances start in the morning
+    starts = ((w, day_start(cal, d) + cal.break_earliest) for w, d in sorted(days))
+    return tuple(Break(worker=w, start=b) for w, b in starts if b >= 0)
+
+
+def _spans(shares: tuple[Share, ...], p: int) -> list[tuple[Share, int, int]]:
+    """(share, offset from the start, length) of every share of an operation of duration p, in time order."""
+    return [(sh, p - sh.length if sh.kind == "suffix" else 0, p if sh.kind == "whole" else sh.length) for sh in shares]
 
 
 def best_dispatch(ci: CompiledInstance, objective: Objective = MAKESPAN) -> tuple[str, list[Assignment]]:

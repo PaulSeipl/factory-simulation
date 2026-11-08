@@ -8,6 +8,217 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-08 (21) — Breaks through rescheduling, task 1: breaks in the snapshot and the checker — uncommitted
+
+- **Decided (user):** decisions 1–3 of `docs/superpowers/plans/2026-11-08-breaks-rescheduling.md` all (a): planners
+  return breaks with the assignments; forced postponement; forced overstay. Start Task 1. Mine: the snapshot's
+  breaks are realized history and not checked against the window (like C2 for frozen operations); the forced
+  condition uses the frozen share intervals as a planner sees them (snapshot times, planned share lengths).
+- **Done:** `Snapshot.breaks`, `snapshot(..., breaks)`, `Simulation.snapshot()` passes its breaks; checker
+  `breaks_changed` (C6$^b$, C7$^b$), `break_violations(..., snapshot)` (history, C14$^f$), `_frozen_worker_time`.
+  `tests/test_snapshot_breaks.py`, 11 tests by hand (see [04](04_workers.md) §5). Symbols $y_{\eta,w}$, $I_\eta$,
+  $b_{w,d}$ (pending since phase 1) and $\hat b_{w,d}$ added to [notation](notation.md); [04](04_workers.md) §3,
+  §5, §6; [05](05_rescheduling-frozen-part.md) §3; [13](13_des.md) §6. Full suite 1117 passed (also under load,
+  4.3 min: the patched CP-SAT tests held), ruff clean.
+- **Found:** my first hand plan put B's packaging at 12:31 inside B's break [12:00, 13:00); the checker caught it
+  (test corrected to 13:00). A running prefix appears in the snapshot only with its planned length, so a break
+  forced by an overrunning prefix would be rejected (C14$^f$); whole shares work. Recorded as an open point in
+  [04](04_workers.md) §6. $b_{w,d}$ shares its letter with the maximum late offset $b$ of [22](22_scenarios.md);
+  distinguished by the subscript, noted in the notation table.
+- **Open:** Task 2 (forced overstay); the prefix limitation; whether to rename $b$ in [22](22_scenarios.md); commit.
+
+## 2026-11-08 (20) — Test for a pending removal without a free worker; plan: breaks through rescheduling — uncommitted
+
+- **Decided (user):** plan the breaks task; write a test for the pending-removal case. Answered: the "195 plans"
+  are 13 worker-free instances (Mk01–Mk10, `toy-3x3`, `toy-dag-3x4`, `toy-carriers`) × 15 rule combinations,
+  compared with a scratch script (not a repo test).
+- **Done:** `tests/test_dispatching_workers.py::test_pending_removal_without_a_free_worker_raises` (one worker,
+  polishing at factor 2, snapshot at 8: polishing expected until 9, oven removal [8, 9) pending, `dispatch`
+  raises; passes). Plan `docs/superpowers/plans/2026-11-08-breaks-rescheduling.md` (3 decisions for the user,
+  4 tasks).
+- **Found:** the pending-removal case is reachable in an ordinary DES run, not only constructed: one overrunning
+  share of the only qualified worker would crash a rescheduling run. Taken into the plan (decision 3, Task 2;
+  recommendation: planned overstay, C7 relaxed for a running operation with a pending suffix). Thesis: no affected
+  section written yet (`seipl27/Text/kapitel1.tex` empty).
+- **Open:** the user's decisions 1–3 of the plan; commit.
+- **Decided (user, afterwards):** a planner must never cause a postponed break past the window or an oven
+  overstay; forced by the frozen part (disturbance), the shortest delay is accepted. Decisions 2 and 3 settled
+  accordingly (forced postponement, forced overstay, both checked as forced and shortest); decision 1 (breaks in
+  the planner interface) still open. Answered: a break pending after 13:00 arises only from disturbances (overrun
+  or late start of the worker's share), since the rule keeps shares out of 12:00–13:00 and the DES takes a due break
+  as soon as the worker is free.
+- **Found (user question on instances):** every feature got its own mini instance and tests (`toy-dag-3x4`,
+  `toy-carriers`, `toy-workers`, dict instances in the tests); older JSON instances changed only their
+  `schema_version` at each increment (new fields optional with "off" defaults), Brandimarte stays `.fjs`. No
+  instance combines all features yet; the dental example of the generator (phase 5) will be the first.
+
+## 2026-11-08 (19) — Flaky CP-SAT replay test; workers, phase 3 task 4: rule plans from a snapshot — uncommitted
+
+- **Decided (user):** patch the second flaky Mk10 test, then Task 4. User question: does the day-0 break shortcut
+  of `default_breaks` matter for rescheduling? Answer (mine): the shortcut does not (times count from the
+  instance's $t = 0$, snapshots have $t \ge 0$), but breaks do not travel through rescheduling at all (see
+  Found). Mine: Task 4 without calendar; `dispatch` from a snapshot with workers **and** calendar raises
+  `NotImplementedError`; breaks through rescheduling become their own task.
+- **Done:** `tests/test_des.py::test_replay_of_cpsat_plan_equals_plan_and_keeps_its_makespan` with
+  `deterministic_time=0.05` (12 passed, 27.6 s). `planners/dispatching.py`: worker helpers before the frozen part;
+  started shares of frozen operations booked with their workers (a batch once); pending shares (removal of a
+  running oven) get a worker by `pick` (least $V_w$, then index), the same list for all batch members; frozen
+  machine-less operations; parts of a partly started run wait for their workers. 12 new tests in
+  `tests/test_dispatching_workers.py` (by hand: pending oven removal and the continued run at $t = 9$; frozen
+  Gegenbetten at factor 2 keeps A; 10 snapshots × 5 disturbed seeds × 15 rules × 2 instances pass the checker
+  against the snapshot; calendar guard). Worker-free plans still identical (195). Full suite 1106 passed, ruff
+  clean. [11](11_dispatching-rules.md)
+  §3, §5; [04](04_workers.md) §5; plan file Task 4.
+- **Found:** breaks do not travel through rescheduling: `Snapshot` has no breaks, the planner interface returns
+  only assignments, `control.rescheduling.execute` starts the `Simulation` without breaks, so on a calendar
+  instance `Simulation(...)` and `update_plan` would report C14 (missing breaks). After a snapshot the rule's fixed
+  12:00 break would also ignore a break the DES postponed (e.g. to 12:20), so a share at 13:00 could overlap it.
+  `execute` with workers is blocked anyway, since repair still rejects workers (phase 4).
+- **Open:** breaks through rescheduling (snapshot breaks, rule breaks after a snapshot, planner interface,
+  `execute`); a pending removal with no free qualified worker raises `ValueError` (not observed, no test);
+  commit.
+
+## 2026-11-07 (18) — Workers, phase 3 task 3: calendar in the dispatching rule — uncommitted
+
+- **Decided (user):** keep the gap booking of Task 2, start Task 3. Mine: the worker gap search and
+  `calendar.next_start` (latest $= h^{\mathrm{E}}$, no overtime, break fixed at 12:00) are applied alternately
+  until both hold; `default_breaks(ci, plan)` returns one break at $h^{\mathrm{B}-}$ per worker and working day with
+  one of its shares, `dispatch` keeps its return type (how breaks travel through the planner interface stays a
+  phase 4 question); an operation whose shares never fit the shifts together raises `ValueError` (no fit within
+  two weeks after the last booking; without this guard the fixpoint would not terminate, e.g. a 14-hour oven
+  program).
+- **Done:** `planners/dispatching.py` (`free_from` with the calendar, termination guard in `worker_start`,
+  `default_breaks`); 27 new tests in `tests/test_dispatching_workers.py` (by hand: share pushed past 12:00 and 1 day
+  late, Friday 17:00 → Monday 08:00 on time, a 300-minute share raises, a 14-hour oven raises, a 600-minute mill run
+  with removal at 08:00 the next morning and the machine blocked; all 15 rule combinations on `toy-workers` with
+  calendar and on the night carrier instance pass the checker with `default_breaks` and replay unchanged incl.
+  breaks; no breaks without a calendar). Worker-free plans still identical to before (195). Full suite 1093
+  passed, 1 failed (`tests/test_des.py::test_replay_of_cpsat_plan_equals_plan_and_keeps_its_makespan[BrandimarteMk10]`,
+  no CP-SAT solution within the 1 s wall-clock limit while the suite ran 4.6 min under load; alone 12 passed in
+  15.6 s; unrelated to the rule); ruff clean.
+  [11](11_dispatching-rules.md) §3, §5; [04](04_workers.md) §5.
+- **Found:** with these hand cases the rule needed no special code for night runs: the attended removal's whole
+  share is simply not free before 08:00.
+- **Open:** Task 4 (rule plans from a snapshot with workers); a day-0 break before $t = 0$ (origin after the break
+  window) is left out by `default_breaks` (shortcut, C14 reports it); the Mk10 CP-SAT replay test has the same
+  wall-clock flakiness as the test patched in (15), same fix possible (`deterministic_time`); commit.
+
+## 2026-11-06 (17) — Workers, phase 3 task 2: shares and machine-less operations in the dispatching rule — uncommitted
+
+- **Decided (user):** start Task 2. Mine: **workers are booked into gaps of their busy intervals, not
+  append-only** (deviation from item 3 of the approved phase 3 plan, plan file edited): a suffix share (oven
+  removal) is booked when the oven run is planned, so append-only would block its worker for the whole oven
+  program. Machines stay append-only. Candidate start includes the workers (fixpoint over the shares); per share
+  least worker load $V_w$ (new symbol, [notation](notation.md)), then lowest index; batch shares booked once; run
+  parts placed one after the other, each when its workers are free (machine blocked meanwhile, C9); `dispatch` from
+  a snapshot with workers raises until Task 4.
+- **Done:** `planners/dispatching.py` (guard removed, `free_from`, `worker_start`, `take_workers`, `_spans`;
+  machine `None` kept as `None`, never as a negative index); `tests/test_dispatching_workers.py` (hand plans on
+  `toy-workers` without calendar and on the carrier instance, batch with a second printer, all 15 rule
+  combinations × 2 instances pass the checker and the zero-disturbance replay, snapshot guard); guard test in
+  `tests/test_worker_compile.py` reduced to CP-SAT and repair. Full suite 1058 passed, ruff clean. [11](11_dispatching-rules.md) §3, §5, §6;
+  [04](04_workers.md) §5.
+- **Found:** a first version moved the `f_m` update after the placement; ECT reads $f_m$ in `make_ready` of the
+  successors, and 53 of 195 worker-free plans changed. Restored the old order (update before placement, a run's
+  end afterwards); then all 195 worker-free plans (Mk01–Mk10, three toys, 15 combinations) are identical to the
+  previous version.
+- **Open:** Task 3 (calendar in the rule, `default_breaks`); no hand test yet for a run removal that waits for a
+  worker (covered only by the checker/replay sweep); commit.
+
+## 2026-11-06 (16) — Workers, phase 3 task 1: calendar availability helper — uncommitted
+
+- **Decided (user):** phase 3 plan approved, start Task 1; `math/` and `CLAUDE.md` are tracked in Git (user
+  commit `6463434`; phase 1 in `e5348b0`). Mine: `CLAUDE.md` sentence "math/ is not in the Git repository"
+  corrected accordingly; `next_start` places the break at its earliest start (the rule's fixed 12:00 break) and
+  raises for a share longer than both shift parts.
+- **Done:** `calendar.next_start`; 11 tests in `tests/test_calendar.py` (by hand); full suite 1026 passed (incl.
+  the patched Mk10 test under full load), ruff clean. [04](04_workers.md) §5.
+- **Found:** phase 2 and the later passes (2026-11-05 (9) to (15)) are not committed yet.
+- **Open:** Task 2 (shares and machine-less operations in the rule); commit hashes for the change logs from now on.
+
+## 2026-11-06 (15) — Deterministic CP-SAT limit in a test; phase 3 plan — uncommitted
+
+- **Decided (user):** patch the flaky Mk10 test; 19:30 is a hard limit; plan phase 3. Mine: `solve(...,
+  deterministic_time=None)` as an optional work-based limit (OR-Tools `max_deterministic_time`, checked in the
+  OR-Tools docs via Context7: counted from operation counters, independent of machine speed and load); the test
+  uses `deterministic_time=0.05` (1 took 138 s for the 12 instances, 0.05 takes 18.5 s).
+- **Done:** `planners/cpsat.py` parameter; `tests/test_rescheduling.py::test_zero_disturbance_with_repair_for_cpsat_plans`
+  with the deterministic limit and an assertion that a plan was found (12 passed); plan
+  `docs/superpowers/plans/2026-11-06-workers-phase3-dispatching.md` (4 tasks).
+- **Found:** the user's question about "LaTeX": the formulas in `math/*.md` are LaTeX inside Markdown (`$...$`,
+  as `CLAUDE.md` asks); the tab came from applying edits to `math/04_workers.md` with an ad-hoc Python script, where
+  `\t` in `\text` is an escape. From now on `math/` files are edited with the Edit tool only.
+- **Decided (user, afterwards):** 19:30 stays hard in the plan (C13); in execution a share that runs past 19:30 is
+  finished and counted as an overrun (metric `overruns`), not interrupted: an interrupted operation cannot be
+  handled by the planners and is out of scope. No code change (current DES behavior).
+- **Open:** the CP-SAT reproducibility todo of 2026-11-04 (4) can now use `deterministic_time`;
+  phase 3 plan approval; commit.
+
+## 2026-11-06 (14) — Workers, phase 2 task 4: snapshot with workers, metrics — uncommitted (phase 2 complete)
+
+- **Decided (user):** start Task 4. Mine: `FrozenOperation.workers` with `None` for a share not started yet (the
+  pending removal of a running oven may still change); C7 compares only the workers of started shares; worker
+  metrics as own definitions from the realized share intervals (reusing the checker's `worker_intervals`) and the
+  realized breaks; `ExecutionResult.breaks`.
+- **Done:** `sim/snapshot.py` (machine optional, expected end with fixed durations, workers of started shares,
+  batch members via their first operation); `check.feasibility.frozen_changed` with workers, `worker_intervals`
+  public; `control.rescheduling.ExecutionResult.breaks`; `metrics._worker_metrics` (`overstay`, `swaps`,
+  `overtime`, `overruns`, `break_postponement`, `break_spread`); `tests/test_worker_snapshot_metrics.py` (8 tests,
+  hand values); [13](13_des.md) §6, [23](23_metrics.md) M7, [04](04_workers.md) §5.
+- **Found:** full suite 1014 passed, 1 failed:
+  `test_rescheduling.py::test_zero_disturbance_with_repair_for_cpsat_plans[BrandimarteMk10]`. CP-SAT with
+  `time_limit=1` found no solution under the load of the full run, so the plan was empty and the DES rejected
+  it; the test passes alone (12/12). Not caused by this change; same root cause as the reproducibility todo of
+  2026-11-04 (4) (wall-clock time limit). A `\t` in LaTeX written via a script became a tab in 04 (fixed).
+- **Open:** that test's time limit (todo, with the CP-SAT reproducibility item); phase 2 is complete (DES with
+  workers, calendar, swap rule, snapshot, metrics); next phase 3 (dispatching rule with workers and calendar);
+  commit.
+
+## 2026-11-06 (13) — [thesis] Bibliography: biblatex + biber — uncommitted
+
+- **Decided (user):** switch from BibTeX `ieeetr` to biblatex + biber with `style=ieee`, because `ieeetr.bst` prints
+  neither URL nor DOI.
+- **Done:** `seipl27/main.tex`: `csquotes`, `biblatex` (`backend=biber,style=ieee`), `\addbibresource{Bib/stud77.bib}`,
+  `\printbibliography[heading=bibintoc]`; `seipl27/CLAUDE.md` citation style and export format (Better BibLaTeX)
+  updated. Clean build (stale `main.bbl` from BibTeX removed); scratch test with two entries from
+  [references.md](references.md) prints DOIs and handles accents.
+- **Done (later the same day):** user added the Better BibLaTeX export (73 entries); `.latexmkrc` comment updated to
+  biber, `\usepackage[T1]{fontenc}` added (user); `check-build` script fixed: its pattern missed biber warnings,
+  which carry a `[ms] Module.pm:line>` prefix, so every biber warning had been reported as a clean build.
+- **Found:** with `\nocite{*}` all 73 entries build; biber warns about 5 book entries with two ISBNs in one field
+  (print + e-book). 7 entries have no year in the key (no author or no date in Zotero). Two overfull lines in
+  the bibliography (long URLs).
+- **Open:** fix the 5 ISBN fields and the incomplete entries in Zotero.
+
+## 2026-11-06 — Workers, phase 2 task 3: swap rule; 03 renamed to carriers — uncommitted
+
+- **Decided (user):** start Task 3; rename `math/03_loads.md` to carriers and cover blanks in its intro. Mine: the
+  swap rule also applies to the oven removal (it can prevent an overstay); a swap is only tried when the planned
+  worker is busy (on a share or a break), not when it merely waits for an earlier share of its own.
+- **Done:** `math/03_carriers.md` (renamed; title, status and carrier definition with plates and blanks; outdated
+  oven sentence fixed; change log); links in `math/`, `CLAUDE.md`, code comments, tests, notebook 05 and the
+  unpublished schema 0.6 updated (published schemas 0.4/0.5 left as they are). DES: `_swap`,
+  `_planned_share_start`, `_fits_shift` (shared with `_in_shift`), SWAP log record, all batch members get the new
+  worker; `tests/test_des_swap.py` (7 tests); the two-worker overstay example now swaps, so the overstay test uses
+  one worker (overstay 3 by hand); full suite 1007 passed, ruff clean. [13](13_des.md) §3, [04](04_workers.md) §5.
+- **Found:** with two workers the earlier overstay example is resolved by the swap rule (W2 unloads at 8 and also
+  takes L1's mill setup at 9): the rule reduces overstay as intended. No reference to `03_loads.md` in `seipl27`.
+- **Open:** Task 4 (snapshot with workers, metrics); commit.
+
+## 2026-11-05 (12) — [thesis] Outline: separate model chapter — uncommitted
+
+- **Decided (user):** P1, the former chapter 4 "Methodology" is split into 4 "Problem Analysis and Formal Model"
+  (process chain and SRS requirements, formal model, Fidentis application example) and 5 "Solution Approach and
+  Implementation" (rescheduling policy, NSGA-II, selection rule, implementation); nine chapters.
+- **Done:** outline renumbered (cross-references, review items), `seipl27/CLAUDE.md` thesis structure updated;
+  the outline file is now `Thesis Outline - Critique and Proposal.md` (renamed and committed by the user).
+- **Found (user):** the finding in (11) was wrong. "The planner does not form batches" meant the creation of
+  carriers (formerly called batches), which nesting does; it still holds. Oven p-batches are a separate, narrow
+  case. Outline point 5 rewritten accordingly.
+- **Open:** P2 (merge chapter 3 into 1.2), P3 (research method, e.g. DSR); objective set now needed before
+  section 4.2 is final; Better BibTeX auto-export to `seipl27/Bib/stud77.bib`.
+
+
 ## 2026-11-05 (11) — [thesis] Outline update — uncommitted
 
 - **Decided (user):** update the outline file with the review fixes; the in-depth structure stays a living document,
@@ -17,8 +228,8 @@ the commits and the change logs of the component files and are therefore shorter
   design in 4.4 and configuration in 5.3, GA choice justified in 4.3, problem features in 1.1); stale references
   fixed (policy in 4.3, no Foundations chapter); terminology (carriers, loads, runs, workers); references split into
   those used in `math/` and those cited from memory.
-- **Found:** the outline's point "the planner does not form batches" is outdated: oven runs are a planner decision
-  since 2026-11-03 ([03](03_loads.md)), so batch-formation literature is relevant for the oven step.
+- **Found:** [corrected in (12)] the outline's point "the planner does not form batches" is outdated: oven runs are a planner decision
+  since 2026-11-03 ([03](03_carriers.md)), so batch-formation literature is relevant for the oven step.
   `seipl27/Bib/stud77.bib` holds only the 4 template entries; the Better BibTeX export does not reach it yet.
 - **Open:** P1 separate model chapter, P2 merge chapter 3 into 1.2, P3 rename "Methodology" / add DSR; Pareto front
   vs. scalarized GA; objective set of the GA; GA not started; clearance of the Fidentis application example.
@@ -232,12 +443,12 @@ the commits and the change logs of the component files and are therefore shorter
   auto-export of collection MA into `Bib/stud77.bib`, own private Git repo, Claude drafts from `math/` and reviews.
   Mine: no further skills beyond the user's four; `writing-anti-ai` trimmed to an English academic style lint.
 - **Done:** `seipl27/CLAUDE.md` (from the user's draft) with terminology aligned to this `CLAUDE.md` and
-  [03](03_loads.md), links to `math/`, protocol, result origins (`% src:`), figures, bib; skills `check-build`
+  [03](03_carriers.md), links to `math/`, protocol, result origins (`% src:`), figures, bib; skills `check-build`
   (BibTeX warnings parsed, `.latexmkrc` with `$pdf_mode = 1`), `draft-section` (reads `math/`, `% DRAFT(claude)`,
   `ai-log.md`, style self-check), `thesis-review`, `writing-anti-ai`; preamble English with `amsmath`, `booktabs`,
   `acronym`, `cleveref`, `notation.tex` stub; `git init` with LaTeX `.gitignore`, private remote
   `PaulSeipl/seipl27`. Thesis section in this `CLAUDE.md`.
-- **Found:** the user's draft defined Load as the persistent carrier, contradicting [03](03_loads.md); fixed in the
+- **Found:** the user's draft defined Load as the persistent carrier, contradicting [03](03_carriers.md); fixed in the
   thesis `CLAUDE.md`. Build clean (`check_build.py main.tex`, exit 0).
 - **Also:** terminology moved into [terminology.md](terminology.md), imported by both `CLAUDE.md` files (`@`-import);
   merged version (carrier includes blanks, parts added).
@@ -262,7 +473,7 @@ the commits and the change logs of the component files and are therefore shorter
   to be modeled eventually; nesting gets remaining capacities instead of estimated durations (nesting estimates
   better); operations per part to be added with rework; s-batches via maxBatch on many steps; forecast later.
 - **Done:** scope note [32](32_target-data-model.md) (correspondence, decisions, todos), pointer in
-  [03](03_loads.md) §6, README.
+  [03](03_carriers.md) §6, README.
 - **Found:** most of the target model maps onto the code; missing: attended/unattended split, plate sets, capacity
   interface to nesting, rework, calendars, priority, forecast. Aggregate capacity hides timing, so printers need free
   gaps. Zotero not reachable: resource leveling, slack-based robustness and workload balance sources found by web
@@ -277,7 +488,7 @@ the commits and the change logs of the component files and are therefore shorter
 - **Done:** `CarrierGeneratorParams`: `RouteOperation.carries`, `per_carrier`, `machine_pool`, `blank_capacity`,
   blank nesting next fit per part in due-date order — [21](21_instance-generator.md) §4a; example file with blank
   milling, separation, polishing (bench) and carrier milling on the same mills; notebook `05_carriers` re-run in full
-  (data changed) with plates and blanks plotted — [03](03_loads.md) §5; tests (nesting by hand, part times, shared
+  (data changed) with plates and blanks plotted — [03](03_carriers.md) §5; tests (nesting by hand, part times, shared
   mills, polishing waits for both blanks, solvable and replayed, 8 negatives); 875 tests pass.
 - **Found:** old parameter files generate the same instances as before (same random draws); the new example is a
   different random instance. The mills are a second bottleneck; CP-SAT does not beat the best rule within 60 s on
@@ -291,7 +502,7 @@ the commits and the change logs of the component files and are therefore shorter
   operations name the part type they carry (`carries`), optional with a single kind, so existing instances stay
   valid.
 - **Done:** `Operation.carries`, one carrier chain per kind, synchronization across kinds in `operation_graph`
-  (schema 0.5, still uncommitted, regenerated) — [03](03_loads.md) §1, §3, §5, [notation](notation.md);
+  (schema 0.5, still uncommitted, regenerated) — [03](03_carriers.md) §1, §3, §5, [notation](notation.md);
   `tests/test_carrier_kinds.py` (hand optimum 13, all rules, zero-disturbance, C3, 7 negatives); 865 tests pass.
 - **Found:** checker, DES, rules and CP-SAT needed no change: the kinds only change the compiled edges.
 - **Open:** generator and dental example with blanks, carrier milling, separation and polishing (step 3; needs the
@@ -303,7 +514,7 @@ the commits and the change logs of the component files and are therefore shorter
   orders (recorded, not modeled).
 - **Done:** `CarrierStep.runs` ("none" / "given" / "per_carrier"), schema 0.5 (data, generators, tests bumped;
   `schemas/instance-0.5.json`); validation of setup, removal, estimator and given runs against the run mode;
-  `operation_graph` derives one run per carrier — [03](03_loads.md) §3, §5, [notation](notation.md);
+  `operation_graph` derives one run per carrier — [03](03_carriers.md) §3, §5, [notation](notation.md);
   `tests/test_carrier_runs.py` (hand optimum 12, all rules, zero-disturbance, C9, 6 negatives); 845 tests pass.
 - **Found:** setup and removal on a step without given runs were silently dropped before; checker, DES, rules and
   CP-SAT needed no change (they work on machine groups).
@@ -313,7 +524,7 @@ the commits and the change logs of the component files and are therefore shorter
 ## 2026-11-03 (7) — Mill as a shared machine: facts and gaps — no code change
 
 - **Decided (user):** derive what the model misses from the factory route.
-- **Done:** facts on the mill recorded and mapped against the model — [03](03_loads.md) §6 (G1–G4).
+- **Done:** facts on the mill recorded and mapped against the model — [03](03_carriers.md) §6 (G1–G4).
 - **Found:** milling is an s-batch, so the batch-step gap stays latent; a blank is a second carrier kind shared by
   orders (G1, G2); setup and removal of a carrier step without given runs are silently ignored (G3).
 - **Corrected (user):** QM waits for the primary parts, not the blank (separated before QM, then independent); the
@@ -329,7 +540,7 @@ the commits and the change logs of the component files and are therefore shorter
 - **Decided (user):** fix the batch-step gap later.
 - **Done:** review of the checker (C1–C5 on the compiled graph, C8, C9, C10) with probes on the dispatched plan.
 - **Found:** two different batch steps on one machine with identical times are accepted as one run (checker, greedy
-  rule and CP-SAT alike) — [03](03_loads.md) §6, todo.
+  rule and CP-SAT alike) — [03](03_carriers.md) §6, todo.
 - **Open:** that todo; capacity of a carrier in telescopes is not checked (composition comes from nesting).
 
 ## 2026-11-03 (5) — Oven batches, step 4: rescheduling, generator, notebook — uncommitted
@@ -337,7 +548,7 @@ the commits and the change logs of the component files and are therefore shorter
 - **Decided (user):** start step 4.
 - **Done:** rescheduling tests with batches (rule and CP-SAT planners); generator parameter `batch_capacity` and
   example file with oven capacity 3 ([21](21_instance-generator.md)); `plot_gantt` draws one bar per batch;
-  notebook `05_carriers` re-run with oven runs and the loads of every oven run listed — [03](03_loads.md); 826 tests
+  notebook `05_carriers` re-run with oven runs and the loads of every oven run listed — [03](03_carriers.md); 826 tests
   pass.
 - **Found:** dental example: makespan 1850 → 978 with oven runs (6 instead of 16); the oven stays the bottleneck;
   CP-SAT groups carriers across print runs, the greedy rule does not; CP-SAT rescheduling (tardiness first) lowers
@@ -350,7 +561,7 @@ the commits and the change logs of the component files and are therefore shorter
 - **Decided (user):** start step 3.
 - **Done:** CP-SAT batch slots per family (presence, start, machine, assignment, capacity, symmetry breaking), slot
   intervals instead of the operations' intervals; frozen batch members take a slot with their constant start —
-  [03](03_loads.md) §5, [12](12_cp-sat.md); tests: optimum 36 without and 18 with batching (by hand and proven),
+  [03](03_carriers.md) §5, [12](12_cp-sat.md); tests: optimum 36 without and 18 with batching (by hand and proven),
   zero-disturbance of the batched plan, batching optional on the mini instance (20), snapshot with a running batch;
   815 tests pass.
 - **Found:** CP-SAT batches carriers that reach the oven at different times only if waiting pays off; the greedy rule
@@ -373,7 +584,7 @@ the commits and the change logs of the component files and are therefore shorter
 - **Decided (user):** an oven run holds up to 3 carriers in parallel (p-batch); program duration fixed (no deviation);
   loading inside the program time; dispatching starts with the ready carriers (greedy); any carriers compatible.
 - **Done:** `CarrierStep.batch_capacity`, `CompiledInstance.batch_capacity`, checker C10 (same machine and times,
-  at most $c_s$; otherwise C5) — [03](03_loads.md); tests `tests/test_batches.py`; sources Potts & Kovalyov (2000) and
+  at most $c_s$; otherwise C5) — [03](03_carriers.md); tests `tests/test_batches.py`; sources Potts & Kovalyov (2000) and
   Fowler & Mönch (2022) checked in Zotero.
 - **Open:** step 2 (DES joint start, greedy batching rule, repair keeps batches), step 3 (CP-SAT batch slots),
   step 4 (rescheduling, generator, notebook).
@@ -409,7 +620,7 @@ the commits and the change logs of the component files and are therefore shorter
 - **Decided (user):** start step 5.
 - **Done:** dispatching from a snapshot continues a partly started run on its machine; rescheduling with the rule
   planner and CP-SAT on the carrier instance (thresholds and safety net) keeps all constraints; due dates for carrier
-  instances (lead-time bound with carrier steps, reference plans with carrier and run entries) — [03](03_loads.md) §5,
+  instances (lead-time bound with carrier steps, reference plans with carrier and run entries) — [03](03_carriers.md) §5,
   [06](06_due-dates.md), [11](11_dispatching-rules.md); 755 tests pass.
 - **Found:** CP-SAT handled partly started runs already through the span interval (step 3); only dispatching needed a change.
 - **Open (questions to the user):** generator with carriers (parts per order, nesting emulation, priority classes);
@@ -420,7 +631,7 @@ the commits and the change logs of the component files and are therefore shorter
 - **Decided (user):** start step 4.
 - **Done:** run duration from nesting (`Run.duration`), else `estimate_run_duration` ($p^0 + \lambda \sum p_\pi$,
   clamped to $[\max p_\pi, \sum p_\pi]$), else the constant per machine; set once in the compilation, so every
-  consumer sees the same value — [03](03_loads.md) §3, §5; format fields `Part.times`, `CarrierStep.estimator`,
+  consumer sees the same value — [03](03_carriers.md) §3, §5; format fields `Part.times`, `CarrierStep.estimator`,
   `Run.duration` (schema 0.4 regenerated in place, it was not committed); tests by hand; 745 tests pass.
 - **Found:** with the estimator the duration no longer depends on the printer (identical printers assumed).
 - **Open:** form and parameters of the estimator with Fidentis data; machine-dependent run durations; step 5.
@@ -429,7 +640,7 @@ the commits and the change logs of the component files and are therefore shorter
 
 - **Decided (user):** start step 3.
 - **Done:** CP-SAT with C8 (equal machine choices within a run) and C9 (one span interval per run and machine
-  instead of the single intervals) — [12](12_cp-sat.md), [03](03_loads.md) §5; tests: optimum 20 on the mini instance
+  instead of the single intervals) — [12](12_cp-sat.md), [03](03_carriers.md) §5; tests: optimum 20 on the mini instance
   (lower bound by hand), zero-disturbance of the CP-SAT plan, blocking while a removal waits (from a snapshot, one
   printer), partly started run continued on its machine; 735 tests pass.
 - **Found:** a mutation run without the span lets the solver put the next setup into the gap before a waiting
@@ -443,7 +654,7 @@ the commits and the change logs of the component files and are therefore shorter
 - **Decided (user):** start step 2.
 - **Done:**
   - order completion over all operations serving an order (`objectives._order_ends`, `run_metrics`), so carrier and
-    run owners are not counted as orders — [03](03_loads.md) §5;
+    run owners are not counted as orders — [03](03_carriers.md) §5;
   - scenarios over all compiled operations (same draws for instances without carriers) — [22](22_scenarios.md);
   - dispatching: a run as one unit, placed back to back on one machine — [11](11_dispatching-rules.md);
   - DES unchanged: C9 holds through the planned order per machine — [13](13_des.md);
@@ -459,7 +670,7 @@ the commits and the change logs of the component files and are therefore shorter
   `CLAUDE.md` (what one machine run processes), **run** for the machine run; start step 1.
 - **Done:**
   - instance format 0.4: parts with types, operation scopes and roles, `carrier_steps`, `carriers`, `runs`;
-    validation with one negative test per rule (20) — [03](03_loads.md) §5;
+    validation with one negative test per rule (20) — [03](03_carriers.md) §5;
   - derivation rule (`operation_graph`) and compilation: one operation per carrier and run instead of per order;
     `op_order` → `op_orders`, new `machine_groups`; objectives, dispatching, visualization adapted;
   - checker C8 (one machine per run) and C9 (machine blocked from setup start to removal end);
@@ -476,7 +687,7 @@ the commits and the change logs of the component files and are therefore shorter
   synchronization derived by one compiler rule); **one QM per plate**; print runs given by nesting, oven runs a planner
   decision in a later step; estimator for the whole print run; frozen after print file generation; setup and removal
   as own operations with default times; loads before workers; walking time not included in durations.
-- **Done:** decisions recorded in [03](03_loads.md) §0; first format sketch with explicit cross-references discarded.
+- **Done:** decisions recorded in [03](03_carriers.md) §0; first format sketch with explicit cross-references discarded.
 - **Open:** primary parts used by several plate QMs; print file generation in the model; owner of load operations in
   the schedule format; Zotero was not reachable, sources unverified.
 
@@ -623,7 +834,7 @@ the commits and the change logs of the component files and are therefore shorter
 ## 2026-10-19/20 — Feasibility checker, dispatching rules — commits `e8617db`, `75065e4`
 
 - **Done:** independent checker for C1–C5 — [01](01_basic-fjsp.md) §5; rules SPT, FIFO, MWKR, LRP with least load,
-  ECT or joint mode, hand-computed examples — [11](11_dispatching-rules.md); loads draft — [03](03_loads.md);
+  ECT or joint mode, hand-computed examples — [11](11_dispatching-rules.md); loads draft — [03](03_carriers.md);
   visualization and first notebook.
 - **Found:** problem classified as FJSP with arbitrary precedence graphs (Kasapidis et al. 2021) plus release times;
   complexity via Garey et al. (1976) — [01](01_basic-fjsp.md).

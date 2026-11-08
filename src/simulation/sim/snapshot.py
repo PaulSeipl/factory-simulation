@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
 from simulation.model.compiled import CompiledInstance
-from simulation.model.schedule import Assignment
+from simulation.model.schedule import Assignment, Break
 
 if TYPE_CHECKING:  # the DES uses snapshots itself, so its module is imported for type checking only
     from simulation.sim.des import SimState
@@ -21,10 +21,12 @@ class FrozenOperation(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     order_id: str
     op_id: str
-    machine: str
+    machine: str | None  # None: operation without machine
     start: NonNegativeInt
     end: NonNegativeInt  # realized if finished, expected if running
     running: bool
+    # worker per share; None for a share not started yet (the removal of a running oven may still change)
+    workers: tuple[str | None, ...] = ()
 
 
 class Snapshot(BaseModel):
@@ -32,10 +34,17 @@ class Snapshot(BaseModel):
     instance: str
     t: NonNegativeInt
     frozen: tuple[FrozenOperation, ...]  # finished and running operations; all others are free
+    # breaks started at or before t, with their realized starts (math/04_workers.md); planned ones not yet started
+    # are not part of the snapshot: the planner decides them anew
+    breaks: tuple[Break, ...] = ()
 
 
-def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState) -> Snapshot:
+def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
+             breaks: Sequence[Break] = ()) -> Snapshot:
+    """`breaks`: the planned breaks of the run, in the order of state.break_start."""
     machine = {(a.order_id, a.op_id): a.machine for a in plan}
+    workers = {(a.order_id, a.op_id): a.workers for a in plan}
+    leader = {q: batch[0] for batch in state.started_batch.values() for q in batch}
     frozen = []
     for o, (order_id, op_id) in enumerate(ci.op_keys):
         start, end = state.start[o], state.end[o]
@@ -44,8 +53,15 @@ def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState) 
         m = machine[order_id, op_id]
         if end is None:
             # expected end from the planned duration; an overrunning operation ends at t + 1 at the earliest
-            end = max(start + dict(ci.options[o])[ci.machine_index[m]], state.t + 1)
+            planned = ci.fixed_duration[o] if m is None else dict(ci.options[o])[ci.machine_index[m]]
+            end = max(start + planned, state.t + 1)
+        first = leader.get(o, o)  # a batch's shares are carried by its first operation
+        started = [state.end[o] is not None or (first, i) in state.share_done or (first, i) in state.worker_on
+                   for i in range(len(ci.shares[o]))]
         frozen.append(FrozenOperation(
             order_id=order_id, op_id=op_id, machine=m, start=start, end=end, running=state.end[o] is None,
+            workers=tuple(w if done else None for w, done in zip(workers[order_id, op_id], started, strict=True)),
         ))
-    return Snapshot(instance=ci.name, t=state.t, frozen=tuple(frozen))
+    taken = tuple(Break(worker=b.worker, start=s) for b, s in zip(breaks, state.break_start, strict=True)
+                  if s is not None)
+    return Snapshot(instance=ci.name, t=state.t, frozen=tuple(frozen), breaks=taken)

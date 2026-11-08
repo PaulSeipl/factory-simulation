@@ -1,6 +1,6 @@
 """Shift repair (math/05_rescheduling-frozen-part.md): re-time the operations not yet started.
 
-Machine and order per machine stay as planned; a batch (math/03_loads.md) moves as one: its operations start
+Machine and order per machine stay as planned; a batch (math/03_carriers.md) moves as one: its operations start
 together at the latest start any of them needs. An operation whose planned start was tight (equal to
 the end of a predecessor, of the previous operation on its machine, or to its release) moves with its
 blocker, earlier or later; an operation with a gap keeps its planned start unless its blocker now

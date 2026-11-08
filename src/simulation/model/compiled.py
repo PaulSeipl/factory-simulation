@@ -1,7 +1,7 @@
 """Index-based, immutable view of an Instance for the hot path (simulator, rules, solvers).
 
 Operations are indexed in file order: the operations of every order (contiguous per order), then the
-operations of the carriers and of the runs (math/03_loads.md). Owners in op_keys are orders, carriers or runs.
+operations of the carriers and of the runs (math/03_carriers.md). Owners in op_keys are orders, carriers or runs.
 """
 
 from collections.abc import Mapping

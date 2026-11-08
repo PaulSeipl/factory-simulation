@@ -18,7 +18,7 @@ from typing import NamedTuple
 
 from simulation.check.feasibility import check_schedule
 from simulation.model.compiled import CompiledInstance
-from simulation.model.schedule import Assignment
+from simulation.model.schedule import Assignment, Break
 from simulation.objectives import Objective
 from simulation.planners.repair import repair
 from simulation.sim.des import PlanNotExecutable, Simulation
@@ -60,6 +60,7 @@ class ExecutionResult:
     schedule: list[Assignment]  # realized schedule
     log: list[dict]  # factory: START and COMPLETE per operation
     decisions: list[dict] = field(default_factory=list)  # planning tool: REPAIR and REPLAN records
+    breaks: tuple[Break, ...] = ()  # realized breaks of the workers (math/04_workers.md)
 
 
 def execute(

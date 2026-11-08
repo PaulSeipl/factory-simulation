@@ -1,10 +1,12 @@
-# 03 Carriers and loads
+# 03 Carriers, loads and runs
 
-**Status:** steps 1–5 implemented (instance format, compilation, feasibility checker; DES and dispatching; CP-SAT; run-duration estimator; rescheduling and due dates). Generator with carriers implemented ([21](21_instance-generator.md) §4a). Open: freezing at print file generation, oven batching (later step).
+(File renamed from `03_loads.md` on 2026-11-06; carriers are the central concept.)
+
+**Status:** implemented for both carrier kinds, build plates and blanks: instance format, compilation, feasibility checker; DES and dispatching; CP-SAT; run-duration estimator; rescheduling and due dates; runs per carrier; oven runs as planner-decided p-batches (C10). Generator with plates and blanks implemented ([21](21_instance-generator.md) §4a). Open: freezing at print file generation, polishing across orders (worker s-batch), the batch-step gap (§6).
 
 ## 1. Prose description
 
-**Terminology** (user, 2026-11-02). A **carrier** is a build plate with the parts printed on it, possibly from several orders. The parts are bound to it from the **forming** operation (print) to the **separating** operation (sawing) and stay bound across all operations in between: the persistent batch dependency of the thesis. A **load** keeps its meaning from `CLAUDE.md`: the units one machine run processes together, e.g. up to four carriers in one print. A **run** is that machine run. Carriers persist; loads exist only for one run.
+**Terminology** (user, 2026-11-02 and 2026-11-03; binding: [terminology.md](terminology.md)). A **carrier** is either a **build plate** with the secondary parts printed on it, or a **blank** with the primary parts milled from it, in both cases possibly from several orders. The parts are bound to it from the **forming** operation (print, milling of the blank) to the **separating** operation (sawing of the plate, separation from the blank) and stay bound across all operations in between: the persistent batch dependency of the thesis. A **load** keeps its meaning from `CLAUDE.md`: the units one machine run processes together, e.g. up to four carriers in one print. A **run** is that machine run. Carriers persist; loads exist only for one run.
 
 **Data model (MES view, user 2026-11-02, chosen over explicit cross-references).**
 - An order has **parts** with a type (secondary: printed on a build plate; primary: milled from a blank) and **one route**.
@@ -16,7 +18,7 @@
 
 **One QM per carrier** (user, 2026-11-02). QM is a carrier operation. It waits for the carrier's previous operation and for the primary parts of every order on the carrier; the carrier is sawn only after its QM.
 
-**Runs.** A run executes one carrier step for all its carriers at once: setup → main operation → removal on **one machine** (C8), and the machine is **blocked** from the start of the setup to the end of the removal, also when the removal has to wait (C9). Setup and removal are their own operations with a default time per step; the main operation runs unattended. Print runs are given by nesting. Oven runs will be a planner decision (later step); until then each carrier has its own oven operation (simplification).
+**Runs.** A run executes one carrier step for all its carriers at once: setup → main operation → removal on **one machine** (C8), and the machine is **blocked** from the start of the setup to the end of the removal, also when the removal has to wait (C9). Setup and removal are their own operations with a default time per step; the main operation runs unattended. Print runs are given by nesting; mill runs are one run per carrier (blank or plate); oven runs are decided by the planner as p-batches of up to $c_s$ carriers (C10, since 2026-11-03; §5).
 
 **Derived synchronization.** One compiler rule replaces all explicit links between orders and carriers: a carrier operation of an order is executed by the corresponding operation of every carrier that holds parts of the order (for a run step: by the carrier's run), and the order's edges into and out of it are mapped to those operations. The four synchronization rules of the specification are instances of this rule:
 
@@ -164,3 +166,4 @@ Not affected. Order-based objectives use the order completions $C_k = \max_{o: k
 | 2026-11-03 | uncommitted | Runs per carrier (`CarrierStep.runs`: none / given / per_carrier, schema 0.5); setup, removal, estimator validated against the run mode. |
 | 2026-11-03 | uncommitted | Carrier kinds (`Operation.carries`): one chain per part type, blanks as carriers, synchronization across kinds. |
 | 2026-11-03 | uncommitted | Dental example with blanks, carrier milling, separation and polishing (notebook 05 re-run). |
+| 2026-11-06 | uncommitted | Renamed from `03_loads.md` to `03_carriers.md` (links in `math/`, code comments, tests, notebook 05, `CLAUDE.md` updated); intro and status cover both carrier kinds (plates, blanks) and oven batching. |

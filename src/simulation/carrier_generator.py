@@ -1,4 +1,4 @@
-"""Random instances with carriers (math/21_instance-generator.md §6, math/03_loads.md).
+"""Random instances with carriers (math/21_instance-generator.md §6, math/03_carriers.md).
 
 Every order follows one route template and has one carried part (printed on a carrier) whose size is the number
 of its counted parts (dental case: one secondary part with one telescope per primary part). Nesting is external

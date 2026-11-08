@@ -1,4 +1,4 @@
-"""Several carrier kinds per order (math/03_loads.md, G1/G2): primary parts of several orders on one blank,
+"""Several carrier kinds per order (math/03_carriers.md, G1/G2): primary parts of several orders on one blank,
 secondary parts on build plates; QM of a plate waits for the polished primary parts of its orders only."""
 
 import pytest
