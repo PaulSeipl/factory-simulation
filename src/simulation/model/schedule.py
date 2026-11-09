@@ -1,3 +1,5 @@
+from typing import NamedTuple
+
 from pydantic import BaseModel, ConfigDict, NonNegativeInt, model_validator
 
 
@@ -30,6 +32,14 @@ class Break(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     worker: str
     start: NonNegativeInt
+
+
+class Plan(NamedTuple):
+    """What a planner returns (math/04_workers.md): the assignments and the planned breaks of the workers (empty
+    without a calendar). Internal form, no validation; `Schedule` is the file format."""
+
+    assignments: list[Assignment]
+    breaks: tuple[Break, ...] = ()
 
 
 class Schedule(BaseModel):

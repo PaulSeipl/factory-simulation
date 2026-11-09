@@ -18,15 +18,16 @@ from typing import NamedTuple
 
 from simulation.check.feasibility import check_schedule
 from simulation.model.compiled import CompiledInstance
-from simulation.model.schedule import Assignment, Break
+from simulation.model.schedule import Assignment, Break, Plan
 from simulation.objectives import Objective
 from simulation.planners.repair import repair
 from simulation.sim.des import PlanNotExecutable, Simulation
 from simulation.sim.scenario import Scenario
 from simulation.sim.snapshot import Snapshot
 
-# planner(ci, snapshot, current_plan) -> new complete plan (frozen operations as in the snapshot)
-type Planner = Callable[[CompiledInstance, Snapshot, Sequence[Assignment]], list[Assignment]]
+# planner(ci, snapshot, current_plan) -> new complete plan with its breaks (frozen operations and started breaks as
+# in the snapshot)
+type Planner = Callable[[CompiledInstance, Snapshot, Sequence[Assignment]], Plan]
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,10 +66,10 @@ class ExecutionResult:
 
 def execute(
     ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario | None = None,
-    policy: ReschedulingPolicy | None = None,
+    policy: ReschedulingPolicy | None = None, breaks: Sequence[Break] = (),
 ) -> ExecutionResult:
-    """Run the factory on the plan; with a policy the planning tool adapts the plan during the run."""
-    sim = Simulation(ci, plan, scenario)
+    """Run the factory on the plan and its breaks; with a policy the planning tool adapts the plan during the run."""
+    sim = Simulation(ci, plan, scenario, breaks)
     decisions: list[dict] = []
     anchor, wake = Anchor(sim.current_plan(), 0), None
     while not sim.done:
@@ -81,7 +82,7 @@ def execute(
                 sim.wake_at(wake)
         sim.start_operations()
     sim.check_completed()
-    return ExecutionResult(sim.realized(), sim.log, decisions)
+    return ExecutionResult(sim.realized(), sim.log, decisions, sim.realized_breaks())
 
 
 def adapt_plan(
@@ -109,13 +110,14 @@ def adapt_plan(
         triggers = _triggers(policy, record)
     if periodic:
         triggers.append("period")
-    new_plan = repaired
+    new_plan, new_breaks = repaired, None  # the repair keeps the breaks
     if policy.planner is not None and triggers:
         # accepted or rejected, the result is the plan a complete rescheduling settled on: the new anchor
-        new_plan = _reschedule(ci, snap, repaired, policy, decisions, triggers)
+        if (proposed := _reschedule(ci, snap, repaired, policy, decisions, triggers)) is not None:
+            new_plan, new_breaks = proposed
         anchor = Anchor(new_plan, snap.t)
-    if new_plan != current:
-        sim.update_plan(new_plan)
+    if new_plan != current or (new_breaks is not None and new_breaks != sim.current_breaks()):
+        sim.update_plan(new_plan, new_breaks)
     return anchor
 
 
@@ -141,12 +143,12 @@ def _triggers(policy: ReschedulingPolicy, record: dict) -> list[str]:
 def _reschedule(
     ci: CompiledInstance, snap: Snapshot, repaired: Sequence[Assignment], policy: ReschedulingPolicy,
     decisions: list[dict], triggers: list[str],
-) -> Sequence[Assignment]:
-    """Complete rescheduling; returns the new plan if accepted, otherwise the repaired plan."""
+) -> Plan | None:
+    """Complete rescheduling; returns the new plan with its breaks if accepted, None if rejected."""
     t0 = time.perf_counter()
-    proposed = policy.planner(ci, snap, repaired)
+    proposed, breaks = policy.planner(ci, snap, repaired)
     planner_time = time.perf_counter() - t0  # wall clock seconds; varies between runs
-    if violations := check_schedule(ci, proposed, snap):
+    if violations := check_schedule(ci, proposed, snap, breaks):
         raise PlanNotExecutable("planner returned an infeasible plan:\n"
                                 + "\n".join(f"[{v.constraint}] {v.message}" for v in violations))
     frozen = {(f.order_id, f.op_id) for f in snap.frozen}
@@ -158,4 +160,4 @@ def _reschedule(
                       "changed_assignments": changed,
                       "makespan_before": max(a.end for a in repaired), "makespan_after": max(a.end for a in proposed),
                       "planner_time": planner_time})
-    return proposed if accepted else repaired
+    return Plan(proposed, breaks) if accepted else None

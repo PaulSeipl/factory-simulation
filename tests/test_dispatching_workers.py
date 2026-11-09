@@ -17,7 +17,7 @@ from simulation.model.compiled import compile_instance
 from simulation.model.instance import Instance
 from simulation.model.schedule import Break
 from simulation.objectives import TOTAL_TARDINESS
-from simulation.planners.dispatching import ASSIGNMENT_RULES, SEQUENCING_RULES, default_breaks, dispatch, spt
+from simulation.planners.dispatching import ASSIGNMENT_RULES, SEQUENCING_RULES, dispatch, dispatch_plan, spt
 from simulation.sim.des import Simulation, replay
 from simulation.sim.scenario import sample_scenario
 
@@ -101,7 +101,7 @@ def test_share_is_pushed_past_the_break_and_is_one_day_late():
     ci = one_pack(friday + 210, due=friday + 240)
     plan = dispatch(ci, spt)
     assert by_key(plan) == {("k", "pack"): (None, friday + 300, friday + 360, ("A",))}
-    assert default_breaks(ci, plan) == (Break(worker="A", start=friday + 240),)
+    assert dispatch_plan(ci, spt).breaks == (Break(worker="A", start=friday + 240),)
     assert TOTAL_TARDINESS.evaluate(ci, plan) == 1
 
 
@@ -144,7 +144,7 @@ def test_removal_after_a_night_run_waits_for_the_morning():
     assert plan["L1", "mill/removal"] == ("M", DAY, DAY + 1, ("W1",))
     assert plan["L2", "mill/setup"] == ("M", DAY + 1, DAY + 2, ("W1",))
     assert plan["L2", "mill/removal"] == ("M", 2 * DAY, 2 * DAY + 1, ("W2",))
-    assert default_breaks(ci, dispatch(ci, spt)) == tuple(
+    assert dispatch_plan(ci, spt).breaks == tuple(
         Break(worker=w, start=d * DAY + 240) for w, d in (("W1", 0), ("W1", 1), ("W2", 0), ("W2", 2)))
 
 
@@ -155,15 +155,14 @@ CALENDAR_INSTANCES = {"toy-workers": compile_instance(TOY_MODEL), "night-carrier
 @pytest.mark.parametrize("name", CALENDAR_INSTANCES)
 def test_every_rule_plan_with_calendar_is_feasible_and_replays(name, seq, asg):
     ci = CALENDAR_INSTANCES[name]
-    plan = dispatch(ci, SEQUENCING_RULES[seq], ASSIGNMENT_RULES[asg] if asg else None)
-    breaks = default_breaks(ci, plan)
+    plan, breaks = dispatch_plan(ci, SEQUENCING_RULES[seq], ASSIGNMENT_RULES[asg] if asg else None)
     assert check_schedule(ci, plan, breaks=breaks) == []
     result = replay(ci, plan, breaks=breaks)
     assert by_key(result.schedule) == by_key(plan) and result.breaks == breaks
 
 
 def test_no_breaks_without_calendar():
-    assert default_breaks(TOY, dispatch(TOY, spt)) == ()
+    assert dispatch_plan(TOY, spt).breaks == ()
 
 
 # --- from a snapshot (phase 3 task 4, no calendar) ---------------------------------------------------------------
@@ -220,8 +219,3 @@ def test_every_rule_plan_from_a_disturbed_snapshot_is_feasible(name, seed):
             assert check_schedule(ci, new, snap) == [], (t, seq, asg)
 
 
-def test_snapshot_with_workers_and_calendar_is_rejected():
-    ci = compile_instance(TOY_MODEL)
-    plan = dispatch(ci, spt)
-    with pytest.raises(NotImplementedError, match="calendar"):
-        dispatch(ci, spt, snapshot=Simulation(ci, plan, breaks=default_breaks(ci, plan)).snapshot())

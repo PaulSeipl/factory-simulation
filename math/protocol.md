@@ -8,6 +8,91 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-09 (29) — C14 relaxed: no break owed for a late starter — uncommitted
+
+- **Decided (user):** not as strict as §4 ArbZG (proposal of (28) dropped): a worker who works in the morning gets
+  the break scheduled even without afternoon shares (taking it is up to him); a worker without a share before the
+  window may get a share later without a break; precise working times / working days per worker will come from the
+  MES. Mine (interpretation, stated to the user): a break is owed on a day with a share starting before the latest
+  break start.
+- **Done:** checker `break_violations` (missing break only for such days); rule `break_at` (None means no break owed
+  and none booked; `ValueError` only if a share started before the window); fallback "no new share that day"
+  removed. 3 tests in `tests/test_rule_snapshot_calendar.py` (share at 16:00 without a break is feasible; a share at
+  11:00 without a break is C14; B idle until 16:00 gets Y at 16:00 from a snapshot at 15:00, no break). Start plans
+  with breaks unchanged (30), sweep coverage unchanged, no errors. [04](04_workers.md) §3 (C14), §6;
+  [11](11_dispatching-rules.md) §3. Full suite 1168 passed, ruff clean.
+- **Found:** in the night-mill case of (27) the removal now goes to W1 (load and order), not W2 as I had said in
+  my explanation; the hand test uses a qualification to make the late starter the only candidate.
+- **Open:** availability windows per worker and day from the MES (own task once the data format is known); commit.
+
+## 2026-11-09 (28) — Break obligation by working time (ArbZG §4); proposal — no code change yet
+
+- **User input:** a worker without shares that day may get a share without a break, and does not need one; in
+  Germany a break is required from 6 hours of work (30 or 45 minutes, user unsure); the MES will provide each
+  worker's availability per day (possibly a time window).
+- **Checked (online, original text):** §4 ArbZG, https://www.gesetze-im-internet.de/arbzg/__4.html: breaks
+  fixed in advance of at least 30 minutes for working time of more than six up to nine hours and 45 minutes for
+  more than nine hours; splittable into parts of at least 15 minutes; no more than six hours in a row without a
+  break. (Statute, not in Zotero.)
+- **Found:** our C14 (a break on every day with any share) is stricter than the law and caused the fallback of
+  entry (27). Example: night mill, seed 1, Tuesday 16:01: W2 had no Tuesday share and no Tuesday break; the pending
+  L2 mill removal (program ended 14:00) could not go to W2 under C14.
+- **Proposed (mine, awaiting the user):** C14 only if the working time of the day exceeds 6 h; then the company
+  break (60 min, start 12:00–13:00, user 2026-11-05). Working time until MES data: span from the first share start
+  to the last share end of the day (a lower bound of presence; ArbZG counts presence). Rule: plans 12:00 breaks as
+  now; the fallback of (27) becomes "without a possible break, shares only while the day's span stays ≤ 6 h".
+  Later task: per-worker availability windows from the MES replacing the uniform shift.
+- **Open:** user decision; then checker C14, rule, `math/04` (C14 revised, source in `references.md`), tests.
+
+## 2026-11-09 (27) — Breaks through rescheduling, task 4: the rule from a snapshot with a calendar — uncommitted
+
+- **Decided (user):** Task 4. Mine (advisor review before coding): breaks as bookings per worker and day,
+  `break_at(z, ν)` a pure, memoized function of the frozen part (never of new shares or probing order); pending
+  removals booked exactly as the checker's C7$^o$ (overtime, frozen part only, before breaks); one source for the
+  breaks: `dispatch_plan` returns `Plan`, `dispatch` the assignments, `default_breaks` removed; a break after the
+  window not forced by a frozen share raises, except for a worker with no share that day, who then takes no new
+  share that day.
+- **Done:** `planners/dispatching.py` (`window`, `break_at`, `free_from` against bookings plus the day's break,
+  `removal_free`, `fixed` / `frozen_time` bookings, started breaks booked, guard removed, breaks output); snapshot
+  `FrozenOperation.share_lengths` (realized if done, a running prefix at least until $t + 1$, planned otherwise),
+  used by the checker's `_frozen_worker_time` and the rule; `tests/test_rule_snapshot_calendar.py` (7 hand cases,
+  sweep over 5 instances × 6 seeds); `tests/test_dispatching_workers.py` on `dispatch_plan`. Regression: 30 calendar
+  start plans with breaks and 195 worker-free plans identical to before. [11](11_dispatching-rules.md) §3, §5;
+  [04](04_workers.md) §5, §6; [13](13_des.md) §6. Full suite 1165 passed, ruff clean.
+- **Found:**
+  - The first sweep covered too little (toy-workers ends at 170, before noon; no moved break, no pending
+    removal). Rebuilt over instances around noon, the shift end and overnight, with the realized horizon;
+    coverage measured (taken and moved breaks, pending removals, 7 forced overstays).
+  - Night mill: a worker with no share on Tuesday and no break (none planned that day) would have got a share at
+    16:01, which makes C14 impossible → the rule now leaves such a worker out for that day.
+  - toy-noon: a prefix done earlier than planned, followed by its break, looked like a share during the break,
+    because the snapshot showed planned share lengths → `share_lengths` in the snapshot; this also resolves the
+    open point on overrunning prefixes (hand test: forced break at 311 after a running prefix).
+  - Symbol check: `11` still had $L^{\mathrm{B}}$, `13` and `23` still $\bar O$, `11` and `13` still $W_\eta$, and
+    `13` used $v$ for a worker (clash with $v_{\eta,z}$) → fixed ($z'$); the earlier verification missed them
+    (escaping in the search pattern).
+- **Open:** breaks for every worker and working day (alternative to "no new share that day", changes start plans);
+  repair with workers (phase 4); commit.
+
+## 2026-11-09 (26) — Breaks through rescheduling, task 3: planner interface, plan update, execute — uncommitted
+
+- **Decided (user):** Task 3 (decision 1 (a): planners return breaks). Mine: `model.schedule.Plan` as a
+  NamedTuple (internal, no Pydantic in the hot path; `Schedule` stays the file format); `_reschedule` returns the
+  accepted `Plan` or `None`; the repair keeps the breaks (`update_plan(plan)` with `breaks=None`).
+- **Done:** `Planner` returns `Plan`; `dispatch_planner` returns the rule plan with `default_breaks`,
+  `cpsat_planner` with no breaks; `_reschedule` checks the planner's breaks; `adapt_plan` hands accepted breaks to
+  `Simulation.update_plan(plan, breaks)`; `Simulation.current_breaks()`, `_replace_breaks` (taken kept, pending
+  replaced, wake-ups); `execute(..., breaks)` and `ExecutionResult.breaks` from the DES (was always empty).
+  `tests/test_break_handover.py` (6 tests by hand); `tests/test_rescheduling.py` own planner returns `Plan`. All
+  other rescheduling tests unchanged in their results. [04](04_workers.md) §5, [05](05_rescheduling-frozen-part.md)
+  §5, [13](13_des.md) §7. Symbol check: no new symbols. Full suite 1130 passed, ruff clean.
+- **Found:** my hand value for the packaging start was wrong (300); the DES is right with 320, since Gegenbetten
+  really ends at 320 (prefix to 260 plus 60 rest). A due break not yet taken keeps its planned start in
+  `current_breaks()`, which lies before $t$; once repair handles workers (phase 4), the repair path must move such a
+  break to $\ge t$ or C6$^b$ rejects the plan.
+- **Open:** Task 4 (rule from a snapshot with a calendar); the overdue pending break in the repair path (phase 4);
+  commit.
+
 ## 2026-11-09 (25) — Symbol renames applied; literature correspondence; rule in notation.md — uncommitted
 
 - **Decided (user):** apply all renames of entry (24) with worker index $z$ and $W_o$.

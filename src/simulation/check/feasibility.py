@@ -301,8 +301,8 @@ def outside_shift(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> list
 
 def break_violations(ci: CompiledInstance, by_op: Mapping[int, Assignment], breaks: Iterable[Break],
                      snapshot: Snapshot | None = None) -> list[Violation]:
-    """C14 (only with a calendar): exactly one break per worker on each day with shares, starting in
-    [break_earliest, break_latest], and no share during a break.
+    """C14 (only with a calendar): exactly one break per worker on each day with a share starting before the latest
+    break start, starting in [break_earliest, break_latest], at most one break a day, and no share during a break.
 
     With a snapshot: its breaks are realized history and not checked against the window (like C2 for frozen
     operations); a later break is a forced postponement and allowed only if a frozen share of the worker covers the
@@ -328,8 +328,10 @@ def break_violations(ci: CompiledInstance, by_op: Mapping[int, Assignment], brea
     violations += [Violation("C14", (), f"{w}: {len(starts)} breaks on day {d}")
                    for (w, d), starts in per_day.items() if len(starts) > 1]
     for w, intervals in worker_intervals(ci, by_op).items():
-        violations += [Violation("C14", (), f"{w}: no break on day {d}")
-                       for d in sorted({day_index(cal, s) for s, _, _ in intervals}) if (w, d) not in per_day]
+        # a break is owed on a day with a share starting before the latest break start (user 2026-11-09: a worker
+        # who only starts after the window needs none; working times per worker will come from the MES)
+        owed = {day_index(cal, s) for s, _, _ in intervals if s < day_start(cal, day_index(cal, s)) + cal.break_latest}
+        violations += [Violation("C14", (), f"{w}: no break on day {d}") for d in sorted(owed) if (w, d) not in per_day]
         violations += [
             Violation("C14", (ci.op_keys[o],),
                       f"{w} on {ci.op_keys[o]} [{s},{e}) during the break [{b},{b + cal.break_length})")
@@ -354,15 +356,16 @@ def breaks_changed(breaks: Iterable[Break], snapshot: Snapshot | None) -> list[V
 def _frozen_worker_time(ci: CompiledInstance, snapshot: Snapshot,
                         with_breaks: bool = False) -> dict[str, list[tuple[int, int]]]:
     """Worker -> share intervals of the started shares of the frozen operations, from the snapshot's (expected)
-    times and the planned share lengths (what a planner sees); with_breaks: also the started breaks."""
+    times and share lengths (what a planner sees); with_breaks: also the started breaks."""
     out: dict[str, list[tuple[int, int]]] = defaultdict(list)
     for f in snapshot.frozen:
         o = ci.op_index.get((f.order_id, f.op_id))
         if o is None:
             continue  # reported under C0/C1
-        for sh, w in zip(ci.shares[o], f.workers, strict=False):  # a wrong count is reported under C11
+        lengths = f.share_lengths or [sh.length for sh in ci.shares[o]]
+        for sh, n, w in zip(ci.shares[o], lengths, f.workers, strict=False):  # a wrong count is reported under C11
             if w is not None:
-                out[w].append(share_interval(sh, f.start, f.end))
+                out[w].append(share_interval(sh._replace(length=n), f.start, f.end))
     if with_breaks and ci.calendar is not None:
         for b in snapshot.breaks:
             out[b.worker].append((b.start, b.start + ci.calendar.break_length))

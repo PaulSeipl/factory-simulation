@@ -104,6 +104,12 @@ Each task: `math/04_workers.md`, `math/05_rescheduling-frozen-part.md`, `math/11
 every task, every phase, and at the end); protocol entry. Thesis: no affected section written yet (checked 2026-11-08:
 `seipl27/Text/kapitel1.tex` is empty).
 
+## Status (2026-11-09)
+Tasks 1–4 done (protocol (21), (23), (26), (27)). Task 4 deviations: breaks became bookings per worker and day
+(`break_at`) instead of the fixed 12:00 exclusion (start plans unchanged, checked); `default_breaks` removed,
+`dispatch_plan` returns the breaks; `FrozenOperation.share_lengths` added (found by the sweep); a worker without a
+share and a break on the snapshot's day takes no new share that day after the window.
+
 ## Not in this plan
 - Repair with workers and the full `execute` path on calendar instances (phase 4).
 - CP-SAT choosing break times (phase 4).

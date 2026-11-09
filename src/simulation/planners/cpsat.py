@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 from ortools.sat.python import cp_model
 
 from simulation.model.compiled import CompiledInstance, reject_workers
-from simulation.model.schedule import Assignment
+from simulation.model.schedule import Assignment, Plan
 from simulation.objectives import MAKESPAN, Objective
 
 if TYPE_CHECKING:
@@ -181,10 +181,11 @@ def cpsat_planner(
     so that runs with the same seed are reproducible.
     """
 
-    def planner(ci: CompiledInstance, snapshot: Snapshot, current: Sequence[Assignment]) -> list[Assignment]:
+    def planner(ci: CompiledInstance, snapshot: Snapshot, current: Sequence[Assignment]) -> Plan:
         result = solve(ci, objective, time_limit, workers, seed, hint=current, snapshot=snapshot,
                        reference=current, change_budget=change_budget)
         # shortcut: without a solution within the time limit the current plan is kept; raise the limit if this occurs
-        return result.schedule or list(current)
+        # no breaks: the model rejects workers until phase 4
+        return Plan(result.schedule or list(current))
 
     return planner

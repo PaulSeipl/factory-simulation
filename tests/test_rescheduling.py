@@ -9,7 +9,7 @@ from simulation.io.brandimarte_loader import load_fjs
 from simulation.io.json_loader import read_model
 from simulation.model.compiled import CompiledInstance, compile_instance
 from simulation.model.instance import Instance
-from simulation.model.schedule import Assignment
+from simulation.model.schedule import Assignment, Plan
 from simulation.objectives import TOTAL_TARDINESS
 from simulation.planners.cpsat import cpsat_planner, solve
 from simulation.planners.dispatching import best_dispatch, dispatch, dispatch_planner, ect, least_load, spt
@@ -258,7 +258,7 @@ def test_invalid_policy_is_rejected(kwargs, message):
 
 def test_infeasible_plan_from_the_planner_raises():
     def broken(ci, snapshot, current):
-        return [a.model_copy(update={"start": 0, "end": a.end - a.start}) for a in current]  # everything at 0
+        return Plan([a.model_copy(update={"start": 0, "end": a.end - a.start}) for a in current])  # everything at 0
 
     with pytest.raises(PlanNotExecutable, match="planner returned an infeasible plan"):
         execute(TOY, PLAN, disturbed({"b1": 2.0}), ReschedulingPolicy(broken, max_makespan_change=0))

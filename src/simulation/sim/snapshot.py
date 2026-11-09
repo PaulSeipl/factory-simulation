@@ -27,6 +27,9 @@ class FrozenOperation(BaseModel):
     running: bool
     # worker per share; None for a share not started yet (the removal of a running oven may still change)
     workers: tuple[str | None, ...] = ()
+    # length per share: realized if the share is done (observed), expected if it runs (a running prefix at least
+    # until t + 1), planned if not started; empty: the planned lengths (math/04_workers.md)
+    share_lengths: tuple[int, ...] = ()
 
 
 class Snapshot(BaseModel):
@@ -40,8 +43,9 @@ class Snapshot(BaseModel):
 
 
 def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
-             breaks: Sequence[Break] = ()) -> Snapshot:
-    """`breaks`: the planned breaks of the run, in the order of state.break_start."""
+             breaks: Sequence[Break] = (), share_len: Sequence[Sequence[int]] = ()) -> Snapshot:
+    """`breaks`: the planned breaks of the run, in the order of state.break_start. `share_len`: the realized share
+    lengths of the DES, read only for shares that are done (the past)."""
     machine = {(a.order_id, a.op_id): a.machine for a in plan}
     workers = {(a.order_id, a.op_id): a.workers for a in plan}
     leader = {q: batch[0] for batch in state.started_batch.values() for q in batch}
@@ -61,9 +65,20 @@ def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
             rest = next((sh.length for sh, s in zip(ci.shares[o], started, strict=True)
                          if sh.kind == "suffix" and not s), 1)
             end = max(start + planned, state.t + rest)
+        lengths = []
+        for i, sh in enumerate(ci.shares[o]):
+            if share_len and (state.end[o] is not None or (first, i) in state.share_done):
+                lengths.append(share_len[first][i])  # done: observed
+            elif sh.kind == "whole":
+                lengths.append(end - start)
+            elif sh.kind == "prefix" and (first, i) in state.worker_on:
+                lengths.append(max(sh.length, state.t + 1 - start))  # running: expected, overrun seen until t + 1
+            else:
+                lengths.append(sh.length)  # suffix running or not started: planned
         frozen.append(FrozenOperation(
             order_id=order_id, op_id=op_id, machine=m, start=start, end=end, running=state.end[o] is None,
             workers=tuple(w if done else None for w, done in zip(workers[order_id, op_id], started, strict=True)),
+            share_lengths=tuple(lengths) if ci.shares[o] else (),
         ))
     taken = tuple(Break(worker=b.worker, start=s) for b, s in zip(breaks, state.break_start, strict=True)
                   if s is not None)

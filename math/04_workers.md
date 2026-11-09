@@ -80,8 +80,13 @@ $$\operatorname{day}(\underline{I}_\eta) \bmod 7 \in \mathcal{D}^{\mathrm{w}},\q
 where $\operatorname{start}(\nu)$ is the time of 00:00 on day $\nu$; the window ends before midnight (calendar
 validity, §2), so a share cannot cross into the next day.
 
-(C14) With a calendar, a worker who has a share on day $\nu$ has exactly one break $\mathrm{br}_{z,\nu}$ that day, in the
-window, and no share overlaps it.
+(C14) With a calendar, a worker who has a share on day $\nu$ starting before the latest break start
+($\underline{I}_\eta < \operatorname{start}(\nu) + h^{\mathrm{B}+}$) has exactly one break $\mathrm{br}_{z,\nu}$ that
+day, in the window; at most one break a day; no share overlaps a break. A worker whose first share of the day starts
+after the window owes no break (user 2026-11-09). The planner may still schedule a break on any day (the rule does
+on every day with a share); whether the worker takes it is up to him. Deliberately simpler than §4 ArbZG (break owed
+for more than 6 h of working time; protocol 2026-11-09 (28)); exact working times per worker are expected from the
+MES.
 $$\operatorname{mod}(\mathrm{br}_{z,\nu}) \in [h^{\mathrm{B}-}, h^{\mathrm{B}+}],\qquad v_{\eta,z} = 1 \Rightarrow I_\eta \cap [\mathrm{br}_{z,\nu}, \mathrm{br}_{z,\nu} + p^{\mathrm{br}}) = \emptyset$$
 
 **Breaks in a revised plan** (against a snapshot at $t$, [05](05_rescheduling-frozen-part.md); the breaks
@@ -216,15 +221,24 @@ CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further
   at factor 2, snapshot at 8: removal [9, 10), oven batch ends 10, mill runs one minute later; the DES accepts it
   and realizes the removal at [11, 12), OVERSTAY 3; negative → C7: end kept although forced, longer than forced,
   moved earlier, moved without force (carrier plan at 3), moved after the removal started (at 6)).
+- Breaks through rescheduling, task 3: planners return `Plan(assignments, breaks)`; `execute` runs with the start
+  breaks and reports the realized ones; `Simulation.update_plan(plan, breaks)` keeps taken breaks and replaces
+  pending ones ([05](05_rescheduling-frozen-part.md) §5, [13](13_des.md) §7). Tests `tests/test_break_handover.py`
+  (by hand: realized breaks A 12:20, B 12:00 from `execute`; current breaks at 12:10 and 12:30; at 12:10 A's due
+  break replaced by 12:20 and B's taken break kept, run to the end; a moved taken break is rejected (C7); without
+  breaks the current ones stay; `dispatch_planner` returns a `Plan`).
 - Dispatching from a snapshot (phase 3, task 4): started shares of frozen operations keep and occupy their workers
-  (C7), a pending removal gets a worker by the rule's choice. With a calendar it raises `NotImplementedError`:
-  breaks do not travel through rescheduling yet (`Snapshot` has no breaks, the planner interface returns only
-  assignments, `control.rescheduling.execute` starts the `Simulation` without breaks, so on a calendar instance
-  its checks would report missing breaks, C14).
+  (C7), a pending removal gets a worker by the rule's choice. With a calendar since breaks Task 4 (2026-11-09):
+  breaks are bookings per worker and day (`break_at`: the started one, else the earliest start from 12:00, on the
+  snapshot's day not before $t$, clear of the frozen part and the pending removals; C14$^f$ after the window, or no
+  new share that day if the worker had none and no break is possible); pending removals booked as the checker's
+  C7$^o$ (overtime, frozen part only, before breaks). `dispatch_plan` returns `Plan(assignments, breaks)`. The
+  snapshot carries `FrozenOperation.share_lengths` (done: realized; running prefix: at least until $t + 1$;
+  otherwise planned), used by the checker (`_frozen_worker_time`) and the rule; this closes the open point on
+  overrunning prefixes (§6). Tests `tests/test_rule_snapshot_calendar.py`.
 - Dispatching with the calendar (phase 3, task 3): shares only within the shift without overtime and outside the
-  fixed 12:00 break (`calendar.next_start` with latest $= h^{\mathrm{E}}$); `default_breaks(ci, plan)` gives the
-  plan's breaks (C14); machines run overnight, attended removals wait for the morning. See
-  [11](11_dispatching-rules.md) §3.
+  worker's break of that day (12:00 without a snapshot); `dispatch_plan` gives the plan's breaks (C14); machines
+  run overnight, attended removals wait for the morning. See [11](11_dispatching-rules.md) §3.
 - Guards (until their phase): CP-SAT (`solve`) and repair (`repair`) raise `NotImplementedError` for instances with workers or machine-less operations
   (`compiled.reject_workers`). Tests: `tests/test_worker_compile.py` (shares of the three order kinds, of the
   oven batch and the attended mill run, intervals, instances without workers unchanged, horizon, 4 guard cases).
@@ -249,10 +263,14 @@ CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further
   own operations). Decide after the CP-SAT step (phase 4) by solve times on the dental example; the format keeps
   the general form, so a downgrade is a restriction in the generator, not a format change.
 - **[CHECK WITH FIDENTIS]** oven overstay as the highest objective level, oven blocked while parts wait (spec §5).
-- A running **prefix** is visible in the snapshot only with its planned length: if it overruns past 13:00, its
-  interval $I_\eta$ ends before 13:00, so C14$^f$ does not accept the forced break (mine, 2026-11-08). Whole shares
-  carry the expected end of their operation and work. Upgrade: realized or expected share ends in
-  `FrozenOperation`, if a disturbed run hits it (Task 4 sweep will show).
+- ~~A running prefix is visible in the snapshot only with its planned length~~ **Resolved 2026-11-09:** the Task 4
+  sweep hit the reverse case (a prefix done earlier than planned, its planned interval overlapping the break taken
+  right after it), so the snapshot now carries the share lengths: realized for done shares (observed, no leakage),
+  at least until $t + 1$ for a running prefix (like $\tilde C_o$), planned otherwise.
+- ~~A worker without a share and a break on the snapshot's day takes no new share that day~~ (fallback of
+  2026-11-09, replaced the same day): C14 now owes a break only for a share starting before the window, so a worker
+  idle until the afternoon takes shares without a break (user). Working times and working days per worker
+  (availability windows) are expected from the MES and will refine C14; not modeled yet.
 
 ## 7. Sources
 
@@ -278,6 +296,9 @@ CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further
 | 2026-11-07 | uncommitted | Dispatching rule with the calendar and `default_breaks` (phase 3, task 3). |
 | 2026-11-08 | uncommitted | Dispatching from a snapshot with workers, no calendar (phase 3, task 4); open point: breaks through rescheduling. |
 | 2026-11-08 | uncommitted | Breaks in the snapshot; (C6$^b$), (C7$^b$), (C14$^f$) in the checker; symbols $v_{\eta,w}$, $I_\eta$, $\mathrm{br}_{w,d}$, $\widehat{\mathrm{br}}_{w,d}$ in `notation.md`. |
+| 2026-11-09 | uncommitted | (C14) a break is owed only on a day with a share starting before the latest break start (user); fallback "no new share that day" removed. |
+| 2026-11-09 | uncommitted | Breaks through rescheduling, task 4: rule from a snapshot with the calendar (breaks as bookings, removals as C7$^o$), `FrozenOperation.share_lengths`. |
+| 2026-11-09 | uncommitted | Breaks through rescheduling, task 3: `Plan`, break handover in `update_plan` and `execute`. |
 | 2026-11-09 | uncommitted | (C7$^o$) forced overstay: checker, snapshot expected end, rule, DES worker takeover for a pending share. |
 | 2026-11-09 | uncommitted | Symbols renamed (user, grounded in the literature, protocol 2026-11-09 (24)): worker index $w$ → $z$ (Berti et al. 2021), day index $d$ → $\nu$, qualified workers $W_\eta$ → $W_o$, overtime $O_{w,d}$, $\bar O$ → $\mathrm{ot}_{z,\nu}$, $\overline{\mathrm{ot}}$, break length $L^{\mathrm{B}}$ → $p^{\mathrm{br}}$, worker load $V_w$ → $V_z$. |
 | 2026-11-08 | uncommitted | Symbols renamed (user): break start $b_{w,d}$ → $\mathrm{br}_{w,d}$ (clash with the late offset $b$ of [22](22_scenarios.md)); worker assignment $y_{\eta,w}$ → $v_{\eta,w}$ (clash with the batch slot assignment $y_{o,j}$ of [03](03_carriers.md)). |

@@ -233,7 +233,7 @@ class Simulation:
     # --- interface to the planning tool ----------------------------------------------------------
 
     def snapshot(self) -> Snapshot:
-        return snapshot(self.ci, self.current_plan(), self.state, self.breaks)
+        return snapshot(self.ci, self.current_plan(), self.state, self.breaks, self.share_len)
 
     def current_plan(self) -> list[Assignment]:
         """The plan the factory currently executes (the one last sent to it)."""
@@ -242,11 +242,15 @@ class Simulation:
                            end=s.planned_end[o], workers=self._worker_ids(o))
                 for o, (k, j) in enumerate(self.ci.op_keys)]
 
-    def update_plan(self, plan: Sequence[Assignment]) -> None:
-        """Replace the current plan; it must respect the frozen part (C1-C7 against the snapshot)."""
-        if violations := check_schedule(self.ci, plan, self.snapshot()):
+    def update_plan(self, plan: Sequence[Assignment], breaks: Sequence[Break] | None = None) -> None:
+        """Replace the current plan and, if given, the breaks not taken yet; plan and breaks must respect the frozen
+        part (C1-C7 and the break checks against the snapshot). breaks=None keeps the current breaks."""
+        new_breaks = self.current_breaks() if breaks is None else tuple(breaks)
+        if violations := check_schedule(self.ci, plan, self.snapshot(), new_breaks):
             raise PlanNotExecutable(_describe(violations))
         self._apply(plan)
+        if breaks is not None:
+            self._replace_breaks(new_breaks)
         for o in range(self.ci.n_ops):
             pending = self.state.planned_start_at[o]
             if pending is not None and self._planned_start_time(o) != pending:  # released ops are not moved any more
@@ -257,6 +261,25 @@ class Simulation:
     def wake_at(self, t: int) -> None:
         """Make t a time point of the run, so that the planning tool is called then (no effect in the factory)."""
         self.state.push(t, EventType.WAKE, -1)
+
+    def current_breaks(self) -> tuple[Break, ...]:
+        """The breaks as currently planned: taken ones with their realized start, the others with their planned
+        start (a due break postponed by a busy worker keeps its planned start until it is taken)."""
+        return tuple(Break(worker=b.worker, start=b.start if t is None else t)
+                     for b, t in zip(self.breaks, self.state.break_start, strict=True))
+
+    def _replace_breaks(self, breaks: Sequence[Break]) -> None:
+        """Keep the taken breaks, replace the pending ones by those of `breaks` that are not taken."""
+        s = self.state
+        taken = [(b, t) for b, t in zip(self.breaks, s.break_start, strict=True) if t is not None]
+        realized = {(b.worker, t) for b, t in taken}
+        new = [b for b in breaks if (b.worker, b.start) not in realized]
+        self.breaks = (*(b for b, _ in taken), *new)
+        s.break_start = [t for _, t in taken] + [None] * len(new)
+        s.pending_breaks = [[] for _ in self.ci.worker_ids]
+        for idx, b in sorted(enumerate(new, start=len(taken)), key=lambda ib: ib[1].start):
+            s.pending_breaks[self.ci.worker_ids.index(b.worker)].append((b.start, idx))
+            self._wake(b.start)
 
     def realized_breaks(self) -> tuple[Break, ...]:
         """Breaks as taken (in the order of the planned ones); a break never taken (run ended before) is left out."""

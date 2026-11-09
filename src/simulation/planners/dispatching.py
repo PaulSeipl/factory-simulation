@@ -23,26 +23,29 @@ worker's busy intervals: an oven removal planned later leaves its worker free in
 worker with the least worker load wins, then the lowest index. A batch's shares are planned once and all members
 carry the same workers; the parts of a run are placed one after the other on its machine, each part as soon as its
 workers allow (the machine stays blocked in between, C9). Operations without machine wait only for their workers.
-With a calendar, shares lie within the shift without overtime and outside 12:00 to 12:00 + break length (every
-worker breaks at the earliest break start, see default_breaks); machines run at any time, so a print may run
-overnight and its removal waits until the morning.
+With a calendar, shares lie within the shift without overtime and outside the worker's break that day; the break
+starts at the earliest break start, or later if the frozen part forces it (snapshot's day: not before t, after a
+running share; a pending removal comes first), and dispatch_plan returns these breaks. Machines run at any time,
+so a print may run overnight and its removal waits until the morning.
 
 From a snapshot (rescheduling, math/05_rescheduling-frozen-part.md): the frozen operations are kept as
 they are, their machines are busy until their (expected) end, and nothing new starts before snapshot.t. Their
 started shares keep their workers and occupy them (C7); a pending share of a frozen operation (the removal of a
 running oven) gets a worker by the rule above, the same for the whole batch, at its expected time, or, if no
 qualified worker is free then (a disturbance), at the earliest time one is: the operation then ends later (forced
-overstay). Not yet with a calendar.
+overstay; computed as the checker does, with overtime and blocked only by the frozen part, C7^o). The breaks
+started by t are kept (C7^b); a break of the snapshot's day not yet started is planned anew.
 """
 
 from bisect import insort
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from functools import cache
 from typing import TYPE_CHECKING
 
-from simulation.calendar import WEEK, day_index, day_start, next_start
+from simulation.calendar import WEEK, day_index, day_start, is_working_day
 from simulation.model.compiled import CompiledInstance, Share, share_interval
-from simulation.model.schedule import Assignment, Break
+from simulation.model.schedule import Assignment, Break, Plan
 from simulation.objectives import MAKESPAN, Objective
 
 if TYPE_CHECKING:
@@ -115,12 +118,18 @@ def dispatch(
     assignment: AssignmentRule | None = None,
     snapshot: Snapshot | None = None,
 ) -> list[Assignment]:
-    if snapshot and ci.worker_ids and ci.calendar is not None:
-        # shortcut: breaks do not travel through rescheduling yet (snapshot without breaks, the rule's fixed 12:00
-        # break would ignore a break postponed in the DES); planned as its own task
-        raise NotImplementedError("dispatching from a snapshot with workers and a calendar is not supported yet "
-                                  "(math/04_workers.md)")
-    own = [dict(opts) or {None: ci.fixed_duration[o]} for o, opts in enumerate(ci.options)]  # machine None: no machine
+    """The rule plan's assignments; `dispatch_plan` also returns its breaks."""
+    return dispatch_plan(ci, sequencing, assignment, snapshot).assignments
+
+
+def dispatch_plan(
+    ci: CompiledInstance,
+    sequencing: SequencingRule,
+    assignment: AssignmentRule | None = None,
+    snapshot: Snapshot | None = None,
+) -> Plan:
+    """The rule plan with the breaks it booked (empty without a calendar or without workers)."""
+    own =[dict(opts) or {None: ci.fixed_duration[o]} for o, opts in enumerate(ci.options)]  # machine None: no machine
     min_p = [min(d.values()) for d in own]
     work_left = [0] * len(ci.order_ids)
     for o in range(ci.n_ops):
@@ -141,20 +150,74 @@ def dispatch(
         duration[head] = {m: sum(duration[q][m] for q in group) for m in duration[head]}
     ready: dict[int, tuple[tuple[int, int], ...]] = {}  # ready operation -> machines it may still use
 
-    busy: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # per worker: sorted share intervals
+    busy: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # per worker: everything booked, sorted
+    fixed: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # frozen shares, started breaks, removals
+    frozen_time: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # started shares of the frozen part only
     worker_load = [0] * len(ci.worker_ids)
 
     cal = ci.calendar
+    snap_day = day_index(cal, t0) if cal is not None and snapshot else None
+    taken = ({(ci.worker_ids.index(b.worker), day_index(cal, b.start)): b.start for b in snapshot.breaks}
+             if cal is not None and snapshot else {})
+
+    def window(s: int, n: int, latest: int) -> int:
+        """Earliest s' >= s with [s', s' + n) inside one working day's [shift start, latest] (minutes of the day)."""
+        for d in range(day_index(cal, s), day_index(cal, s) + 8):
+            if is_working_day(cal, d) and (a := max(s, day_start(cal, d) + cal.shift_start)) + n <= \
+                    day_start(cal, d) + latest:
+                return a
+        raise AssertionError(f"a share of {n} minutes fits in no shift")  # validation: a working day every week
+
+    def clash_end(intervals, s: int, n: int) -> int | None:
+        return next((e for a, e in intervals if a < s + n and s < e), None)
+
+    @cache
+    def break_at(w: int, d: int) -> int | None:
+        """Break start of worker w on day d: the started one; otherwise the earliest start from the earliest break
+        start (on the snapshot's day not before t) clear of the frozen part and the pending removals. Depends only on
+        (w, d) and the frozen part, never on new shares, which avoid it. None: no break possible that day (the
+        snapshot's day after the window, no share of the worker started before it): none is owed (C14), since every
+        new share starts after the window."""
+        if (w, d) in taken:
+            return taken[w, d]
+        s = day_start(cal, d) + cal.break_earliest
+        if d == snap_day:
+            s = max(s, t0)
+        while (e := clash_end(fixed[w], s, cal.break_length)) is not None:
+            s = e
+        latest = day_start(cal, d) + cal.break_latest
+        if s > latest and not any(a < latest < e == s for a, e in frozen_time[w]):  # C14^f
+            if any(day_start(cal, d) <= a < latest for a, _ in frozen_time[w]):  # a break is owed, none possible
+                raise ValueError(f"break of {ci.worker_ids[w]} on day {d} would start after the window at {s}; only "
+                                 "a frozen share may postpone it (math/04_workers.md, C14^f)")
+            return None
+        return s
 
     def free_from(w: int, s: int, n: int) -> int:
-        """Earliest s' >= s with [s', s' + n) free for worker w and, with a calendar, inside the shift without
-        overtime and outside the 12:00 break (calendar.next_start)."""
+        """Earliest s' >= s at which a new share [s', s' + n) is free for worker w: clear of its bookings and, with a
+        calendar, inside the shift without overtime and outside that day's break."""
+        if cal is not None and all(n > b - a for a, b in ((cal.shift_start, cal.break_earliest),
+                                                           (cal.break_earliest + cal.break_length, cal.shift_end))):
+            raise ValueError(f"share of {n} minutes longer than both parts of the shift")
+        while True:
+            intervals = busy[w]
+            if cal is not None:
+                s = window(s, n, cal.shift_end)
+                if (b := break_at(w, day_index(cal, s))) is not None:
+                    intervals = [*busy[w], (b, b + cal.break_length)]
+            if (e := clash_end(intervals, s, n)) is None:
+                return s
+            s = e
+
+    def removal_free(w: int, s: int, n: int) -> int:
+        """Earliest s' >= s for a pending removal, as the checker computes a forced overstay (C7^o): clear of the
+        frozen part only, inside the shift window with overtime (C13)."""
         while True:
             if cal is not None:
-                s = next_start(cal, s, n, cal.shift_end)
-            if (clash := next((b for a, b in busy[w] if a < s + n and s < b), None)) is None:
+                s = window(s, n, cal.shift_end + cal.max_overtime)
+            if (e := clash_end(fixed[w], s, n)) is None:
                 return s
-            s = clash
+            s = e
 
     def worker_start(o: int, t: int, p: int) -> int:
         """Earliest start >= t of o (duration p) at which every share finds a qualified worker free."""
@@ -166,17 +229,21 @@ def dispatch(
             t = later
         return t
 
-    def book(w: int, s: int, e: int) -> None:
+    def book(w: int, s: int, e: int, part_of_fixed: bool = False, load: bool = True) -> None:
         insort(busy[w], (s, e))
-        worker_load[w] += e - s
+        if part_of_fixed:
+            insort(fixed[w], (s, e))
+        if load:
+            worker_load[w] += e - s
 
-    def pick(o: int, sh: Share, s: int, n: int) -> str:
+    def pick(o: int, sh: Share, s: int, n: int, removal: bool = False) -> str:
         """Book the free qualified worker for [s, s + n) with the least worker load, then the lowest index."""
-        free = [w for w in sh.workers if free_from(w, s, n) == s]
+        free_at = removal_free if removal else free_from
+        free = [w for w in sh.workers if free_at(w, s, n) == s]
         if not free:  # cannot happen: every caller passes a time at which a qualified worker is free
             raise ValueError(f"{ci.op_keys[o]}: no qualified worker free for its {sh.kind} [{s},{s + n})")
         w = min(free, key=lambda w: (worker_load[w], w))
-        book(w, s, s + n)
+        book(w, s, s + n, part_of_fixed=removal)
         return ci.worker_ids[w]
 
     def take_workers(o: int, t: int, p: int) -> tuple[str, ...]:
@@ -194,18 +261,24 @@ def dispatch(
             workers_of[o] = workers_of[lead]  # the same list: filled once for the whole batch
             continue
         workers_of[o] = list(f.workers)
-        for sh, w in zip(ci.shares[o], f.workers, strict=True):
-            if w is not None:
-                book(ci.worker_ids.index(w), *share_interval(sh, f.start, f.end))
+        for sh, n, w in zip(ci.shares[o], f.share_lengths or [sh.length for sh in ci.shares[o]], f.workers,
+                            strict=True):
+            if w is not None:  # realized or expected share length from the snapshot
+                z, interval = ci.worker_ids.index(w), share_interval(sh._replace(length=n), f.start, f.end)
+                book(z, *interval, part_of_fixed=True)
+                insort(frozen_time[z], interval)
+    for (z, _), s in taken.items():  # started breaks block their worker like the frozen part
+        book(z, s, s + cal.break_length, part_of_fixed=True, load=False)
     # a pending share at its expected interval if a qualified worker is free then; otherwise at the earliest time one
-    # is free of the frozen part (forced overstay, C7^o): booked before any new share, so only the frozen part blocks
+    # is free of the frozen part (forced overstay, C7^o), computed as the checker does: booked before any break and
+    # any new share, so only the frozen part blocks it
     end_of: dict[int, int] = {}
     for o, ws in workers_of.items():
         for i, w in enumerate(ws):
             if w is None:
                 sh, f = ci.shares[o][i], frozen[o]
-                s = min(free_from(v, f.end - sh.length, sh.length) for v in sh.workers)
-                ws[i] = pick(o, sh, s, sh.length)
+                s = min(removal_free(v, f.end - sh.length, sh.length) for v in sh.workers)
+                ws[i] = pick(o, sh, s, sh.length, removal=True)
                 end_of[o] = s + sh.length
 
     def lead(o: int, f) -> int:
@@ -214,7 +287,7 @@ def dispatch(
     for o, f in frozen.items():  # the frozen part: kept unchanged, occupies its machine until its end
         end = end_of.get(lead(o, f), f.end)
         out.append(Assignment(order_id=f.order_id, op_id=f.op_id, machine=f.machine, start=f.start, end=end,
-                              workers=tuple(workers_of[o])))
+                              workers=tuple(workers_of[o]), share_lengths=f.share_lengths))
         if f.machine is not None:
             m = ci.machine_index[f.machine]
             state.machine_free[m] = max(state.machine_free[m], end)
@@ -315,22 +388,18 @@ def dispatch(
         if group:
             state.machine_free[m] = end  # later than t + p if a part waited for its workers (C9: blocked until then)
 
-    return out
-
-
-def default_breaks(ci: CompiledInstance, plan: Sequence[Assignment]) -> tuple[Break, ...]:
-    """The rule's breaks (C14): every worker at the earliest break start on every day with one of its shares;
-    `dispatch` keeps every share out of that hour. Empty without a calendar."""
-    if (cal := ci.calendar) is None:
-        return ()
-    days = {
-        (w, day_index(cal, share_interval(sh, a.start, a.end)[0]))
-        for a in plan for sh, w in zip(ci.shares[ci.op_index[a.order_id, a.op_id]], a.workers, strict=True)
-    }
+    if cal is None or not ci.worker_ids:
+        return Plan(out)
+    # C14: a break for every worker and day with one of its shares, the one the shares avoided (break_at); days
+    # before the snapshot's day are history (the snapshot's breaks, taken or none)
+    days = {(ci.worker_ids.index(z), day_index(cal, share_interval(sh, a.start, a.end)[0]))
+            for a in out for sh, z in zip(ci.shares[ci.op_index[a.order_id, a.op_id]], a.workers, strict=True)}
+    starts = {(ci.worker_ids[w], b) for w, d in days
+              if (snap_day is None or d >= snap_day) and (b := break_at(w, d)) is not None}
+    starts |= {(b.worker, b.start) for b in snapshot.breaks} if snapshot else set()
     # shortcut: a day-0 break before t = 0 (origin after the break) is left out and reported by C14; fine while
     # instances start in the morning
-    starts = ((w, day_start(cal, d) + cal.break_earliest) for w, d in sorted(days))
-    return tuple(Break(worker=w, start=b) for w, b in starts if b >= 0)
+    return Plan(out, tuple(Break(worker=z, start=s) for z, s in sorted(starts) if s >= 0))
 
 
 def _spans(shares: tuple[Share, ...], p: int) -> list[tuple[Share, int, int]]:
@@ -351,8 +420,8 @@ def best_dispatch(ci: CompiledInstance, objective: Objective = MAKESPAN) -> tupl
 def dispatch_planner(sequencing: SequencingRule, assignment: AssignmentRule | None = None):
     """Rescheduling planner for the DES: planner(ci, snapshot, current_plan) -> new complete plan."""
 
-    def planner(ci: CompiledInstance, snapshot: Snapshot, _current: Sequence[Assignment]) -> list[Assignment]:
-        return dispatch(ci, sequencing, assignment, snapshot)
+    def planner(ci: CompiledInstance, snapshot: Snapshot, _current: Sequence[Assignment]) -> Plan:
+        return dispatch_plan(ci, sequencing, assignment, snapshot)
 
     return planner
 
