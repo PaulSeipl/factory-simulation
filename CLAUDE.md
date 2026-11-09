@@ -60,7 +60,7 @@ A feature (e.g. loads, workers, JPC) is only done when it is included in:
 
 **Structure:**
 - `math/README.md`: overview and index of all files, one sentence per file
-- `math/notation.md`: central notation (sets, indices, parameters, variables). Add new symbols **here first**; never assign a symbol twice or inconsistently.
+- `math/notation.md`: central notation (sets, indices, parameters, variables). Add new symbols **here first**; never assign a symbol twice or inconsistently. **Before writing any new formula or introducing a variable, check `notation.md`** for the letter (also with other sub- or superscripts) and use the existing symbol or a free one. After every task, every phase and at the end, check all of `math/` for clashes.
 - One file per model component, numbered: e.g. `01_basic-fjsp.md`, `02_precedence-jpc.md`, `03_carriers.md`, `04_workers.md`, `05_rescheduling-frozen-part.md`
 - `math/references.md`: all sources in one place
 - `math/protocol.md`: working protocol, one entry per pass (decisions, work, findings, open points), newest first

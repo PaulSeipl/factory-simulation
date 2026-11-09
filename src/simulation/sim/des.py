@@ -287,6 +287,11 @@ class Simulation:
                 s.machine[o] = NO_MACHINE if a.machine is None else ci.machine_index[a.machine]
                 s.worker[o] = [worker_index[w] for w in a.workers]
                 self.duration[o], self.share_len[o] = self._realized(o)
+            elif s.end[o] is None:  # running: a share not started yet (oven removal) takes the plan's worker
+                first = next((f for f, batch in s.started_batch.items() if o in batch), o)
+                for i, w in enumerate(a.workers):
+                    if (first, i) not in s.share_done and (first, i) not in s.worker_on:
+                        s.worker[o][i] = worker_index[w]
         s.order_on = [[] for _ in range(ci.n_machines)]
         for o in sorted(range(ci.n_ops), key=lambda o: (s.planned_start[o], o)):
             if s.machine[o] != NO_MACHINE:

@@ -29,9 +29,9 @@ $\sigma = 0$ gives $\varepsilon_o = 1$ for all operations and reproduces the pla
 
 **Start offsets.** Independently of the processing time, an operation may start earlier or later than planned (a worker pulls a job forward or starts it late). Per operation:
 
-$$\Delta_o = \begin{cases} 0 & \text{with probability } q \\ U\{-a, \dots, b\} & \text{with probability } 1 - q \end{cases}$$
+$$\Delta_o = \begin{cases} 0 & \text{with probability } q \\ U\{-\Delta^{-}_{\max}, \dots, \Delta^{+}_{\max}\} & \text{with probability } 1 - q \end{cases}$$
 
-in minutes ($a$ = `max_early`, $b$ = `max_late`, uniform integer). An early start happens only if it is feasible (predecessors finished, machine idle, next in the planned machine order, order released); a late start delays the operation by $\Delta_o$ minutes after the moment it could actually start (released and ready), counted once ([13](13_des.md) §3). The offsets are drawn from a separate random stream (seeded with `"start-{seed}"`), so switching them on does not change the processing-time factors of a seed. Defaults $q = 1$, $a = b = 0$: no start deviation.
+in minutes ($\Delta^{-}_{\max}$ = `max_early`, $\Delta^{+}_{\max}$ = `max_late`, uniform integer). An early start happens only if it is feasible (predecessors finished, machine idle, next in the planned machine order, order released); a late start delays the operation by $\Delta_o$ minutes after the moment it could actually start (released and ready), counted once ([13](13_des.md) §3). The offsets are drawn from a separate random stream (seeded with `"start-{seed}"`), so switching them on does not change the processing-time factors of a seed. Defaults $q = 1$, $a = b = 0$: no start deviation.
 
 The scenario covers every compiled operation, incl. the operations of carriers and runs ([03](03_carriers.md)), keyed by owner and operation; for instances without carriers the operations and the random draws of a seed are the same as before. All operations use the same distribution (an assumption to revisit for the oven, whose program has a fixed duration).
 
@@ -41,7 +41,7 @@ The processing-time deviation is proportional to the planned duration ($\hat p_o
 
 ## 4. Implementation in code
 
-`simulation.sim.scenario`: `Scenario` (Pydantic, frozen, `extra="forbid"`; instance name, seed, $\sigma$, $q$, $a$, $b$, one factor and one start offset per `(order_id, op_id)`; stored as JSON), `sample_scenario(instance, sigma, seed, q=1, max_early=0, max_late=0)` (`random.Random(seed).lognormvariate` for the factors, `random.Random(f"start-{seed}")` for the offsets), `realized_duration(planned, factor)`, `factors_by_index(ci, scenario)` (checks that the scenario belongs to the instance and covers every operation exactly once).
+`simulation.sim.scenario`: `Scenario` (Pydantic, frozen, `extra="forbid"`; instance name, seed, $\sigma$, $q$, $\Delta^{-}_{\max}$, $\Delta^{+}_{\max}$, one factor and one start offset per `(order_id, op_id)`; stored as JSON), `sample_scenario(instance, sigma, seed, q=1, max_early=0, max_late=0)` (`random.Random(seed).lognormvariate` for the factors, `random.Random(f"start-{seed}")` for the offsets), `realized_duration(planned, factor)`, `factors_by_index(ci, scenario)` (checks that the scenario belongs to the instance and covers every operation exactly once).
 
 Tests (`tests/test_scenario.py`): same seed same factors, other seed other factors; one factor per operation; $\sigma = 0$ gives exactly 1; mean of 2400 factors with $\sigma = 0.3$ within $1 \pm 0.03$; rounding half up and minimum 1; scenario/instance mismatch, missing and duplicate factors rejected; JSON round trip.
 
@@ -67,3 +67,4 @@ Tests (`tests/test_scenario.py`): same seed same factors, other seed other facto
 | 2026-10-30 | uncommitted | Late start offset relative to actual readiness (see 13). |
 | 2026-11-02 | uncommitted | Scenarios over all compiled operations (carriers, runs). |
 | 2026-11-05 | uncommitted | Realized durations of operations with worker shares (rest and programs fixed). |
+| 2026-11-09 | uncommitted | Symbols renamed (protocol 2026-11-09 (24)): maximum early / late offset $a$, $b$ → $\Delta^{-}_{\max}$, $\Delta^{+}_{\max}$ ($b$ is the carrier, $a$ the prefix/suffix length). |

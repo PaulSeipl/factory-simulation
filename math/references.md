@@ -7,19 +7,19 @@
   Used for: number of rescheduling activities as surrogate for shop-floor disruption (p. 97) ([23](23_metrics.md)); continuous, periodic and event-driven rescheduling.
 
 - Berti, N., Finco, S., Battaïa, O., & Delorme, X. (2021). Ageing workforce effects in dual-resource constrained job-shop scheduling. *International Journal of Production Economics*, 237, 108151. https://doi.org/10.1016/j.ijpe.2021.108151 (Zotero `8F7AYGYK`)
-  Used for: rest allowance and ergonomics of workers in DRC job shops (p. 1) ([32](32_target-data-model.md)).
+  Used for: rest allowance and ergonomics of workers in DRC job shops (p. 1) ([32](32_target-data-model.md)); notation: worker set $W$, worker index $z$, candidate workers $W_k$ of machine $k$ (PDF p. 5, notation table) ([notation.md](notation.md)).
 
 - Brandimarte, P. (1993). Routing and scheduling in a flexible job shop by tabu search. *Annals of Operations Research*, 41, 157–183. https://doi.org/10.1007/BF02023073
   Used for: the name FJSP, origin of the MK benchmark instances (mk01–mk10) and the `.fjs` format. Cited in [01](01_basic-fjsp.md).
 
 - Dauzère-Pérès, S., Ding, J., Shen, L., & Tamssaouet, K. (2024). The flexible job shop scheduling problem: A review. *European Journal of Operational Research*, 314, 409–432. https://doi.org/10.1016/j.ejor.2023.05.017
-  Used for: problem definition and assumptions of the classical FJSP (§2, p. 410), MILP (1)–(8) (§2.1, p. 410), three-field notation incl. release dates $\beta = r_j$ (Table 1, p. 412), non-linear routes $\beta = bom$ (§6.1, p. 421). Cited in [01](01_basic-fjsp.md) and [notation.md](notation.md).
+  Used for: problem definition and assumptions of the classical FJSP (§2, p. 410), MILP (1)–(8) (§2.1, p. 410), three-field notation incl. release dates $\beta = r_j$ (Table 1, p. 412), non-linear routes $\beta = bom$ (§6.1, p. 421); basic notation $d_j$, $w_j$, $C_j$, $L_j, E_j, T_j, U_j$ (Table 1, p. 412); batch capacity $b$, batch $B$ (p. 422). Cited in [01](01_basic-fjsp.md) and [notation.md](notation.md).
 
 - Davenport, A. J., Gefflot, C., & Beck, J. C. (n.d.). Slack-based techniques for robust schedules. **[uncertain: year and venue not in Zotero]** (Zotero `T67B96FW`)
   Used for: robust schedules absorb unexpected events without rescheduling; temporal slack (p. 1) ([32](32_target-data-model.md)).
 
 - Fowler, J. W., & Mönch, L. (2022). A survey of scheduling with parallel batch (p-batch) processing. *European Journal of Operational Research*, 298(1), 1–24. https://doi.org/10.1016/j.ejor.2021.06.012 (Zotero `H6SPCTKI`)
-  Used for: primary / secondary criterion (lexicographic order) $\gamma_1/\gamma_2$ (p. 7) ([06](06_due-dates.md)).
+  Used for: primary / secondary criterion (lexicographic order) $\gamma_1/\gamma_2$ (p. 7) ([06](06_due-dates.md)); notation $r_j$ release (or ready time), $p_j$, $d_j$, $w_j$, maximum batch size $B$ (p. 4) ([notation.md](notation.md)).
 
 - Garey, M. R., Johnson, D. S., & Sethi, R. (1976). The complexity of flowshop and jobshop scheduling. *Mathematics of Operations Research*, 1(2), 117–129. https://www.jstor.org/stable/3689278 (DOI 10.1287/moor.1.2.117 **[uncertain]**: not printed in the PDF)
   Used for: the 2-machine job shop makespan problem is NP-complete even if input length is measured by the sum of task lengths (Theorem 3, p. 128). Cited in [01](01_basic-fjsp.md).
@@ -39,6 +39,12 @@
 
 - Li, H., Zheng, L., & Zhu, H. (2023). Resource leveling in projects with flexible structures. *Annals of Operations Research*, 321(1), 311–342. https://doi.org/10.1007/s10479-022-04797-y (Zotero `5BX85M6T`)
   Used for: leveling minimizes fluctuations of resource usage; heuristics shift activities within their slacks (pp. 1–2) ([32](32_target-data-model.md)).
+
+- Lee, D.-K., Shin, J.-H., & Lee, D.-H. (2020). Operations scheduling for an advanced flexible manufacturing system with multi-fixturing pallets. *Computers & Industrial Engineering*, 144, 106496. https://doi.org/10.1016/j.cie.2020.106496 (Zotero `AUGM8B83`)
+  Used for: pallet index $l$ (PDF p. 4, notation table): no common symbol for carriers ([notation.md](notation.md)).
+
+- Liu, M., Lv, J., Du, S., Deng, Y., Shen, X., & Zhou, Y. (2024). Multi-resource constrained flexible job shop scheduling problem with fixture-pallet combinatorial optimisation. *Computers & Industrial Engineering*, 188, 109903. https://doi.org/10.1016/j.cie.2024.109903 (Zotero `5YDNRDES`)
+  Used for: fixture set $F$, index $f$, eligible fixtures $F_{i,j}$ (PDF p. 4, notation table) ([notation.md](notation.md)).
 
 - Lunardi, W. T., Birgin, E. G., Laborie, P., Ronconi, D. P., & Voos, H. (2020). Mixed integer linear programming and constraint programming models for the online printing shop scheduling problem. *Computers and Operations Research*, 123, 105020. https://doi.org/10.1016/j.cor.2020.105020
   Used for: DAG precedence per job and release times per operation, MILP (1)–(9) (§2, pp. 4–5), CP model (33)–(40) (§3, p. 8), example job DAGs (Fig. 1, p. 2). Cited in [01](01_basic-fjsp.md) and [notation.md](notation.md).
@@ -65,16 +71,19 @@
   Used for: schedule repair vs. complete rescheduling, policies periodic/event-driven/hybrid (p. 419), repair heuristics incl. right-shift (p. 420). Cited in [05](05_rescheduling-frozen-part.md).
 
 - Pinedo, M. L. (2022). *Scheduling: Theory, Algorithms, and Systems* (6th ed.) **[uncertain: edition]**. Springer. https://doi.org/10.1007/978-3-031-05921-6 (Zotero `5Y6PACF8`)
-  Used for: §18.1 Robustness and Reactive Decision Making, pp. 494–498 (confusion caused by regenerated plans, robustness measure with unchanged sequences, idle-time rule). Cited in [05](05_rescheduling-frozen-part.md).
+  Used for: §18.1 Robustness and Reactive Decision Making, pp. 494–498 (confusion caused by regenerated plans, robustness measure with unchanged sequences, idle-time rule). Cited in [05](05_rescheduling-frozen-part.md). Notation: weights $\theta_1, \theta_2$ of objectives $\gamma_1, \gamma_2$ and $\mathrm{Lex}(\gamma_1, \gamma_2)$ (PDF p. 95; printed page not checked) ([06](06_due-dates.md), [notation.md](notation.md)).
 
 - Potts, C. N., & Kovalyov, M. Y. (2000). Scheduling with batching: A review. *European Journal of Operational Research*, 120(2), 228–249. https://doi.org/10.1016/S0377-2217(99)00153-8 (Zotero `26Z9YF55`)
-  Used for: batching machine (p-batch: several jobs at once, capacity, batch time = longest job; ovens) and serial batching (batch time = sum) ([03](03_carriers.md)).
+  Used for: batching machine (p-batch: several jobs at once, capacity, batch time = longest job; ovens) and serial batching (batch time = sum) ([03](03_carriers.md)); maximum batch size $b$ (p. 230) ([notation.md](notation.md)).
 
 - Shiau, J.-Y., Chen, P.-Y., & Fan, C.-Y. (2026). A stability-aware event-triggered rescheduling framework with bounded LLM judgment for production scheduling. Preprint, Research Square. https://doi.org/10.21203/rs.3.rs-11277628/v1 (Zotero `F5VQRD7Z`; not peer-reviewed)
   Used for: frozen horizon (machine and start kept; affected operations released), anti-thrashing ([05](05_rescheduling-frozen-part.md) §6); five stability measures incl. Kendall concordance of machine sequences ([23](23_metrics.md) §6).
 
 - Vieira, G. E., Herrmann, J. W., & Lin, E. (2003). Rescheduling manufacturing systems: A framework of strategies, policies, and methods. *Journal of Scheduling*, 6(1), 39–62. https://doi.org/10.1023/A:1022235519958 (Zotero `H76SDH6L`)
   Used for: rescheduling policies periodic/event-driven/hybrid (pp. 51–52 **[uncertain: page]**), nervousness and "permanent state of rescheduling" (p. 52), right-shift, regeneration, partial rescheduling (pp. 54–55). Cited in [05](05_rescheduling-frozen-part.md).
+
+- Wang, C., Fan, D., Liu, Y., Ren, S., & Wang, J. (2025). Dual-resource flexible job shop scheduling considering worker proficiency differences. *Computers & Operations Research*, 184, 107216. https://doi.org/10.1016/j.cor.2025.107216 (Zotero `QJHCEX6V`)
+  Used for: worker set $W = \{1, \dots, w\}$, worker index $s$, total working time $F_s$ of a worker and $F_k$ of a machine (PDF p. 7, Table 2) ([notation.md](notation.md)).
 
 - Wu, S. D., Storer, R. H., & Chang, P.-C. (1993). One-machine rescheduling heuristics with efficiency and stability as criteria. *Computers & Operations Research*, 20(1), 1–14. https://doi.org/10.1016/0305-0548(93)90091-V (Zotero `TLCUQTJ9`)
   Used for: start-time deviation and sequence deviation (against the right-shift schedule) as stability measures (p. 4) ([23](23_metrics.md)).

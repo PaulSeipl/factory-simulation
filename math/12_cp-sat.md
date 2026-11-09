@@ -31,7 +31,7 @@ All optional intervals of an operation share its start variable $S_o$. The offic
 
 **Runs** ([03](03_carriers.md)): C8 as $x_{o,m} = x_{\operatorname{first}(G_R),m}$ for all operations of a run; C9 as one optional interval per run and machine, $[S_{\operatorname{first}(G_R)}, C_{\operatorname{last}(G_R)})$ with variable size and presence $x_{\operatorname{first}(G_R),m}$ (`new_optional_interval_var`), which replaces the intervals of the run's operations in `add_no_overlap`. Frozen operations of a run enter only through this span.
 
-**Batches** ([03](03_carriers.md)): batch slots per family of operations (same machines, durations and capacity): slot presence $u_j$, start $S^B_j$, machine $z_{j,m}$, assignment $y_{o,j}$ (`only_enforce_if` for equal start and machine), capacity $\sum_o y_{o,j} \le c\,u_j$, one optional interval per slot and machine in `add_no_overlap` instead of the operations' intervals; symmetry breaking by slot order.
+**Batches** ([03](03_carriers.md)): batch slots per family of operations (same machines, durations and capacity): slot presence $u_j$, start $S^{\mathrm{slot}}_j$, machine $g_{j,m}$, assignment $y_{o,j}$ (`only_enforce_if` for equal start and machine), capacity $\sum_o y_{o,j} \le c\,u_j$, one optional interval per slot and machine in `add_no_overlap` instead of the operations' intervals; symmetry breaking by slot order.
 
 ## 4. Objective function
 
@@ -141,3 +141,4 @@ On the good toy plan (b1 takes 4 instead of 2) CP-SAT keeps all machines and rea
 | 2026-10-30 | uncommitted | Lexicographic objectives (see 06). |
 | 2026-11-02 | uncommitted | Runs: C8 (equal machine choices) and C9 (span interval). |
 | 2026-11-03 | uncommitted | Batches: slot formulation. |
+| 2026-11-09 | uncommitted | Symbols renamed (protocol 2026-11-09 (24)): slot start $S^B_j$ → $S^{\mathrm{slot}}_j$, slot machine choice $z_{j,m}$ → $g_{j,m}$ ($z$ is the worker index). |

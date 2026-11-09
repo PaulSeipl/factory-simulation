@@ -62,7 +62,8 @@ rescheduling keep their guard until phase 4.
   own task: realized and pending breaks in the snapshot, the rule's breaks after a snapshot (a postponed break
   today instead of the fixed 12:00), breaks in the planner interface and in `execute`.
 
-Each task: `math/11_dispatching-rules.md`, `math/04_workers.md` §5; protocol entry.
+Each task: `math/11_dispatching-rules.md`, `math/04_workers.md` §5; protocol entry. Phase end (added 2026-11-08,
+user todo): symbol-clash check of `math/` against `notation.md`.
 
 ## Decided
 - **19:30 in execution** (user 2026-11-06): hard in the plan (C13); in the DES a share running past 19:30 is

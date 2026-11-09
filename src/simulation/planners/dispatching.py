@@ -30,7 +30,9 @@ overnight and its removal waits until the morning.
 From a snapshot (rescheduling, math/05_rescheduling-frozen-part.md): the frozen operations are kept as
 they are, their machines are busy until their (expected) end, and nothing new starts before snapshot.t. Their
 started shares keep their workers and occupy them (C7); a pending share of a frozen operation (the removal of a
-running oven) gets a worker by the rule above, the same for the whole batch. Not yet with a calendar.
+running oven) gets a worker by the rule above, the same for the whole batch, at its expected time, or, if no
+qualified worker is free then (a disturbance), at the earliest time one is: the operation then ends later (forced
+overstay). Not yet with a calendar.
 """
 
 from bisect import insort
@@ -171,7 +173,7 @@ def dispatch(
     def pick(o: int, sh: Share, s: int, n: int) -> str:
         """Book the free qualified worker for [s, s + n) with the least worker load, then the lowest index."""
         free = [w for w in sh.workers if free_from(w, s, n) == s]
-        if not free:  # only for a pending frozen removal, whose time is fixed; new shares wait in worker_start
+        if not free:  # cannot happen: every caller passes a time at which a qualified worker is free
             raise ValueError(f"{ci.op_keys[o]}: no qualified worker free for its {sh.kind} [{s},{s + n})")
         w = min(free, key=lambda w: (worker_load[w], w))
         book(w, s, s + n)
@@ -195,23 +197,32 @@ def dispatch(
         for sh, w in zip(ci.shares[o], f.workers, strict=True):
             if w is not None:
                 book(ci.worker_ids.index(w), *share_interval(sh, f.start, f.end))
+    # a pending share at its expected interval if a qualified worker is free then; otherwise at the earliest time one
+    # is free of the frozen part (forced overstay, C7^o): booked before any new share, so only the frozen part blocks
+    end_of: dict[int, int] = {}
     for o, ws in workers_of.items():
         for i, w in enumerate(ws):
             if w is None:
-                s, e = share_interval(ci.shares[o][i], frozen[o].start, frozen[o].end)
-                ws[i] = pick(o, ci.shares[o][i], s, e - s)
+                sh, f = ci.shares[o][i], frozen[o]
+                s = min(free_from(v, f.end - sh.length, sh.length) for v in sh.workers)
+                ws[i] = pick(o, sh, s, sh.length)
+                end_of[o] = s + sh.length
+
+    def lead(o: int, f) -> int:
+        return batch_lead[f.machine, f.start, f.end] if ci.batch_capacity[o] > 1 else o
 
     for o, f in frozen.items():  # the frozen part: kept unchanged, occupies its machine until its end
-        out.append(Assignment(order_id=f.order_id, op_id=f.op_id, machine=f.machine, start=f.start, end=f.end,
+        end = end_of.get(lead(o, f), f.end)
+        out.append(Assignment(order_id=f.order_id, op_id=f.op_id, machine=f.machine, start=f.start, end=end,
                               workers=tuple(workers_of[o])))
         if f.machine is not None:
             m = ci.machine_index[f.machine]
-            state.machine_free[m] = max(state.machine_free[m], f.end)
+            state.machine_free[m] = max(state.machine_free[m], end)
             state.load[m] += duration[o][m]
         for k in ci.op_orders[o]:
             state.work_left[k] -= min_p[o]
         for s in ci.successors[o]:
-            state.ready_at[s] = max(state.ready_at[s], f.end)
+            state.ready_at[s] = max(state.ready_at[s], end)
             open_preds[s] -= 1
 
     for g in ci.machine_groups:  # a partly started run continues on its machine (C8, C9), parts wait for workers

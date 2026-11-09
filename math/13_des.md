@@ -144,8 +144,12 @@ First robustness observation (notebook, one run, 30 scenario seeds per row, same
 | running | $\hat S_o \le t < \hat C_o$ | **frozen**: machine and $\hat S_o$ fixed, expected completion $\tilde C_o$ |
 | free | not started | absent: everything about it may be replanned |
 
-**Workers in the snapshot** (phase 2 task 4). `FrozenOperation.machine` is `None` for operations without machine; their expected completion uses the fixed duration $p_o$. `FrozenOperation.workers` holds the actual worker of every started share and `None` for a share not started yet: the removal of a running oven (suffix) may still be given to another worker, by the swap rule or by rescheduling. After a swap the snapshot shows the actual worker. C7 keeps the workers of the started shares ([04](04_workers.md)). `Snapshot.breaks` holds the breaks started by
-$t$ with their realized starts $\hat b_{w,d}$ (a postponed break with its actual start); breaks planned but not yet
+**Workers in the snapshot** (phase 2 task 4). `FrozenOperation.machine` is `None` for operations without machine; their expected completion uses the fixed duration $p_o$. `FrozenOperation.workers` holds the actual worker of every started share and `None` for a share not started yet: the removal of a running oven (suffix) may still be given to another worker, by the swap rule or by rescheduling. After a swap the snapshot shows the actual worker. C7 keeps the workers of the started shares ([04](04_workers.md)). A running operation whose suffix has not started
+is expected to end at $\max(\hat S_o + p_{o,\bar m(o)},\ t + a^{\mathrm{suf}}_o)$ instead of $t + 1$: its removal
+cannot start before $t$ (the OVERDUE events stay on the $t + 1$ rhythm). A new plan may give that suffix another
+worker and, if forced, a later end (C7$^o$); `update_plan` then takes the new worker for the share not started
+(before 2026-11-09 the plan's worker was ignored for running operations). `Snapshot.breaks` holds the breaks started by
+$t$ with their realized starts $\widehat{\mathrm{br}}_{z,\nu}$ (a postponed break with its actual start); breaks planned but not yet
 started are not in the snapshot, the planner decides them anew (C6$^b$, C7$^b$, C14$^f$ in [04](04_workers.md)).
 
 Finished and running operations together form the **frozen part** of the factory (later also started loads). The expected completion of a running operation uses the planned processing time, never the scenario:
@@ -199,3 +203,4 @@ Snapshots are Pydantic models (`Snapshot`, `FrozenOperation`) and can be stored 
 | 2026-11-05 | uncommitted | Work calendar (phase 2, task 2): shift window with wake-ups, planned breaks taken or postponed, realized breaks and share lengths in the result; tests `tests/test_des_calendar.py`. |
 | 2026-11-05 | uncommitted | Workers (phase 2, task 1): shares in planned order per worker, suffix with OVERSTAY, machine-less operations, SHARE_END and SUFFIX_DUE events; `Simulation(..., breaks)`, `replay(..., breaks)`, `SimResult.breaks`; tests `tests/test_des_workers.py`. |
 | 2026-11-08 | uncommitted | `Snapshot.breaks`: breaks started by $t$ with their realized starts. |
+| 2026-11-09 | uncommitted | Expected end $t + a^{\mathrm{suf}}_o$ for a pending suffix; `update_plan` takes the plan's worker for a share not started of a running operation. |

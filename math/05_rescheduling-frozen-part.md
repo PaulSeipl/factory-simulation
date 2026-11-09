@@ -22,7 +22,7 @@ New symbols, registered in [notation.md](notation.md):
 - $t$: current time (rescheduling point)
 - $\bar S_o, \bar C_o$: start and completion of $o$ in the **current plan** (the plan last sent to the MES), $\bar C_o = \bar S_o + p_{o,\bar m(o)}$ for operations not started
 - $\bar S'_o, \bar C'_o$: start and completion of $o$ in the **repaired plan**
-- $B(o)$: blockers of $o$: its predecessors $\{q : (q,o) \in P\}$ and the operation $\operatorname{prev}(o)$ planned directly before it on $\bar m(o)$
+- $\operatorname{bl}(o)$: blockers of $o$: its predecessors $\{q : (q,o) \in P\}$ and the operation $\operatorname{prev}(o)$ planned directly before it on $\bar m(o)$
 - $\tilde C_o$: expected completion of a running operation ([13](13_des.md))
 
 ## 3. Constraints and repair rule
@@ -36,13 +36,14 @@ $$\bar S'_o \ge t \qquad \forall o \text{ not started at } t$$
 $$\bar m'(o) = \bar m(o),\ \bar S'_o = \hat S_o \qquad \forall o \text{ started at } t$$
 
 With workers and a calendar, C6 and C7 also hold for breaks (C6$^b$, C7$^b$), and a forced postponement past the
-break window is allowed (C14$^f$); see [04](04_workers.md) §3.
+break window is allowed (C14$^f$); a running operation whose removal has not started may end later only as a
+forced overstay (C7$^o$); see [04](04_workers.md) §3.
 
 **Shift repair.** Machine and order per machine stay as planned. Known end of a blocker:
 $$E_q = \begin{cases} \hat C_q & q \text{ finished} \\ \tilde C_q = \max(\hat S_q + p_{q,\bar m(q)},\ t+1) & q \text{ running} \\ \bar C'_q & q \text{ not started (already repaired)} \end{cases}$$
 
 For every operation not started, in the order of $\bar S_o$ (a feasible plan lists blockers first):
-$$\beta_o = \max\big(r_{k(o)},\ \max_{q \in B(o)} \bar C_q\big) \quad \text{(old block)}, \qquad \beta'_o = \max\big(t,\ r_{k(o)},\ \max_{q \in B(o)} E_q\big) \quad \text{(new block)}$$
+$$\beta_o = \max\big(r_{k(o)},\ \max_{q \in \operatorname{bl}(o)} \bar C_q\big) \quad \text{(old block)}, \qquad \beta'_o = \max\big(t,\ r_{k(o)},\ \max_{q \in \operatorname{bl}(o)} E_q\big) \quad \text{(new block)}$$
 $$\bar S'_o = \begin{cases} \beta'_o & \text{if } \bar S_o = \beta_o \quad \text{(tight: moves with its blocker, earlier or later)} \\ \max(\bar S_o,\ \beta'_o) & \text{otherwise (gap: kept unless the blocker now ends later)} \end{cases}, \qquad \bar C'_o = \bar S'_o + p_{o,\bar m(o)}$$
 
 Consequences:
@@ -64,7 +65,7 @@ Why the mean next to the max: the max reacts to a single operation, however many
 $$\Delta f = f(\text{repaired plan}) - f(\text{anchor}), \qquad \text{trigger if } |\Delta f| > \delta_f$$
 Example (test `test_trigger_on_the_planners_objective`): toy plan, due dates A 10, B 11, C 10, a3 takes 8 instead of 2. At $t = 9$ a3 is expected to end at 10 (A on time), b4 (next on M4) moves to $[10, 12)$ and B becomes 1 late: $\Delta f = 1$ fires with $\delta_f = 0$, while $\Delta C = 1$ does not exceed $\delta_C = 2$ (the makespan trigger fires only at $t = 11$).
 
-**Periodic safety net (hybrid policy).** Independently of the thresholds, a complete rescheduling is triggered at the latest $\tau$ minutes after the last one (time of the anchor): at $t \ge t_A + \tau$, as long as operations are not started yet. Event-driven triggers plus a periodic one form the hybrid policy (Vieira et al., 2003, pp. 51–55; Ouelhadj & Petrovic, 2009, pp. 419–420). A triggered rescheduling restarts the period. Since the factory may have no event at $t_A + \tau$, the planning tool asks the DES for that time point (WAKE event, [13](13_des.md) §3). Examples (tests `test_periodic_safety_net_without_disturbance`, `test_period_restarts_after_a_triggered_rescheduling`): toy plan without disturbance, $\tau = 4$: reschedulings at 4 and 8 (b4 starts at 9, nothing to plan after it), CP-SAT keeps all machines; with b1 taking 4 instead of 2 and $\delta_C = 1$: periodic at 4, threshold at 6, periodic at 10 (not 8).
+**Periodic safety net (hybrid policy).** Independently of the thresholds, a complete rescheduling is triggered at the latest $\delta_t$ minutes after the last one (time of the anchor): at $t \ge t_A + \delta_t$, as long as operations are not started yet. Event-driven triggers plus a periodic one form the hybrid policy (Vieira et al., 2003, pp. 51–55; Ouelhadj & Petrovic, 2009, pp. 419–420). A triggered rescheduling restarts the period. Since the factory may have no event at $t_A + \delta_t$, the planning tool asks the DES for that time point (WAKE event, [13](13_des.md) §3). Examples (tests `test_periodic_safety_net_without_disturbance`, `test_period_restarts_after_a_triggered_rescheduling`): toy plan without disturbance, $\delta_t = 4$: reschedulings at 4 and 8 (b4 starts at 9, nothing to plan after it), CP-SAT keeps all machines; with b1 taking 4 instead of 2 and $\delta_C = 1$: periodic at 4, threshold at 6, periodic at 10 (not 8).
 
 Each REPLAN record lists its triggers (`makespan`, `shift`, `mean_shift`, `objective`, `period`).
 
@@ -139,7 +140,7 @@ With the OVERDUE event the means are unchanged on mk01 (overruns are seen throug
 
 - The reference is always the plan last sent to the MES, i.e. after every repair the repaired plan, after an accepted rescheduling the new plan.
 - **Tight starts and further resources:** "tight" is decided with the modeled blockers only (release, predecessors, previous operation on the same machine). Once workers and loads are modeled, a planned start may be tight because of them (e.g. a worker becomes available); the repair must then include them as blockers, otherwise it pulls such operations forward.
-- **Accumulated drift:** observed on mk01 with the trigger measured against the reference (§5). Fixed by the anchor (§3); in addition the periodic safety net $\tau$ (§3, implemented 2026-10-30). The choice of $\tau$ is open (experiments).
+- **Accumulated drift:** observed on mk01 with the trigger measured against the reference (§5). Fixed by the anchor (§3); in addition the periodic safety net $\delta_t$ (§3, implemented 2026-10-30). The choice of $\delta_t$ is open (experiments).
 - **Direction of the triggers (open, user's objection 2026-11-04):** $\Delta C$, $\Delta S$ and $\Delta f$ are two-sided: a repaired plan that is better than the anchor also triggers. Argument for it (own, untested): an early finish frees capacity that the repair cannot use beyond left-shifting tight operations (machines and order stay), a complete rescheduling might. Against it: for tardiness the value cannot fall below 0, so a trigger from 1 to 0 has nothing to gain; for the makespan the gain is speculative. Candidate: $\Delta f > \delta_f$ one-sided (only a projected worsening), the makespan and shift triggers decided by an ablation (two-sided vs. one-sided).
 - **Ablation of the start-shift trigger (open):** max ($\delta_S$) vs. mean ($\delta_{S,\mathrm{mean}}$) vs. both vs. neither on mk01 (notebook `04_rescheduling`); the mean is implemented (2026-11-04), not yet evaluated.
 - **Dynamic threshold (later):** a threshold that depends on the state, e.g. relative to the remaining work, $\lvert \Delta C \rvert > \delta \cdot (\max_o \bar C^A_o - t)$. Own idea, no source yet **[uncertain]**; to be checked in the literature before use.
@@ -182,4 +183,6 @@ With the OVERDUE event the means are unchanged on mk01 (overruns are seen throug
 | 2026-10-30 | uncommitted | Frozen horizon and anti-thrashing from Shiau et al. (2026) recorded as open points. |
 | 2026-11-03 | uncommitted | Repair moves batches as one. |
 | 2026-11-08 | uncommitted | C6 and C7 for breaks, forced postponement (reference to [04](04_workers.md) §3). |
+| 2026-11-09 | uncommitted | C7 relaxed for a forced overstay (C7$^o$, [04](04_workers.md) §3). |
+| 2026-11-09 | uncommitted | Symbols renamed (protocol 2026-11-09 (24)): period $\tau$ → $\delta_t$ (threshold family; $\tau$ is the carrier kind in [03](03_carriers.md)), blockers $B(o)$ → $\operatorname{bl}(o)$. |
 | 2026-11-04 | uncommitted | Mean start deviation $\Delta S_{\mathrm{mean}}$ as a third trigger (`max_mean_shift`), max kept for the ablation; sources for deviation triggers; open: direction of the triggers. Tardiness-trigger examples in notebook `04_rescheduling`. |

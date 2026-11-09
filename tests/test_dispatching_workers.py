@@ -9,14 +9,13 @@ import json
 from pathlib import Path
 
 import pytest
-from test_des_workers import polish_instance
 from test_des_workers import scenario as factor_scenario
 from test_worker_compile import CARRIERS, carriers
 
 from simulation.check.feasibility import check_schedule
 from simulation.model.compiled import compile_instance
 from simulation.model.instance import Instance
-from simulation.model.schedule import Assignment, Break
+from simulation.model.schedule import Break
 from simulation.objectives import TOTAL_TARDINESS
 from simulation.planners.dispatching import ASSIGNMENT_RULES, SEQUENCING_RULES, default_breaks, dispatch, spt
 from simulation.sim.des import Simulation, replay
@@ -204,28 +203,6 @@ def test_frozen_machine_less_share_occupies_its_worker():
     assert by_key(new)[("k1", "gb")] == (None, 60, 150, ("A",))
     assert by_key(new)[("k1", "pack")] == (None, 150, 170, ("B",))
 
-
-def test_pending_removal_without_a_free_worker_raises():
-    # the one-worker run of test_des_workers.test_oven_waits_for_its_removal_worker: polishing [5, 8) by W1 takes
-    # twice as long. Snapshot at 8: polishing running, expected end max(8, 8 + 1) = 9; oven [4, 9) running with its
-    # removal [8, 9) pending. Only W1 qualifies and W1 is on the polishing until 9: the removal's time is fixed by
-    # the snapshot (C7), so no worker can be booked
-    ci = polish_instance(("W1",), polish=3)
-    rows = [Assignment(order_id=o, op_id=j, machine=m, start=s, end=e, workers=w) for o, j, m, s, e, w in [
-        ("L1", "print", "P", 0, 2, ()), ("L2", "print", "P", 2, 4, ()),
-        ("L1", "oven", "O", 4, 9, ("W1", "W1")), ("L2", "oven", "O", 4, 9, ("W1", "W1")),
-        ("A", "polish", None, 5, 8, ("W1",)),
-        ("L1", "mill/setup", "M", 9, 10, ("W1",)), ("L1", "mill", "M", 10, 14, ()),
-        ("L1", "mill/removal", "M", 14, 15, ("W1",)),
-        ("L2", "mill/setup", "M", 15, 16, ("W1",)), ("L2", "mill", "M", 16, 20, ()),
-        ("L2", "mill/removal", "M", 20, 21, ("W1",)),
-    ]]
-    snap = snap_at(ci, rows, 8, factor_scenario(ci, A_polish=2.0))
-    frozen = {(f.order_id, f.op_id): f for f in snap.frozen}
-    assert (frozen["A", "polish"].end, frozen["A", "polish"].workers) == (9, ("W1",))
-    assert (frozen["L1", "oven"].end, frozen["L1", "oven"].workers) == (9, ("W1", None))
-    with pytest.raises(ValueError, match=r"no qualified worker free for its suffix \[8,9\)"):
-        dispatch(ci, spt, snapshot=snap)
 
 
 @pytest.mark.parametrize("seed", range(5))

@@ -20,11 +20,11 @@ Limitation: for a regular criterion an optimal schedule is contained in the set 
 New symbols, registered in [notation.md](notation.md):
 
 - $\underline{p}_o = \min_{m \in M_o} p_{o,m}$: shortest processing time of $o$
-- $\rho_o$: ready time of $o$ (release and completion of all predecessors)
-- $f_m$: time at which machine $m$ becomes free in the partial schedule
-- $W_m$: load of machine $m$, the total processing time assigned to $m$ so far
-- $B_m$: backlog of machine $m$, processing time assigned to $m$ but not yet scheduled
-- $w_k$: remaining work of order $k$, $\sum \underline{p}_o$ over its unscheduled operations
+- $\underline{S}_o$: ready time of $o$ (release and completion of all predecessors)
+- $\phi_m$: time at which machine $m$ becomes free in the partial schedule
+- $V_m$: load of machine $m$, the total processing time assigned to $m$ so far
+- $V^{\mathrm{q}}_m$: backlog of machine $m$, processing time assigned to $m$ but not yet scheduled
+- $\mathrm{wr}_k$: remaining work of order $k$, $\sum \underline{p}_o$ over its unscheduled operations
 - $\ell_o$: longest remaining path from $o$ (inclusive) to the end of its order, measured with $\underline{p}$
 - $m(o)$: machine assigned to $o$
 
@@ -32,15 +32,15 @@ New symbols, registered in [notation.md](notation.md):
 
 Schedule generation (`dispatch`):
 
-1. $\rho_o \leftarrow r_{k(o)}$, $f_m = W_m = B_m \leftarrow 0$, $w_k \leftarrow \sum_{o \in O_k} \underline{p}_o$. Every operation without predecessor becomes ready (in index order). With an assignment rule it is assigned immediately: $m(o) \leftarrow$ rule, $W_{m(o)} \mathrel{+}= p_{o,m(o)}$, $B_{m(o)} \mathrel{+}= p_{o,m(o)}$.
+1. $\underline{S}_o \leftarrow r_{k(o)}$, $\phi_m = V_m = V^{\mathrm{q}}_m \leftarrow 0$, $\mathrm{wr}_k \leftarrow \sum_{o \in O_k} \underline{p}_o$. Every operation without predecessor becomes ready (in index order). With an assignment rule it is assigned immediately: $m(o) \leftarrow$ rule, $W_{m(o)} \mathrel{+}= p_{o,m(o)}$, $B_{m(o)} \mathrel{+}= p_{o,m(o)}$.
 2. While ready operations exist:
    - candidates: pairs $(o, m)$ with $o$ ready and $m = m(o)$ (separate rules) or $m \in M_o$ (joint)
-   - $t \leftarrow \min$ over candidates of $\max(\rho_o, f_m)$
-   - among the candidates with $\max(\rho_o, f_m) = t$, the sequencing rule chooses the one with the smallest key; ties are broken by the smaller operation index, then the smaller machine index
-   - $S_o = t$, $C_o = t + p_{o,m}$, $f_m = C_o$, $w_{k(o)} \mathrel{-}= \underline{p}_o$; separate rules: $B_m \mathrel{-}= p_{o,m}$; joint: $W_m \mathrel{+}= p_{o,m}$
-   - for every successor $s$: $\rho_s \leftarrow \max(\rho_s, C_o)$; once all its predecessors are scheduled, $s$ becomes ready (and is assigned)
+   - $t \leftarrow \min$ over candidates of $\max(\underline{S}_o, \phi_m)$
+   - among the candidates with $\max(\underline{S}_o, \phi_m) = t$, the sequencing rule chooses the one with the smallest key; ties are broken by the smaller operation index, then the smaller machine index
+   - $S_o = t$, $C_o = t + p_{o,m}$, $\phi_m = C_o$, $\mathrm{wr}_{k(o)} \mathrel{-}= \underline{p}_o$; separate rules: $V^{\mathrm{q}}_m \mathrel{-}= p_{o,m}$; joint: $V_m \mathrel{+}= p_{o,m}$
+   - for every successor $o'$: $\underline{S}_{o'} \leftarrow \max(\underline{S}_{o'}, C_o)$; once all its predecessors are scheduled, $o'$ becomes ready (and is assigned)
 
-Every generated schedule satisfies C1–C5 by construction ($t \ge \rho_o \ge r_{k(o)}$, $t \ge f_m$, $m \in M_o$, operations become ready only after their predecessors). The tests verify this with the feasibility checker for every combination on all instances.
+Every generated schedule satisfies C1–C5 by construction ($t \ge \underline{S}_o \ge r_{k(o)}$, $t \ge \phi_m$, $m \in M_o$, operations become ready only after their predecessors). The tests verify this with the feasibility checker for every combination on all instances.
 
 An operation becomes ready, and is assigned, as soon as its last predecessor is *scheduled* (its completion time is then known), not when that predecessor finishes. Assignments therefore happen in scheduling order. In the DES, assignment will happen at the completion event; with disturbances the two orders can differ.
 
@@ -48,40 +48,40 @@ An operation becomes ready, and is assigned, as soon as its last predecessor is 
 
 | Rule | Choice |
 |---|---|
-| Least load | $\arg\min_{m \in M_o} W_m$ |
-| ECT | $\arg\min_{m \in M_o} \max(\rho_o,\ f_m + B_m) + p_{o,m}$ |
+| Least load | $\arg\min_{m \in M_o} V_m$ |
+| ECT | $\arg\min_{m \in M_o} \max(\underline{S}_o,\ \phi_m + V^{\mathrm{q}}_m) + p_{o,m}$ |
 
-ECT estimates the completion time of $o$ on $m$. The backlog $B_m$ is **own**: without it, operations assigned at the same moment would all see the same idle machine, because work already queued there but not yet scheduled would be invisible. $f_m + B_m$ is an estimate; the queue order on $m$ is decided later by the sequencing rule.
+ECT estimates the completion time of $o$ on $m$. The backlog $V^{\mathrm{q}}_m$ is **own**: without it, operations assigned at the same moment would all see the same idle machine, because work already queued there but not yet scheduled would be invisible. $\phi_m + V^{\mathrm{q}}_m$ is an estimate; the queue order on $m$ is decided later by the sequencing rule.
 
 **Sequencing rules** (key, smallest first; ties: lower operation index, then lower machine index):
 
 | Rule | Key | Meaning |
 |---|---|---|
 | SPT | $p_{o,m}$ | shortest processing time of the pair |
-| FIFO | $(\rho_o,\ p_{o,m})$ | ready longest; SPT as tie-breaker |
-| MWKR | $(-w_{k(o)},\ p_{o,m})$ | most work remaining in the order; SPT as tie-breaker |
+| FIFO | $(\underline{S}_o,\ p_{o,m})$ | ready longest; SPT as tie-breaker |
+| MWKR | $(-\mathrm{wr}_{k(o)},\ p_{o,m})$ | most work remaining in the order; SPT as tie-breaker |
 | LRP | $(-\ell_o,\ p_{o,m})$ | longest remaining path; SPT as tie-breaker |
 | EDD | $(d_{k(o)},\ p_{o,m})$ | earliest due date of the order ([06](06_due-dates.md)); SPT as tie-breaker; orders without due date after all others (key $(1, 0, p)$ instead of $(0, d, p)$), so without any due date EDD equals SPT |
 
-$$\ell_o = \underline{p}_o + \max_{(o,s) \in P} \ell_s \qquad (\max \emptyset = 0)$$
+$$\ell_o = \underline{p}_o + \max_{(o,o') \in P} \ell_{o'} \qquad (\max \emptyset = 0)$$
 
-computed once per instance in reverse topological order. For chains, $\ell_o = w_{k(o)}$ whenever $o$ is the next operation of its order, so MWKR and LRP coincide on all Brandimarte instances; they differ only for DAGs, where $w_k$ sums all remaining work and $\ell_o$ follows the longest path.
+computed once per instance in reverse topological order. For chains, $\ell_o = \mathrm{wr}_{k(o)}$ whenever $o$ is the next operation of its order, so MWKR and LRP coincide on all Brandimarte instances; they differ only for DAGs, where $\mathrm{wr}_k$ sums all remaining work and $\ell_o$ follows the longest path.
 
-$W_m$ counts all processing time assigned to $m$, including finished operations: least load balances total workload, not the current queue. $w_k$ and $\ell_o$ use $\underline{p}_o$ because the machines of unscheduled operations are not yet known.
+$V_m$ counts all processing time assigned to $m$, including finished operations: least load balances total workload, not the current queue. $\mathrm{wr}_k$ and $\ell_o$ use $\underline{p}_o$ because the machines of unscheduled operations are not yet known.
 
 **[source needed]** SPT, FIFO, MWKR, workload- and completion-time-based machine assignment are classical rules; none of the papers read so far defines them. LRP is an own adaptation of MWKR to DAG precedence. A survey of priority rules and Birgin et al. (2015, list scheduling for the FJSP with DAG precedence, cited in Lunardi et al., 2020) should be read and cited.
 
 **Runs** ([03](03_carriers.md)): a run (setup, main operation, removal) is dispatched as one unit. Its first operation stands for the whole run with the run's total duration per machine; when it is chosen, the three operations are placed back to back on one machine, so C8 and C9 hold by construction. Shortcut: assignment rules see only the first operation's duration. **Batches** ([03](03_carriers.md)): greedy batching: when an operation of a batch step is chosen at $t$ on $m$, the ready operations of a batch step that fit on $m$ with the same duration join in the order of the sequencing rule, up to the capacity; no waiting to fill. From a snapshot, a partly started run (e.g. setup done, print running) is placed first: its remaining operations follow back to back on its machine.
 
-**Workers** ([04](04_workers.md)). Every share $\eta$ of an operation (whole, prefix, suffix) gets one worker from $W_\eta$; the worker time of a share is `share_interval` (whole $[S_o, C_o)$, prefix $[S_o, S_o + a^{\mathrm{pre}}_o)$, suffix $[C_o - a^{\mathrm{suf}}_o, C_o)$). Per worker the dispatcher keeps its booked share intervals and its worker load $V_w$ (sum of booked share lengths).
-- **Earliest start of a candidate** $(o, m)$: the smallest $t \ge \max(\rho_o, f_m)$ (machine-less: $t \ge \rho_o$) such that every share of $o$ started at $t$ finds a worker in $W_\eta$ who is free for the whole share interval. Found by a fixpoint: per share the earliest gap of a qualified worker, shifted back by the share's offset; $t$ moves to the latest of these until it no longer changes. Non-delay ranks the candidates by this $t$, so a candidate never claims a start its workers cannot keep.
+**Workers** ([04](04_workers.md)). Every share $\eta$ of an operation (whole, prefix, suffix) gets one worker from $W_o$; the worker time of a share is `share_interval` (whole $[S_o, C_o)$, prefix $[S_o, S_o + a^{\mathrm{pre}}_o)$, suffix $[C_o - a^{\mathrm{suf}}_o, C_o)$). Per worker the dispatcher keeps its booked share intervals and its worker load $V_z$ (sum of booked share lengths).
+- **Earliest start of a candidate** $(o, m)$: the smallest $t \ge \max(\underline{S}_o, \phi_m)$ (machine-less: $t \ge \underline{S}_o$) such that every share of $o$ started at $t$ finds a worker in $W_\eta$ who is free for the whole share interval. Found by a fixpoint: per share the earliest gap of a qualified worker, shifted back by the share's offset; $t$ moves to the latest of these until it no longer changes. Non-delay ranks the candidates by this $t$, so a candidate never claims a start its workers cannot keep.
 - **Gaps, not append-only** (deviation from plan item 3, own, 2026-11-06): workers are booked into gaps of their busy intervals, machines stay append-only. Reason: a suffix share (oven removal) is booked when the oven run is planned, hours before it happens; append-only would block its worker for the whole oven program.
-- **Worker choice** per share at the chosen $t$: among the free qualified workers the one with the least $V_w$, then the lowest index. Prefix and suffix may get different workers.
+- **Worker choice** per share at the chosen $t$: among the free qualified workers the one with the least $V_z$, then the lowest index. Prefix and suffix may get different workers.
 - **Batches:** the shares of a batch are booked once (one loading, one removal); every member carries the same workers.
-- **Runs:** the head (setup) waits for its own workers; the following parts are placed one after the other on the run's machine, each at the earliest $t \ge$ end of the previous part at which its workers are free. A waiting removal keeps the machine blocked ($f_m$ = end of the last part), which C9 allows. Setup and removal choose their workers independently.
-- **Operations without machine** ($O^{\emptyset}$, duration $p_o$) wait only for $\rho_o$ and their workers; assignment rules skip them.
+- **Runs:** the head (setup) waits for its own workers; the following parts are placed one after the other on the run's machine, each at the earliest $t \ge$ end of the previous part at which its workers are free. A waiting removal keeps the machine blocked ($\phi_m$ = end of the last part), which C9 allows. Setup and removal choose their workers independently.
+- **Operations without machine** ($O^{\emptyset}$, duration $p_o$) wait only for $\underline{S}_o$ and their workers; assignment rules skip them.
 - The assignment rules (least load, ECT) stay machine-based: they do not see worker delays (limitation of the baseline).
-- **From a snapshot** (phase 3 task 4, without calendar): the started shares of frozen operations keep their workers (C7) and are booked first (a batch once); then every pending share of a frozen operation (worker `None` in the snapshot: the removal of a running oven) gets the free qualified worker with the least $V_w$ at its fixed interval $[C_o - a^{\mathrm{suf}}_o, C_o)$ with the expected end $C_o$, the same for all members of the batch. If no qualified worker is free then, `dispatch` raises `ValueError` (the frozen time cannot move; not observed in the tests). The parts of a partly started run wait for their workers as above. With a calendar `dispatch` from a snapshot raises `NotImplementedError`: the snapshot carries no breaks and the rule's fixed 12:00 break would ignore a break the DES postponed.
+- **From a snapshot** (phase 3 task 4, without calendar): the started shares of frozen operations keep their workers (C7) and are booked first (a batch once); then every pending share of a frozen operation (worker `None` in the snapshot: the removal of a running oven) gets the free qualified worker with the least $V_z$ at its expected interval $[\tilde C_o - a^{\mathrm{suf}}_o, \tilde C_o)$, the same for all members of the batch. If no qualified worker is free then (a disturbance: the only qualified worker is on an overrunning share), the suffix is booked at the earliest time a qualified worker is free and the operation, its batch, its machine and its successors end later: a forced overstay (C7$^o$, [04](04_workers.md) §3). Before 2026-11-09 `dispatch` raised `ValueError` here. The parts of a partly started run wait for their workers as above. With a calendar `dispatch` from a snapshot raises `NotImplementedError`: the snapshot carries no breaks and the rule's fixed 12:00 break would ignore a break the DES postponed.
 - **Calendar** (phase 3 task 3): a worker is free for a share interval only if it also lies within one working day's shift **without overtime**, $[h^{\mathrm{S}}, h^{\mathrm{E}}]$, and outside $[h^{\mathrm{B}-}, h^{\mathrm{B}-} + L^{\mathrm{B}})$: every worker breaks at the earliest break start (`calendar.next_start` with latest $= h^{\mathrm{E}}$, combined with the gap search until both hold). So the rule plans neither overtime nor postponed breaks; both stay for the DES and for CP-SAT. Machines run at any time: a mill or print run may continue overnight, and its attended removal waits until 08:00 with the machine blocked (C9). The breaks of the plan come from `default_breaks(ci, plan)`: one break at $h^{\mathrm{B}-}$ per worker and working day with one of its shares (C14); `dispatch` keeps its return type. A share longer than both shift parts raises `ValueError`; so does an operation whose shares can never lie in the shifts together (e.g. loading and removal of a 14-hour oven program), detected when no fit exists within two weeks after the last booking (the calendar repeats weekly).
 
 ## 4. Objective function
@@ -90,7 +90,7 @@ Rules do not optimize an objective directly; the schedule is evaluated afterward
 
 ## 5. Implementation in code
 
-Module `simulation.planners.dispatching`: `dispatch(ci, sequencing, assignment=None) -> list[Assignment]`; sequencing rules `spt`, `fifo`, `mwkr`, `lrp`, `edd` (registry `SEQUENCING_RULES`); assignment rules `least_load`, `ect` (registry `ASSIGNMENT_RULES`); `assignment=None` is the joint mode. Rules read the dispatcher state `DispatchState` ($\rho$, $f$, $W$, $B$, $w$, $\ell$).
+Module `simulation.planners.dispatching`: `dispatch(ci, sequencing, assignment=None) -> list[Assignment]`; sequencing rules `spt`, `fifo`, `mwkr`, `lrp`, `edd` (registry `SEQUENCING_RULES`); assignment rules `least_load`, `ect` (registry `ASSIGNMENT_RULES`); `assignment=None` is the joint mode. Rules read the dispatcher state `DispatchState` ($\underline{S}$ `ready_at`, $\phi$ `machine_free`, $V$ `load`, $V^{\mathrm{q}}$ `backlog`, $\mathrm{wr}$ `work_left`, $\ell$ `remaining_path`).
 
 Hand-computed examples (test `test_spt_on_toy_dag_matches_hand_computation`), SPT on `toy-dag-3x4`, one per assignment variant.
 
@@ -107,7 +107,7 @@ Hand-computed examples (test `test_spt_on_toy_dag_matches_hand_computation`), SP
 
 Sequence: a1 M1 [0,3) · b1 M3 [2,6) · a2 M2 [3,7) · c1 M1 [4,7) · b3 M4 [6,9) · b2 M2 [7,10) · a3 M4 [9,11) (SPT over c2) · b4 M2 [10,13) · c2 M4 [11,15).
 
-**SPT + ECT** (makespan 13). Assignments with estimated completion $\max(\rho_o, f_m + B_m) + p_{o,m}$:
+**SPT + ECT** (makespan 13). Assignments with estimated completion $\max(\underline{S}_o, \phi_m + V^{\mathrm{q}}_m) + p_{o,m}$:
 
 | After | Assignment |
 |---|---|
@@ -138,7 +138,7 @@ A feasible schedule with makespan 11 exists (`tests/test_feasibility.py`). Least
 
 On the toy instance all four sequencing rules give the same makespan per assignment variant (15 / 13 / 12): the instance is too small for the rules to diverge. The tests use dedicated conflict instances for that.
 
-**From a snapshot** (complete rescheduling, [05](05_rescheduling-frozen-part.md)): `dispatch(ci, sequencing, assignment, snapshot)` keeps the frozen operations unchanged, initializes $f_m$ with $\max(t, \text{(expected) end of frozen operations on } m)$, $\rho_o$ with $\max(r_{k(o)}, t, \text{(expected) end of frozen predecessors})$, counts frozen operations in $W_m$ and removes them from $w_k$. All other rules work unchanged. Hand-computed example (test `test_joint_spt_from_snapshot_matches_hand_computation`), joint SPT on `toy-dag-3x4` at $t = 5$ with a1 finished [0,3), a2 running on M3 (expected end 6), b1 running on M1 (overrun, expected end 6):
+**From a snapshot** (complete rescheduling, [05](05_rescheduling-frozen-part.md)): `dispatch(ci, sequencing, assignment, snapshot)` keeps the frozen operations unchanged, initializes $\phi_m$ with $\max(t, \text{(expected) end of frozen operations on } m)$, $\underline{S}_o$ with $\max(r_{k(o)}, t, \text{(expected) end of frozen predecessors})$, counts frozen operations in $V_m$ and removes them from $\mathrm{wr}_k$. All other rules work unchanged. Hand-computed example (test `test_joint_spt_from_snapshot_matches_hand_computation`), joint SPT on `toy-dag-3x4` at $t = 5$ with a1 finished [0,3), a2 running on M3 (expected end 6), b1 running on M1 (overrun, expected end 6):
 
 | Step | $t$ | Pairs with start $t$ | Chosen | Scheduled |
 |---|---|---|---|---|
@@ -179,10 +179,10 @@ ECT gives the best or a tied makespan of the three assignment variants in 28 of 
 
 ## 6. Assumptions and open points
 
-- ECT with backlog $f_m + B_m$ is an estimate and an own choice; alternatives (only $f_m$, or the queue simulated in sequencing order) are not compared.
+- ECT with backlog $\phi_m + V^{\mathrm{q}}_m$ is an estimate and an own choice; alternatives (only $\phi_m$, or the queue simulated in sequencing order) are not compared.
 - Due-date rules (EDD, slack) need due dates, which are not yet in the instance format.
 - The rule set is a first baseline, not a claim about which rules are best.
-- Workers: assignment rules ignore workers; ECT's estimate inside `make_ready` sees $f_m = t + p$ of a run even when its removal later waits for a worker (slight underestimate). From a snapshot with workers, `dispatch` raises `NotImplementedError` until phase 3 task 4 (frozen shares do not occupy workers yet).
+- Workers: assignment rules ignore workers; ECT's estimate inside `make_ready` sees $\phi_m = t + p$ of a run even when its removal later waits for a worker (slight underestimate). From a snapshot with workers, `dispatch` raises `NotImplementedError` until phase 3 task 4 (frozen shares do not occupy workers yet).
 
 ## 7. Sources
 
@@ -205,3 +205,5 @@ ECT gives the best or a tied makespan of the three assignment variants in 28 of 
 | 2026-11-06 | uncommitted | Workers without calendar: shares booked into worker gaps, worker choice by least worker load, batch shares once, runs part by part, machine-less operations; hand examples. |
 | 2026-11-07 | uncommitted | Calendar in the rule: shares within the shift without overtime, fixed 12:00 break, `default_breaks`, night runs with morning removal; hand examples. |
 | 2026-11-08 | uncommitted | From a snapshot with workers (no calendar): frozen shares occupy their workers, pending removals get a worker; hand examples. |
+| 2026-11-09 | uncommitted | Forced overstay for a pending removal without a free worker instead of `ValueError`. |
+| 2026-11-09 | uncommitted | Symbols renamed (protocol 2026-11-09 (24)): ready time $\rho_o$ → $\underline{S}_o$, machine free time $f_m$ → $\phi_m$, load $W_m$ → $V_m$, backlog $B_m$ → $V^{\mathrm{q}}_m$, remaining work $w_k$ → $\mathrm{wr}_k$, successor $s$ → $o'$, worker load $V_w$ → $V_z$, $W_\eta$ → $W_o$. |

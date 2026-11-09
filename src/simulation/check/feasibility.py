@@ -43,6 +43,7 @@ def check_schedule(
     """
     by_op, violations = assigned_exactly_once(ci, assignments)
     frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
+    blocked = _frozen_worker_time(ci, snapshot, with_breaks=True) if snapshot else {}
     for o, a in by_op.items():
         key = ci.op_keys[o]
         p_of = {ci.machine_ids[m]: p for m, p in ci.options[o]}
@@ -58,7 +59,7 @@ def check_schedule(
             *worker_shares_wrong(ci, o, a),
             *starts_before_predecessors(ci, o, a, by_op),
             starts_before_release(key, a.start, ci.release[o]),
-            frozen_changed(key, a, frozen[o]) if o in frozen else None,
+            frozen_changed(key, a, frozen[o], forced_end(ci, o, frozen[o], blocked)) if o in frozen else None,
             starts_before_t(key, a.start, snapshot.t) if snapshot and o not in frozen else None,
         ]
         violations += [v for v in found if v]
@@ -122,14 +123,47 @@ def starts_before_release(key: OpKey, start: int, release: int) -> Violation | N
     return None
 
 
-def frozen_changed(key: OpKey, a: Assignment, f: FrozenOperation) -> Violation | None:
-    """C7: a frozen operation appears with the machine, times and workers of the started shares of the snapshot."""
+def frozen_changed(key: OpKey, a: Assignment, f: FrozenOperation, end: int | None = None) -> Violation | None:
+    """C7: a frozen operation appears with the machine, times and workers of the started shares of the snapshot.
+    `end`: its required end if not the snapshot's (forced overstay, see forced_end)."""
     started = [(i, w) for i, w in enumerate(f.workers) if w is not None]
-    if (a.machine, a.start, a.end) != (f.machine, f.start, f.end) or any(
+    end = f.end if end is None else end
+    if (a.machine, a.start, a.end) != (f.machine, f.start, end) or any(
             i >= len(a.workers) or a.workers[i] != w for i, w in started):
-        return Violation("C7", (key,), f"{key} is frozen as {f.machine} [{f.start},{f.end}) {f.workers}, "
+        forced = f", forced end {end}" if end != f.end else ""
+        return Violation("C7", (key,), f"{key} is frozen as {f.machine} [{f.start},{f.end}) {f.workers}{forced}, "
                                        f"planned {a.machine} [{a.start},{a.end}) {a.workers}")
     return None
+
+
+def forced_end(ci: CompiledInstance, o: int, f: FrozenOperation, blocked: Mapping[str, list[tuple[int, int]]]) -> int:
+    """C7 with a forced overstay (math/04_workers.md, C7^o): a running operation whose suffix (removal) has not
+    started ends at the snapshot's expected end if a qualified worker is free then; otherwise at the earliest time a
+    qualified worker is free of the frozen part (started shares, started breaks) and within the shift window (C13).
+    A planner may not delay it on its own; the delay comes only from disturbances."""
+    i = next((i for i, sh in enumerate(ci.shares[o]) if sh.kind == "suffix"), None)
+    if not f.running or i is None or i >= len(f.workers) or f.workers[i] is not None:
+        return f.end
+    sh = ci.shares[o][i]
+    return min(_free_from(ci, blocked.get(ci.worker_ids[w], ()), f.end - sh.length, sh.length)
+               for w in sh.workers) + sh.length
+
+
+def _free_from(ci: CompiledInstance, busy: Iterable[tuple[int, int]], s: int, n: int) -> int:
+    """Earliest s' >= s with [s', s' + n) clear of `busy` and, with a calendar, inside one day's shift window."""
+    busy, cal = tuple(busy), ci.calendar
+    while True:
+        if cal is not None:
+            d = day_index(cal, s)
+            if not (is_working_day(cal, d) and minute_of_day(cal, s) >= cal.shift_start
+                    and s + n <= day_start(cal, d) + cal.shift_end + cal.max_overtime):
+                d = d if is_working_day(cal, d) and minute_of_day(cal, s) < cal.shift_start else d + 1
+                d = next(e for e in range(d, d + 8) if is_working_day(cal, e))
+                s = max(s, day_start(cal, d) + cal.shift_start)
+                continue
+        if (clash := next((b for a, b in busy if a < s + n and s < b), None)) is None:
+            return s
+        s = clash
 
 
 def starts_before_t(key: OpKey, start: int, t: int) -> Violation | None:
@@ -317,15 +351,21 @@ def breaks_changed(breaks: Iterable[Break], snapshot: Snapshot | None) -> list[V
                for w, s in sorted(planned - taken) if s < snapshot.t])
 
 
-def _frozen_worker_time(ci: CompiledInstance, snapshot: Snapshot) -> dict[str, list[tuple[int, int]]]:
+def _frozen_worker_time(ci: CompiledInstance, snapshot: Snapshot,
+                        with_breaks: bool = False) -> dict[str, list[tuple[int, int]]]:
     """Worker -> share intervals of the started shares of the frozen operations, from the snapshot's (expected)
-    times and the planned share lengths (what a planner sees)."""
+    times and the planned share lengths (what a planner sees); with_breaks: also the started breaks."""
     out: dict[str, list[tuple[int, int]]] = defaultdict(list)
     for f in snapshot.frozen:
-        o = ci.op_index[f.order_id, f.op_id]
+        o = ci.op_index.get((f.order_id, f.op_id))
+        if o is None:
+            continue  # reported under C0/C1
         for sh, w in zip(ci.shares[o], f.workers, strict=False):  # a wrong count is reported under C11
             if w is not None:
                 out[w].append(share_interval(sh, f.start, f.end))
+    if with_breaks and ci.calendar is not None:
+        for b in snapshot.breaks:
+            out[b.worker].append((b.start, b.start + ci.calendar.break_length))
     return out
 
 

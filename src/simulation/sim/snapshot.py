@@ -51,13 +51,16 @@ def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
         if start is None:
             continue
         m = machine[order_id, op_id]
-        if end is None:
-            # expected end from the planned duration; an overrunning operation ends at t + 1 at the earliest
-            planned = ci.fixed_duration[o] if m is None else dict(ci.options[o])[ci.machine_index[m]]
-            end = max(start + planned, state.t + 1)
         first = leader.get(o, o)  # a batch's shares are carried by its first operation
         started = [state.end[o] is not None or (first, i) in state.share_done or (first, i) in state.worker_on
                    for i in range(len(ci.shares[o]))]
+        if end is None:
+            # expected end from the planned duration; an overrunning operation ends at t + 1 at the earliest, one
+            # whose removal (suffix) has not started at t + its planned length
+            planned = ci.fixed_duration[o] if m is None else dict(ci.options[o])[ci.machine_index[m]]
+            rest = next((sh.length for sh, s in zip(ci.shares[o], started, strict=True)
+                         if sh.kind == "suffix" and not s), 1)
+            end = max(start + planned, state.t + rest)
         frozen.append(FrozenOperation(
             order_id=order_id, op_id=op_id, machine=m, start=start, end=end, running=state.end[o] is None,
             workers=tuple(w if done else None for w, done in zip(workers[order_id, op_id], started, strict=True)),

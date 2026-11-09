@@ -22,7 +22,7 @@ Instance and scenario are generated separately (terminology in `CLAUDE.md`): an 
 | `routing_modes` | allowed precedence structures; each generated order draws one uniformly | (`chain`) |
 | `max_branches` | maximum number of parallel branches in `split`, `join`, `split_join` | 2 |
 | `templates` | orders with a given precedence structure (see section 4) | none |
-| `due_date_tightness` | set of tightness factors $\theta$; each order draws one uniformly, $d_k = r_k + \lfloor \theta_k \Lambda_k + 1/2 \rfloor$ ([06](06_due-dates.md)); own random stream | () = no due dates |
+| `due_date_tightness` | set of tightness factors $\mathrm{DDT}$; each order draws one uniformly, $d_k = r_k + \lfloor \mathrm{DDT}_k \Lambda_k + 1/2 \rfloor$ ([06](06_due-dates.md)); own random stream | () = no due dates |
 | `name` | instance name; default `gen-m{machines}-k{orders}-o{operations}-s{seed}` | derived |
 
 Validation (`GeneratorParams`): ranges with min ≤ max; `max_machines_per_op` ≤ `n_machines`; `min_order_length` at least the minimum length of every allowed routing mode; enough operations for all generated orders at their minimum length.

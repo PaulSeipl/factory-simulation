@@ -8,6 +8,150 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-09 (25) — Symbol renames applied; literature correspondence; rule in notation.md — uncommitted
+
+- **Decided (user):** apply all renames of entry (24) with worker index $z$ and $W_o$.
+- **Done (Edit tool only, change log per file):**
+  - [notation](notation.md): the rule (one base letter = one quantity; subscripts for index or subset; accents for
+    variants of the same quantity; follow the literature; check before writing) in the header; all rows; new rows
+    $\nu$, $\mathrm{ot}_{z,\nu}$, $e_{z,\nu}$; second correspondence table (workers, objectives, batching,
+    carriers) against Berti et al. (2021), Wang et al. (2025), Dauzère-Pérès et al. (2024), Fowler & Mönch (2022),
+    Potts & Kovalyov (2000), Pinedo (2022), Li et al. (2026), Lee et al. (2020), Liu et al. (2024).
+  - [04](04_workers.md): $w \to z$, $d \to \nu$, $W_\eta \to W_o$ (prose: one qualified set per operation, Berti's
+    $W_k$ per machine), $O_{w,d}, \bar O \to \mathrm{ot}_{z,\nu}, \overline{\mathrm{ot}}$, $L^{\mathrm{B}} \to
+    p^{\mathrm{br}}$, $V_w \to V_z$; [13](13_des.md), [23](23_metrics.md) ($z$, $\nu$; $D_M \to N_M$);
+    [11](11_dispatching-rules.md) ($\rho_o \to \underline{S}_o$, $f_m \to \phi_m$, $W_m \to V_m$, $B_m \to
+    V^{\mathrm{q}}_m$, $w_k \to \mathrm{wr}_k$, successor $s \to o'$); [05](05_rescheduling-frozen-part.md)
+    ($\tau \to \delta_t$, $B(o) \to \operatorname{bl}(o)$); [06](06_due-dates.md) ($\theta_k \to \mathrm{DDT}_k$,
+    $w_i \to \theta_i$ with Pinedo, $s(f) \to \operatorname{spr}(f)$); [21](21_instance-generator.md)
+    ($\mathrm{DDT}$); [22](22_scenarios.md) ($a, b \to \Delta^{-}_{\max}, \Delta^{+}_{\max}$);
+    [03](03_carriers.md), [12](12_cp-sat.md) ($S^B_j \to S^{\mathrm{slot}}_j$, $z_{j,m} \to g_{j,m}$).
+  - [references](references.md): Lee et al. (2020) `AUGM8B83`, Liu et al. (2024) `5YDNRDES`, Wang et al. (2025)
+    `QJHCEX6V` added; notation uses added to Berti, Dauzère-Pérès, Fowler & Mönch, Pinedo, Potts & Kovalyov.
+- **Found:**
+  - The extracted text of Dauzère-Pérès et al. (2024) shows the printed page 422 at the end of the batching
+    passage: capacity $b$ on p. 422 (the **[uncertain]** of entry (24) resolved).
+  - Mine, by the new rule: $D_M$ (a count) next to $D_S$ (a deviation) → $N_M$.
+  - Still open by the rule: $Q$ (carrier capacity in size units) and $Q_R$ (maximum carriers per run, generator)
+    in [21](21_instance-generator.md) / [03](03_carriers.md).
+  - Old symbols left only in change logs and the protocol (history), checked by search.
+- **Open:** $Q$ / $Q_R$; code comments and notebooks use names, not symbols (unchanged); commit.
+- **Decided (user, afterwards):** $Q$ / $Q_R$ stay (both carrier capacities). Mine, as the reason in
+  [notation](notation.md): one quantity "capacity" on two containers (a carrier in size units, a run in carriers),
+  the allowed pattern like $V_m$, $V_z$. Clash check of `math/` complete.
+
+## 2026-11-09 (24) — Symbol-clash renames proposed; notation check made a standing rule — uncommitted
+
+- **Decided (user):** when writing a new formula or adding a variable, always check `notation.md` first. Added to
+  `CLAUDE.md` (section "Mathematical documentation", `notation.md` bullet), together with the clash check after
+  every task, phase and at the end.
+- **Proposed (mine, awaiting the user):** keep the core model and the standard scheduling letters ($O$, $W$, $w$,
+  $b$, $\tau(b)$, $d_k$, $L_k$, $T_k$, $U_k$, the objective $f$, the carrier step $s$); rename the local helper
+  symbols of the rule (11), the policy (05), the scenarios (22), the objectives (06) and the calendar durations:
+  - late / early offset $b$, $a$ (22) → $\Delta^{+}_{\max}$, $\Delta^{-}_{\max}$ (offset family $\Delta_o$);
+  - period $\tau$ (05) → $\delta_t$ (threshold family $\delta_C$, $\delta_S$, $\delta_f$);
+  - overtime $O_{w,d}$, $\bar O$ (04) → $\mathrm{ot}_{w,d}$, $\overline{\mathrm{ot}}$ (upright like $\mathrm{br}$);
+  - break length $L^{\mathrm{B}}$ → $p^{\mathrm{br}}$ (duration family $p$);
+  - machine load $W_m$ (11) → $V_m$ (load family with $V_w$); backlog $B_m$ (11) → $V^{\mathrm{q}}_m$;
+  - remaining work $w_k$ (11) → $\mathrm{wr}_k$; weights $w_i$ (06) → $\alpha_i$;
+  - ready time $\rho_o$ (11) → $\underline{S}_o$ (earliest start, lower bound like $\underline{p}_o$);
+  - machine free time $f_m$ (11) → $\phi_m$;
+  - blockers $B(o)$ (05) → $\operatorname{bl}(o)$ (upright like $\operatorname{prev}(o)$);
+  - successor $s$ in the LRP formula (11) → $o'$; spread $s(f)$ (06) → $\operatorname{spr}(f)$;
+  - batch slot start $S^B_j$ (03, 12) → $S^{\mathrm{slot}}_j$ (frees the superscript B for the break);
+  - day index $d$ vs. due date $d_k$: open, options in the user message.
+  - Left: $\lambda$ (03) vs. $\Lambda_k$ (06) (case differs, both local).
+- **Found:** thesis `seipl27/notation.tex` is a 3-line stub; no thesis text uses any of these symbols.
+- **Decided (user, afterwards):** renames accepted in principle; ground the notation in the literature where
+  possible. **Checked in Zotero** (full text, PDF pages):
+  - Objectives: Dauzère-Pérès et al. (2024) `ZSNHKWD6`, PDF p. 4, Table 1: $d_j$ due date, $w_j$ job weight,
+    $C_j$, $L_j, E_j, T_j, U_j$. Fowler & Mönch (2022) `H6SPCTKI`, PDF p. 4: $r_j$ release (or ready time),
+    $p_j$, $d_j$, $w_j$. Pinedo (2022) `5Y6PACF8`, PDF p. 95: weights of objectives $\theta_1, \theta_2$ for
+    objectives $\gamma_1, \gamma_2$, $\mathrm{Lex}(\gamma_1, \gamma_2)$. → our $d_k, L_k, T_k, U_k$ match; level
+    weights $w_i$ → $\theta_i$ (Pinedo) instead of $\alpha_i$.
+  - Due-date tightness: Li et al. (2026) `6GGUPZNL`, PDF p. 11: $D_i = A_i + (\sum_j t_{i,j}) \cdot DDT$, a factor
+    named DDT, not $\theta$. → our $\theta_k$ is own; rename to $\mathrm{DDT}_k$ (frees $\theta$ for the weights).
+  - Workers (DRC): Berti et al. (2021) `8F7AYGYK`, PDF p. 5: $W$ set of workers, $z$ worker index, $W_k$ candidate
+    workers for machine $k$. Wang et al. (2025) `QJHCEX6V`, PDF p. 7, Table 2: $W = \{1, \dots, w\}$, worker index
+    $s$, $F_s$ / $F_k$ total working time of worker / machine. → $W$ and $W_\eta$ match; worker index: literature
+    uses $z$ or $s$, our $w$ clashes with the standard job weight $w_j$ (open, user message). Load $V_w$, $V_m$
+    kept: Wang's $F$ would clash with the flow time $\bar F$ ([23](23_metrics.md)).
+  - Batching: Potts & Kovalyov (2000) `26Z9YF55`, PDF p. 3 and Dauzère-Pérès et al. (2024) PDF p. 14
+    **[uncertain: printed page]**: batch capacity $b$; Fowler & Mönch (2022) PDF p. 4: $B$. → our capacity $c_s$
+    deviates but clashes with nothing; carrier $b$ is our own concept and uses the literature's capacity letter
+    (kept, deviation to be noted in the correspondence table).
+  - Carriers / pallets: Lee et al. (2020) `AUGM8B83`, PDF p. 4: pallet index $l$; Liu et al. (2024) `5YDNRDES`,
+    PDF p. 4: fixture set $F$, index $f$. No standard for a carrier.
+  - Calendar: Lunardi et al. (2020) `8Z7BQGIF`, PDF p. 5: unavailability periods per machine as intervals
+    **[uncertain: formula garbled in the extracted text]**. No literature symbol for breaks or overtime:
+    $\mathrm{br}$, $\mathrm{ot}$ own.
+  - Rule state ($\phi_m$, $V_m$, $V^{\mathrm{q}}_m$, $\mathrm{wr}_k$, $\underline{S}_o$), policy ($\delta_t$,
+    $\operatorname{bl}(o)$), offsets ($\Delta^\pm_{\max}$): no symbols in the papers read (prose or own); own.
+  - The DRC review Xu et al. (2011) `K82ZAAIS` has no formal notation; Kasapidis et al. (2025) `VV6ZWRPB` model
+    tools and non-renewable resources, not workers.
+- **Open:** worker index ($w$ kept vs. $z$ as in Berti et al.); correspondence table in `notation.md` extended by
+  workers, batching and objectives; then rename file by file with the Edit tool; commit.
+- **Decided (user, afterwards):** worker index $z$ (Berti et al. 2021); the CP-SAT slot machine choice
+  $z_{j,m}$ → $g_{j,m}$ (mine). User question "why not $W_k$": Berti's $W_k$ is per machine; ours must be per
+  operation (machine-less operations; qualification depends on the step), and one operation has one qualified set
+  for all its shares (`WorkerShare.qualified`), so $W_\eta$ → $W_o$ (mine, proposed). User: a base letter told
+  apart only by its subscript is hard to read (example $\theta_k$ tightness vs. $\theta_i$ weights; already
+  resolved by $\mathrm{DDT}_k$). **Rule stated (mine, matches the papers read):** one base letter means one
+  quantity; subscripts only name the index or a subset; accents mark variants of the same quantity (planned,
+  realized, expected). Same pattern in Wang et al. (2025) `QJHCEX6V` ($F_s$, $F_k$: one quantity, two resources),
+  Berti et al. (2021) `8F7AYGYK` ($W$, $W_k$); counterexample avoided: Berti et al. use $M$ for the machine set and
+  the number of machines (PDF p. 5).
+
+## 2026-11-09 (23) — Breaks through rescheduling, task 2: forced overstay; symbol-clash check — uncommitted
+
+- **Decided (user):** Task 2; decision 3 (a) with the principle of entry (20). Mine: the checker computes the forced
+  end itself (`forced_end`, independent of the rule): earliest time a qualified worker is free of the frozen part
+  (started shares and started breaks) within the shift window C13; the plan's end must equal it (so "forced" and
+  "shortest" are one check; without a disturbance it is the expected end).
+- **Done:** checker `forced_end`, `_free_from`, `frozen_changed(..., end)`, `_frozen_worker_time(...,
+  with_breaks)`; snapshot: expected end $\max(\hat S_o + p,\ t + a^{\mathrm{suf}}_o)$ for a pending suffix (was
+  $t + 1$); rule books a pending suffix at the earliest free time and moves the frozen operation's end (batch,
+  machine, successors); DES `_apply` takes the plan's worker for a share not started of a running operation.
+  `tests/test_forced_overstay.py` (8 tests, by hand; see [04](04_workers.md) §5); the raising test in
+  `tests/test_dispatching_workers.py` replaced. [04](04_workers.md) §3 (C7$^o$), §5;
+  [05](05_rescheduling-frozen-part.md) §3; [11](11_dispatching-rules.md) §3; [13](13_des.md) §6;
+  [notation](notation.md) ($\tilde C_o$, $\operatorname{free}_w$). Worker-free plans still identical (195). Full
+  suite 1124 passed, ruff clean.
+- **Found:**
+  - Before, `update_plan` ignored the plan's worker for a share not started of a running operation, so the
+    rule's choice for a pending removal (phase 3 task 4) never reached the factory. Fixed.
+  - The snapshot expected a waiting removal at $t + 1$, i.e. starting before $t$ for $a^{\mathrm{suf}}_o > 1$.
+    Fixed.
+  - A test run of 9:27 h was the computer sleeping overnight, not a hang (rerun 7.6 s).
+- **Found (symbol-clash check of [notation](notation.md), user todo; all older than this task):**
+  - $b$: carrier index ($\mathcal{B}$, [03](03_carriers.md)) and the maximum late offset ([22](22_scenarios.md)).
+  - $\tau$: carrier kind $\tau(b)$ ([03](03_carriers.md)) and the rescheduling period ([05](05_rescheduling-frozen-part.md)).
+  - $O$: operations, $\bar O$ max overtime and $O_{w,d}$ overtime ([04](04_workers.md)).
+  - $W$: worker set, $W_\eta$ qualified workers and $W_m$ machine load ([11](11_dispatching-rules.md)).
+  - $w$: worker index, $w_k$ remaining work ([11](11_dispatching-rules.md)) and $w_i$ weights ([23](23_metrics.md)/objectives).
+  - $\rho$: $\rho_s$ ([03](03_carriers.md)) and the ready time $\rho_o$ ([11](11_dispatching-rules.md)).
+  - $B$: backlog $B_m$ ([11](11_dispatching-rules.md)) and blockers $B(o)$ ([05](05_rescheduling-frozen-part.md)).
+  - $L$: break length $L^{\mathrm{B}}$ and lateness $L_k$ ([06](06_due-dates.md)).
+  - $f$: machine free time $f_m$ and the objective $f$ ($\Delta f$, $\delta_f$, $s(f)$).
+  - $d$: due date $d_k$ and the day index $d$ ([04](04_workers.md); the day index is not in the table).
+  - Milder: $a$ (early offset) vs. $a^{\mathrm{pre/suf}}_o$; the superscript B for the break ($h^{\mathrm{B}\pm}$,
+    $L^{\mathrm{B}}$) and the batch slot ($S^B_j$).
+- **Open:** renaming the clashes (user decision; the thesis does not use any yet); Task 3; commit.
+
+## 2026-11-08 (22) — Symbol clashes: break start and worker assignment renamed — uncommitted
+
+- **Decided (user):** rename the break symbol; the user's proposal `br`, taken upright as one name
+  $\mathrm{br}_{w,d}$ (italic $br$ would read as $b \cdot r$, $r$ is the release; upright multi-letter names are
+  house style in [04](04_workers.md): $\operatorname{day}$, $\operatorname{mod}$, $\operatorname{start}$). Realized:
+  $\widehat{\mathrm{br}}_{w,d}$. Mine: worker assignment $y_{\eta,w}$ → $v_{\eta,w}$ (fits the worker load $V_w$).
+  **Todo (user):** check all symbols for clashes after every task, after every phase, and at the end.
+- **Done:** [04](04_workers.md) (12 places), [13](13_des.md), [23](23_metrics.md), [notation](notation.md)
+  renamed with the Edit tool, change logs. Thesis: neither symbol used yet.
+- **Found:** a second clash, found while searching for a free name: $y_{o,j}$ (CP-SAT batch slot,
+  [03](03_carriers.md)) and $y_{\eta,w}$ (worker share). $S^{B}_j$ (batch slot start) ruled out $S^{\mathrm{B}}$ for
+  the break.
+- **Open:** symbol-clash check as a standing step (in the plan files' task checklists); commit.
+
 ## 2026-11-08 (21) — Breaks through rescheduling, task 1: breaks in the snapshot and the checker — uncommitted
 
 - **Decided (user):** decisions 1–3 of `docs/superpowers/plans/2026-11-08-breaks-rescheduling.md` all (a): planners

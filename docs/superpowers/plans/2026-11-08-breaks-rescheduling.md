@@ -100,7 +100,8 @@ only if the worker's frozen share runs past 13:00.
   snapshot with the returned breaks, and `Simulation.update_plan` accepts it.
 
 Each task: `math/04_workers.md`, `math/05_rescheduling-frozen-part.md`, `math/11_dispatching-rules.md`,
-`math/13_des.md` as affected; protocol entry. Thesis: no affected section written yet (checked 2026-11-08:
+`math/13_des.md` as affected; **symbol-clash check of `math/` against `notation.md`** (user todo 2026-11-08: after
+every task, every phase, and at the end); protocol entry. Thesis: no affected section written yet (checked 2026-11-08:
 `seipl27/Text/kapitel1.tex` is empty).
 
 ## Not in this plan
