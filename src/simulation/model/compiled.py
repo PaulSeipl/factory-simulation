@@ -35,13 +35,6 @@ def share_interval(share: Share, start: int, end: int) -> tuple[int, int]:
     return start, end
 
 
-def reject_workers(ci: "CompiledInstance", who: str) -> None:
-    # shortcut: guard until the consumer handles workers (plan phases 2-4), remove there
-    if ci.worker_ids or any(d is not None for d in ci.fixed_duration):
-        raise NotImplementedError(f"{who}: instances with workers or operations without machine are not supported "
-                                  "yet (math/04_workers.md)")
-
-
 @dataclass(frozen=True, slots=True)
 class CompiledInstance:
     name: str

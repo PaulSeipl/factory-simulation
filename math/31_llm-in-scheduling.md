@@ -87,4 +87,4 @@ makespan −21.52 % against existing rules, tardiness −18.63 % against EDD (Ta
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-10-30 | uncommitted | Note on LLMs in scheduling: user's assessment, evidence from Shiau et al. (2026), own assessment, options, decision A. |
+| 2026-10-30 | 17d05a8–28ac70f | Note on LLMs in scheduling: user's assessment, evidence from Shiau et al. (2026), own assessment, options, decision A. |

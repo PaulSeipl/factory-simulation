@@ -126,7 +126,7 @@ Full references in [references.md](references.md).
 | 2026-10-19 | `1217f7e` (code unchanged) | Constraints referenced to the MILP in Dauzère-Pérès et al. (2024); C4 marked as own; DAG precedence identified as non-linear routes ($\beta = bom$). |
 | 2026-10-19 | `1217f7e` (code unchanged) | Referenced Kasapidis et al. (2021), Lunardi et al. (2020, 2021), Naderi & Roshanaei (2022). Problem identified as FJSP with arbitrary precedence graphs; C4 now referenced to Lunardi et al. (2020) instead of own; CP-SAT mapping table added; order path structure noted as open point. |
 | 2026-10-19 | `1217f7e` (code unchanged) | Complexity statement (Garey et al., 1976); objective declared a parameter, makespan only for benchmarks, two thesis objectives open; loads noted as breaking $k(o)$ and order-local $P$, options (a)/(b) listed. |
-| 2026-10-19 | uncommitted | Feasibility checker for C1–C5 implemented (`simulation.check.feasibility`); label table in §5; objective-interface notes in §6; loads moved to draft `03_carriers.md`. |
-| 2026-10-20 | uncommitted | CP-SAT mapping implemented (shared start variable instead of `only_enforce_if` linking); links to 11 and 12. |
-| 2026-10-29 | uncommitted | Checker extended by C6 and C7 for revised plans (math/05). |
-| 2026-11-05 | uncommitted | C1 note: operations without machine (C1' in [04](04_workers.md)); checker skips them in the machine sweep. |
+| 2026-10-19 | e8617db | Feasibility checker for C1–C5 implemented (`simulation.check.feasibility`); label table in §5; objective-interface notes in §6; loads moved to draft `03_carriers.md`. |
+| 2026-10-20 | 75065e4 | CP-SAT mapping implemented (shared start variable instead of `only_enforce_if` linking); links to 11 and 12. |
+| 2026-10-29 | 17d05a8–28ac70f | Checker extended by C6 and C7 for revised plans (math/05). |
+| 2026-11-05 | e5348b0–78e228d | C1 note: operations without machine (C1' in [04](04_workers.md)); checker skips them in the machine sweep. |

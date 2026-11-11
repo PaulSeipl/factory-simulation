@@ -1,6 +1,7 @@
 """The planning tool during execution (math/05_rescheduling-frozen-part.md).
 
-At every time point of the DES, after its events and before anything starts:
+At every time point of the DES, after its events and before anything starts, and again after the starts of that
+time point (every start is an event):
 1. read the snapshot (what the factory knows now, no scenario data),
 2. repair the current plan (left/right shift),
 3. if the repaired plan deviates substantially from the anchor (the plan of the last complete
@@ -19,8 +20,8 @@ from typing import NamedTuple
 from simulation.check.feasibility import check_schedule
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment, Break, Plan
-from simulation.objectives import Objective
-from simulation.planners.repair import repair
+from simulation.objectives import TOTAL_TARDINESS, Objective, overtime
+from simulation.planners.repair import repair_plan
 from simulation.sim.des import PlanNotExecutable, Simulation
 from simulation.sim.scenario import Scenario
 from simulation.sim.snapshot import Snapshot
@@ -43,17 +44,24 @@ class ReschedulingPolicy:
     objective: Objective | None = None  # with max_objective_change: trigger on this objective (e.g. the planner's)
     max_objective_change: int | None = None  # trigger if objective(repaired) deviates from objective(anchor) by more
     period: int | None = None  # safety net: complete rescheduling at the latest this many minutes after the last one
+    repair_overtime: bool = False  # the repair may move shares into overtime up to the window (math/05, section 3)
+    # trigger if an operation finishes at least this many minutes before its end in the current plan while the
+    # repaired plan still has tardiness or overtime (math/05, section 3; user 2026-11-11)
+    early_finish: int | None = None
 
     def __post_init__(self):
         if (self.objective is None) != (self.max_objective_change is None):
             raise ValueError("objective and max_objective_change must be given together")
         if self.period is not None and self.period <= 0:
             raise ValueError(f"period must be positive, got {self.period}")
+        if self.early_finish is not None and self.early_finish <= 0:
+            raise ValueError(f"early_finish must be positive, got {self.early_finish}")
 
 
 class Anchor(NamedTuple):
     plan: Sequence[Assignment]  # plan of the last complete rescheduling (accepted or rejected); at first the start plan
     t: int  # time of that rescheduling; 0 for the start plan
+    breaks: Sequence[Break] = ()  # the breaks of that plan (for objectives with a break term)
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,16 +79,19 @@ def execute(
     """Run the factory on the plan and its breaks; with a policy the planning tool adapts the plan during the run."""
     sim = Simulation(ci, plan, scenario, breaks)
     decisions: list[dict] = []
-    anchor, wake = Anchor(sim.current_plan(), 0), None
+    anchor, wake = Anchor(sim.current_plan(), 0, sim.current_breaks()), None
     while not sim.done:
         sim.process_events()
-        if policy is not None:
-            anchor = adapt_plan(ci, sim, policy, decisions, anchor)
-            # the safety net needs a time point even if the factory has no event then
-            if policy.period is not None and sim.has_unstarted and wake != anchor.t + policy.period:
-                wake = anchor.t + policy.period
-                sim.wake_at(wake)
-        sim.start_operations()
+        while True:  # every start is an event too: the tool sees it at once (math/13 section 3, user 2026-11-11)
+            if policy is not None:
+                anchor = adapt_plan(ci, sim, policy, decisions, anchor)
+                # the safety net needs a time point even if the factory has no event then
+                if policy.period is not None and sim.has_unstarted and wake != anchor.t + policy.period:
+                    wake = anchor.t + policy.period
+                    sim.wake_at(wake)
+            # a new plan may release more operations at this time point; each operation starts once, so this ends
+            if not sim.start_operations() or policy is None:
+                break
     sim.check_completed()
     return ExecutionResult(sim.realized(), sim.log, decisions, sim.realized_breaks())
 
@@ -89,14 +100,21 @@ def adapt_plan(
     ci: CompiledInstance, sim: Simulation, policy: ReschedulingPolicy, decisions: list[dict], anchor: Anchor,
 ) -> Anchor:
     """One step of the planning tool; returns the anchor for the next step."""
-    snap, current = sim.snapshot(), sim.current_plan()
-    repaired = repair(ci, snap, current)
+    snap, current, current_breaks = sim.snapshot(), sim.current_plan(), sim.current_breaks()
+    # with workers and a calendar the repair also moves overdue breaks and adds owed ones; otherwise it keeps them
+    repaired, repaired_breaks = repair_plan(ci, snap, current, current_breaks, overtime=policy.repair_overtime)
+    if ci.calendar is None or not ci.worker_ids:
+        repaired_breaks = current_breaks
     periodic = (policy.period is not None and len(snap.frozen) < ci.n_ops  # something left to plan
                 and snap.t >= anchor.t + policy.period)
-    if repaired == current and not periodic:
+    changed = not _same(repaired, current) or not _same_breaks(repaired_breaks, current_breaks)
+    # an early finish the repair may not use (an operation with a gap keeps its start): a chance to gain
+    early_finish = (policy.early_finish is not None and len(snap.frozen) < ci.n_ops and anchor.t < snap.t
+                    and _earliness(snap, current) >= policy.early_finish and _room_to_gain(ci, repaired))
+    if not changed and not periodic and not early_finish:
         return anchor
     triggers = []
-    if repaired != current:
+    if changed:
         makespan_change, max_shift, mean_shift = _change(current, repaired, snap)
         # measured against the anchor, so that many small repairs add up instead of each staying below the threshold
         makespan_deviation, shift_deviation, mean_shift_deviation = _change(anchor.plan, repaired, snap)
@@ -104,21 +122,48 @@ def adapt_plan(
                   "mean_shift": mean_shift, "makespan_deviation": makespan_deviation,
                   "shift_deviation": shift_deviation, "mean_shift_deviation": mean_shift_deviation}
         if policy.objective is not None:
-            record["objective_deviation"] = (policy.objective.evaluate(ci, repaired)
-                                             - policy.objective.evaluate(ci, anchor.plan))
+            record["objective_deviation"] = (policy.objective.evaluate(ci, repaired, repaired_breaks)
+                                             - policy.objective.evaluate(ci, anchor.plan, anchor.breaks))
         decisions.append(record)
         triggers = _triggers(policy, record)
     if periodic:
         triggers.append("period")
-    new_plan, new_breaks = repaired, None  # the repair keeps the breaks
+    if early_finish:
+        triggers.append("early_finish")
+    new_plan, new_breaks = repaired, repaired_breaks
     if policy.planner is not None and triggers:
         # accepted or rejected, the result is the plan a complete rescheduling settled on: the new anchor
         if (proposed := _reschedule(ci, snap, repaired, policy, decisions, triggers)) is not None:
             new_plan, new_breaks = proposed
-        anchor = Anchor(new_plan, snap.t)
-    if new_plan != current or (new_breaks is not None and new_breaks != sim.current_breaks()):
+        anchor = Anchor(new_plan, snap.t, new_breaks)
+    if not _same(new_plan, current) or not _same_breaks(new_breaks, current_breaks):
         sim.update_plan(new_plan, new_breaks)
     return anchor
+
+
+def _earliness(snap: Snapshot, current: Sequence[Assignment]) -> int:
+    """Delta E: largest end in the current plan minus realized end over the operations that completed at snap.t."""
+    planned = {(a.order_id, a.op_id): a.end for a in current}
+    return max((planned[f.order_id, f.op_id] - f.end for f in snap.frozen if not f.running and f.end == snap.t),
+               default=0)
+
+
+def _room_to_gain(ci: CompiledInstance, plan: Sequence[Assignment]) -> bool:
+    """The plan has tardiness (orders with a due date) or overtime, which a complete rescheduling might lower."""
+    return ((any(d is not None for d in ci.due_date) and TOTAL_TARDINESS.evaluate(ci, plan) > 0)
+            or overtime(ci, plan) > 0)
+
+
+def _same(a: Sequence[Assignment], b: Sequence[Assignment]) -> bool:
+    """Equal plans up to share lengths: a repaired plan carries the snapshot's lengths of started shares for the
+    checker, the plan in the factory does not (math/05_rescheduling-frozen-part.md section 5)."""
+    return [x.model_copy(update={"share_lengths": ()}) for x in a] == [x.model_copy(update={"share_lengths": ()})
+                                                                     for x in b]
+
+
+def _same_breaks(a: Sequence[Break], b: Sequence[Break]) -> bool:
+    """Equal breaks in any order (the DES lists the taken ones first)."""
+    return sorted((x.worker, x.start) for x in a) == sorted((x.worker, x.start) for x in b)
 
 
 def _change(before: Sequence[Assignment], after: Sequence[Assignment], snap: Snapshot) -> tuple[int, int, float]:

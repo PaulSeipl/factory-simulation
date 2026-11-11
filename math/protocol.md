@@ -8,6 +8,427 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-11 (44) — Early-finish trigger, every start an event — uncommitted
+
+- **Decided (user):** buffer size, $\theta_O$ and the stochastic FJSP are todos for later; now the early-finish trigger
+  (an early finish triggers a complete rescheduling if tardiness or overtime is above 0) and the DES events (a worker
+  swap and every start and finish reach the planning tool, independent of the plan). Next: GA or expected orders.
+- **Done:**
+  - `ReschedulingPolicy(early_finish=δ_E)`: trigger `early_finish` if the earliness $\Delta E$ of the operations
+    completed at $t$ against the current plan is at least $\delta_E$ and the repaired plan has $\sum T > 0$ or
+    $\sum \mathrm{ot} > 0$; also when the repair changes nothing; once per time point (`math/05` §3, `notation.md`
+    $\Delta E$, $\delta_E$). Tests `tests/test_early_finish_trigger.py` (gap plan: b1 20 → 5 with the trigger; none
+    without it, with $\delta_E$ above the earliness, or with nothing to gain; validation).
+  - Every start is an event: `Simulation.start_operations()` returns the number of starts (operations, removals,
+    breaks; a swap happens at such a start), and `execute` calls the planning tool again at the same time point,
+    then starts what a new plan released (`math/13` §3). Test: an early start at 2 gives a REPAIR at 2 (before: 10).
+  - 1461 tests pass (288 s, before 283 s).
+- **Found:** finishes were already events (COMPLETE, SHARE_END); only starts (incl. swaps, removals, breaks) reached
+  the tool late, at the next event time.
+- **Open:** buffer size and $\theta_O$ (later, user); stochastic FJSP (later, user); notebook 06 still on $\theta_O$
+  and without the new trigger and repair option; the direction of the deviation triggers (`math/05` §6) partly
+  answered by $\Delta E$.
+
+## 2026-11-11 (43) — Cutoff slack objective (O7) — uncommitted
+
+- **Decided (user):** the cutoff slack as its own objective level, right after tardiness (so tardiness strictly
+  first, then the buffer, then overtime).
+- **Done:** `objectives.cutoff_slack(buf)` ((O7) in `math/04` §4: shortfall of the buffer before the cutoff an order
+  ships with, $d^{\mathrm{ship}}_k$, own modeling after Davenport et al. 2001 `T67B96FW` and Klimek & Łebkowski
+  2009 `8SPWPQ6M`), `OVERTIME` as its own level, `worker_objective_with_slack(buf)` = Lex(tardiness, slack,
+  overtime, breaks, activity clock); spreads in `math/06` §4; `notation.md` ($\mathrm{buf}$, $d^{\mathrm{ship}}_k$,
+  $\mathrm{sh}_k$, $f^{\mathrm{sl}}$). Tests in `tests/test_worker_objective.py`: by hand (five end times), a hand
+  optimum where the buffer flips the plan (A Tuesday 10:30–12:00 without overtime against Monday 16:30–18:00 with
+  30), toy-workshop static (levels 0, 20, 30, 0, 920), no calendar → error. 1454 tests pass.
+- **Found:**
+  - Bug while testing: the domain of the CP-SAT term variable was too narrow when the first cutoff after the
+    horizon lies past a weekend (INFEASIBLE at level 2); now $[\mathrm{buf} - c, \mathrm{buf}]$.
+  - Comparison (scratch, toy-workshop, 10 seeds, a fixed start plan per objective), days late / overtime minutes
+    (totals): buffer 60: no tool 3 / 355, repair only 20 / 239, repair with overtime 6 / 375, CP-SAT period 120
+    2 / 288, with repair overtime 2 / 316, period 15 2 / 332; buffer 120: no tool 2 / 355, repair only 14 / 241,
+    repair with overtime 4 / 375, CP-SAT 120 2 / 285, with repair overtime 2 / 313, period 15 2 / 332. Before
+    (θ_O = 1/60, protocol (41)): CP-SAT 120 6 / 282. With the slack level CP-SAT rescheduling reaches the factory
+    without a tool on days late (seed 1 now on time; seeds 2 and 3 one day late in every policy) with less overtime.
+  - Repair with overtime still misses more cutoffs than no tool on these start plans (6 against 3); not traced.
+- **Open:** buffer size (60 and 120 give the same days late here); whether `worker_objective(θ_O)` stays next to the
+  slack objective; notebook 06 still uses θ_O = 1/60; early-finish trigger; DES events.
+
+## 2026-11-11 (42) — Repair option for overtime, trace of seed 1, slack literature — uncommitted
+
+- **Decided (user):** build a repair option with overtime up to the window; slack before the cutoff as a possible new
+  objective (literature first); DES events (swap, every start and finish) after the early-finish trigger.
+- **Done:** `ReschedulingPolicy(repair_overtime=True)` → `repair_plan(..., overtime=True)`: the repair's shift window
+  ends at $h^{\mathrm{E}} + \overline{\mathrm{ot}}$ for every worker and day (`math/05` §3). Tests in
+  `tests/test_repair_calendar.py` (hand case and `execute`); test spies pass options through. 1445 tests pass.
+- **Found (trace of seed 1, fixed CP-SAT start plan, scratch script):**
+  - Without a tool the factory also decides with planned lengths (`Simulation._planned_share_length`), up to 19:30;
+    the repair limited A to the plan's 18:00, so k7's QM (ready 16:28, planned 150) went to Tuesday and k8 and k4
+    missed Tuesday's cutoff. With the option the repair gives the same realized schedule pattern (nothing late, 82
+    against 90 minutes overtime).
+  - CP-SAT rescheduling at about 15:05 chose between two plans that are both on time with planned durations: k1 on
+    Monday with about 90 minutes of overtime, or k1 on Tuesday ending exactly at the 12:00 cutoff with about 30;
+    level 1 prefers the second (also with tardiness strictly first). k8's QM then ran 24% longer and k1 and k8 were
+    one day late. The objective puts no value on slack before a cutoff.
+  - Literature (Zotero): slack-based robust schedules, Davenport, Gefflot & Beck 2001 (T67B96FW, p. 1–3: temporal
+    protection = extended durations, time window slack = a required slack per activity in the model, job shop with
+    due dates, sum of tardiness); time buffers before milestone deadlines in the RCPSP, Klimek & Łebkowski 2009
+    (8SPWPQ6M, p. 3–7); time slack for resource uncertainty, Lambrechts, Demeulemeester & Herroelen 2011 (LQFDQ743,
+    abstract only); service level for a deadline in the stochastic FJSP, Flores-Gómez, Borodin & Dauzère-Pérès 2023
+    (5LQ7XIL8, abstract). Davenport et al. has no venue in the library entry **[uncertain]**.
+- **Open:** slack before the cutoff as an objective (own modeling, inspired by the sources above): where in the
+  lexicographic order, and the buffer size; the early-finish trigger; DES events.
+
+## 2026-11-11 (41) — Strict tardiness comparison, snapshot and presolve fixes — uncommitted
+
+- **Decided (user):** compare "tardiness strictly first" with $\theta_O = 1/60$; the rescheduling triggers need
+  adjusting or new ones (cutoff / tardiness); a worker swap must be an event for the planning tool; the DES could
+  report every start and finish of an operation and of a worker share, independent of the plan (open, see below).
+- **Done:**
+  - Snapshot: a running operation whose removal started late is expected to end at the removal's start + its
+    planned length (`SimState.suffix_start`, `math/13` §6, `notation.md` $\hat S^{\mathrm{suf}}_o$); before, the
+    started removal seemed to lie before its real start, and repair returned a plan with a C12 overlap (toy-workshop,
+    a CP-SAT start plan, seed 4, $t = 381$). Test `test_snapshot_expects_a_late_started_removal_to_its_own_end`.
+  - CP-SAT level-by-level: a later level returning INFEASIBLE is solved once more without presolve. OR-Tools
+    9.15.6755 presolve rejected "level 1 ≤ 87" at exactly the level-1 optimum (feasible without presolve and with
+    88), seen on a toy-workshop snapshot at $t = 589$ with $\theta_O = 1/2400$ and 1/60. Fixture
+    `tests/fixtures/workshop-presolve-*.json`, test in `tests/test_worker_objective.py`; `math/12` change log.
+  - Comparison (scratch script, 10 seeds, one fixed start plan per $\theta_O$: 1 thread, deterministic time 20):
+    "strict" = $\theta_O = 1/2400$ (no overtime the horizon allows outweighs one day).
+- **Found:**
+  - Start plans: CP-SAT with 8 threads returns different optimal start plans from run to run (both on time, 30 min
+    overtime); repair only gave 9 days late on one and 20 on another. Policy comparisons need a fixed start plan.
+  - Days late (total over 10 runs) / overtime minutes (total), $\theta_O = 1/60$ | strict: no tool 2 / 463 | 2 / 463;
+    repair only 20 / 114 | 20 / 114; CP-SAT period 120: 6 / 282 | 6 / 216; with a cutoff trigger (TOTAL_TARDINESS,
+    `max_objective_change=0`): identical, also the number of reschedulings (20.6); CP-SAT period 15: 5 / 280 |
+    5 / 216 (115 reschedulings). Strictly first lowers CP-SAT's overtime, not its days late; the cutoff trigger adds
+    no rescheduling beyond the existing triggers here.
+  - CP-SAT solves one rescheduling in 0.05 s (median; max 0.31 s) on toy-workshop, three levels together.
+- **Open:**
+  - Why CP-SAT rescheduling misses cutoffs the factory without a tool makes (seeds 1 and 2): the triggers are not
+    the cause here (the cutoff trigger changes nothing); next a trace of seed 1.
+  - Repair option with overtime up to the window (user: an option or an additional repair rule).
+  - DES events: a worker swap as an event (user: required); every start and finish of operations and worker shares as
+    events, or only deviations (user's question).
+  - The period safety net is not guarded by the thresholds (design of `math/05`); whether it should be.
+
+## 2026-11-11 (40) — Notebook 06 (workers), worker plots, C7$^o$ for competing removals — uncommitted
+
+- **Decided (user):**
+  - New example instance `toy-workshop` (printer, oven, mill, workers A and B), shaped like the earlier sketch.
+    Print and mill have only the loading share (user: printer and mill runs have their removal as an own
+    operation, only the oven has a pending removal).
+  - Chart options: keep all six in `viz` for later trials; the notebook uses resources (A), workers by step (B),
+    orders (D) and the 3-day calendar view (E). Nights and days off squeezed in every view, also while a print runs.
+  - C7$^o$ for competing removals (protocol below, "Found"): the checker accepts the plan's order of the pending
+    removals, each as early as the ones before it allow; repair, rule and CP-SAT book one fixed order: earliest
+    possible start, ties by earliest due date, then index. Choosing among orders in CP-SAT is not implemented
+    (user agreed to the recommendation).
+- **Done:**
+  - `data/instances/toy-workshop.json` (8 orders, due at the Monday/Tuesday cutoffs; CP-SAT optimum with
+    $\theta_O = 1/60$: on time, 30 min overtime, activity clock 920; best rule MWKR + least load: 1 day late).
+  - `simulation/viz.py`: `shift_bars` (rows: resources, workers, machines, orders; worker time past the shift end as
+    overtime), `plot_shifts` (horizontal, `night` = squeezed gap, default 60 min), `plot_days` (vertical, one column
+    per day, before 08:00 and after 19:30 squeezed to 30 min, bars split at midnight). State colors from the dataviz
+    reference palette (attended aqua, unattended tint, overtime orange, break grey), step colors in its fixed order
+    (at most 8). `plot_gantt` unchanged. Tests in `tests/test_viz.py` (overtime split, whole shares only on worker
+    rows, night squeeze, midnight split).
+  - `notebooks/06_workers.ipynb`: plans (rule vs. CP-SAT, worker objective), charts A, B, D, E, $\theta_O$ trade-off
+    on the chain (jump between $1/\theta_O = 89$ and 91, tie at 90), execution with 10 seeds and 4 policies (makespan,
+    activity clock, tardiness, days late, worker metrics), one realized run.
+  - C7$^o$: checker `forced_ends` (replaces `forced_end`); `planners.repair.forced_removals` as list scheduling with
+    a `choose` callback (repair: planned worker; rule: least load, as before), used by repair, rule (before: own
+    loop in snapshot order) and CP-SAT (worker fixed with more
+    than one pending run). `math/04` (C7$^o$, implementation, change log), `05` §3, `11` §3, `12` §7a, `notation.md`
+    ($O^{\mathrm{rm}}_t$, $\operatorname{free}_{z,o}$). Tests `tests/test_competing_removals.py`.
+- **Found:**
+  - On an earlier draft of toy-workshop (print and mill with removals): repair booked pending removals in snapshot
+    order: at seed 4, $t = 291$ it gave B to the print removal at 300 and
+    pushed the mill removal (B free at 291) onto A at 310; the DES rejected the plan (C7). Fixed by the order above.
+  - Model gap in C7$^o$ (same draft): each removal was computed on its own; at seed 0, $t = 305$ two removals needed B, the only
+    free worker, at overlapping times, so no plan passed C7 and C12 together, whichever planner made it.
+  - Execution on toy-workshop (10 seeds, $\sigma = 0.3$), days late as totals over the runs (whole days per run;
+    the earlier mean 0.2 meant 2 of 10 runs one day late), level 1 = days + overtime/60 summed: no planning tool 2
+    days, 398 min overtime, 8.63; repair only 9, 223, 12.72; rule rescheduling 13, 76, 14.27; CP-SAT rescheduling
+    (safety net 120 min) 6, 213, 9.55; CP-SAT every 15 min 4, 213, 7.55 (the only policy below the factory without a
+    tool on level 1). User's reading "same days late, less overtime, so better" does not hold: the days differ.
+  - Hypothesis "repair's no-new-overtime rule is the common cause" checked with a scratch patch (repair may use
+    overtime up to the window; not in the repo): repair only 9 → 3 days (overtime 223 → 434 min, level 1 12.72 →
+    10.23); CP-SAT rescheduling on top of it unchanged (6 days, 9.42). So it explains repair only, not CP-SAT; for
+    CP-SAT the replanning frequency matters (120 → 15 min: 6 → 4 days).
+  - Notebook 05 re-run (scratch copy, not saved): numbers differ, but its CP-SAT start plan already differs (1138 →
+    1122, level-by-level solve of (39) and a time-limited search), so the effect of the removal change is not
+    separable there; the best rule plan is unchanged (1138).
+- **Open:**
+  - Why CP-SAT rescheduling with the 120-minute safety net misses more cutoffs than the factory without a tool
+    (seeds 1 and 2: two days each); the replanning frequency is one lever.
+  - Repair's "no new overtime" rule costs days late with repair only; allowing overtime up to the window is a
+    modeling question for the user.
+  - Notebook 05's stored outputs are from before the level-by-level solve; re-run and update its observations.
+  - Choosing the order of competing removals in CP-SAT (permutations of $O^{\mathrm{rm}}_t$).
+  - Thesis: C7$^o$ changed; no `.tex` file in `../seipl27` mentions C7, overstay or removal (grep), so no section
+    is affected.
+  - (Resolved in this pass, user: the rule's removal worker had become the first free one; restored to the least
+    loaded, only the order of competing removals changed.)
+  - `color_by="step"` fails the dataviz validator for all pairs beyond 3 steps (kept for trials); chart B now uses
+    `color_by="machine"` (3 validated hues, machine-less work light grey with outline).
+
+## 2026-11-09 (15) — [thesis] Outline: chapters 1–3 restructured — uncommitted
+
+- **Decided (user):** chapter 2 "Foundations and Related Work" (2.1–2.4 foundations, 2.5 related work);
+  chapter 3 "Research Gap and Objectives" (3.1 gap table, 3.2 research questions, 3.3 delineation and
+  contributions). Foundations define only what chapters 4–5 use, plus the delineation from close alternatives
+  such as the flow shop. Introduction: 1.1 motivation in plain language with a running example of an unnamed
+  dental lab, 1.2 Fidentis and its needs (short), 1.3 objective and contributions, 1.4 structure.
+- **Done:** `seipl27/Thesis Outline - Critique and Proposal.md` (chapters 1–3, P2 and P4 decided, running
+  example as open question), `seipl27/CLAUDE.md` thesis structure.
+- **Open:** running example details need clearance; related-work selection for 2.5; examiner confirmation of
+  the chapter list.
+
+
+## 2026-11-09 (14) — [thesis] Outline: section 2.1 for make-to-order, flow-shop question — uncommitted
+
+- **Decided (user):** 2.1 reframed around the production type: mass customization, make-to-order in the
+  production dimension, PPS decision levels for MTO, operational planning in additive manufacturing, position of
+  scheduling (orders arrive released with due dates; release control and workload control out of scope; nesting
+  as interface). Generic PPS hierarchies (Kellner et al. 2022) dropped as the main anchor.
+- **Done:** `seipl27/Thesis Outline - Critique and Proposal.md`: 2.1 rewritten with Zotero keys and PDF pages,
+  2.2 reduced to the definition of scheduling, flow-shop delineation proposed for 2.3, open questions "flow shop or
+  FJSP" and "due dates", reference list split into checked in Zotero and not yet in Zotero.
+- **Found:** Schuh (2006, `DJDJ74RT`, pp. 136–137, 149–150) covers the customer-order producer, so the Aachen
+  PPS model handles MTO. Not supported by the library: the term "immediate release" and the claim that WLC uses
+  simple dispatching because release does the control (neither is in Land & Gaalman 1996 or Stevenson et al.
+  2005). Every order follows one route template ([21](21_instance-generator.md)), so a hybrid flow shop is a
+  serious alternative model; the FJSP with a precedence DAG has to be justified in 4.2.
+- **Open:** add Da Silveira et al. 2001, Wikner & Rudberg 2005, De Antón et al. 2023, McKay et al. 1988, a source
+  for "immediate release" and flow-shop sources to Zotero; clean the creator names of Stevenson et al. 2005.
+
+
+## 2026-11-10 (39) — Activity clock, serial horizon bound, level-by-level solves — uncommitted
+
+- **Decided (user):** level 3 is the activity clock: regular shift windows, worker overtime and unattended rest count
+  (time needed for the order even outside the shift); in CP-SAT a night counts to the last end in it; the horizon
+  bound from a serial plan, lexicographic objectives solved level by level; symmetry breaking not needed (workers
+  rarely have identical frozen work and breaks); notebooks only when the user says so. $\theta_O$ is a policy
+  setting, the same across instances; only the break-even point differs per instance (explained). Fidentis: every
+  operation needs a worker to start, so the nights after the longest unattended part are dead (user; kept as an
+  open, instance-dependent refinement).
+- **Done:** `objectives.py`: `ACTIVE_MAKESPAN` (evaluate and CP-SAT, exact in both directions; literals per
+  operation and gap), level 3 of `worker_objective`; `serial_end` (moved from `cpsat.py`, shared), `horizon_bound`
+  from the serial plan (worst weekday start); `Objective.levels`, `level_weights`. `planners/cpsat.py`: level-by-level
+  solve (bound, hints, per-level values in `CpSatResult.levels`, weighted value from `evaluate`, lower bound for an
+  early stop). `metrics.py`: `active_makespan`. Tests `tests/test_worker_objective.py` (18: a print until 22:00 counts
+  840; with packaging the next morning real 1500, clock 900, CP-SAT optimum the same; unattended rest until 03:00
+  1140; per-level values = evaluations, combined = weighted sum). `math/04` (O6), `06` §4, `12` §7b, `23` M1,
+  `notation.md` ($C^{\mathrm{act}}_{\max}$, $\mathrm{gap}_\iota$, $\iota$; not $g$ or $G$, taken).
+- **Found:** $H^{\mathrm{cal}}$ on toy-workers 21 790 → 11 800 (of which 8 days fixed margin; the gain grows with the
+  number of operations). Existing lexicographic tests (tardiness then makespan) pass with the level-by-level solve,
+  including the non-optimal case once its bound is computed from the levels.
+- **Open:** cutting dead nights for instances where every operation starts attended; commit.
+
+## 2026-11-10 (38) — Phase 4 review: threshold check, weights, open points — uncommitted
+
+- **Decided (user):** review before the commit; next: a notebook with workers as an example.
+- **Done:** `tests/test_worker_objective.py`: the two candidate plans of the trade-off built by hand and evaluated
+  without the solver (both feasible; level 1 = $90\,\theta_O$ vs. 1; scaled by 60: 90 vs. 60), and the threshold
+  pinned with $\theta_O \in \{1/89, 1/90, 1/91\}$ (late, overtime by the makespan tie-break, overtime).
+- **Found:** the large numbers are the lexicographic level weights $\theta_i$ ([06](06_due-dates.md) (O3)), not
+  $\theta_O$: on toy-workers $H^{\mathrm{cal}} = 21\,790$, $\operatorname{spr}(f_2) = 3060$, $\theta_2 = 21\,791$,
+  $\theta_1 \approx 6.7 \cdot 10^7$, total spread $\approx 4 \cdot 10^{11}$; with about 100 operations with shares
+  the estimate exceeds $2^{53}$. No thesis section on the objective or breaks exists yet (`../seipl27/Text` has only
+  `kapitel1.tex`); the activity clock of level 3 is not implemented as a metric either.
+- **Open:** sequential lexicographic solves (or a model-specific spread) before phase 5; symmetry breaking to
+  measure; the activity-clock metric; commit.
+
+## 2026-11-09 (37) — Phase 4 Task 5: objective levels of the worker model — uncommitted
+
+- **Decided (user):** start Task 5; a forced late break traces back to the frozen part only (confirmed: the late
+  break is computed against started shares, forced removals and taken breaks; new shares cannot push it).
+  **Own (advisor review before coding):** $\theta_O$ as a fraction, level 1 scaled by its denominator to stay
+  integer; overtime in CP-SAT only bounded from below (exact at the optimum, documented as a deviation); spreads
+  with workers and a calendar from the bound $H^{\mathrm{cal}}$, asserted in `solve`, and a $2^{53}$ check; the
+  anchor carries its breaks; the best-of-rules selection evaluates with breaks.
+- **Done:** `objectives.py`: `evaluate(ci, schedule, breaks=())`, `cpsat(..., calendar_vars)` throughout,
+  `CalendarVars`, `horizon_bound`, `overtime`, `tardiness_and_overtime(theta_O)`, `BREAK_PENALTY`,
+  `worker_objective(theta_O)`; `planners/cpsat.py`: `_calendar` returns the objective terms (overtime per worker
+  and day, past overtime, breaks with their day), horizon assertion, spread check; `control/rescheduling.py`:
+  `Anchor.breaks`, objective deviation with breaks; `dispatching.best_dispatch` with breaks. Tests
+  `tests/test_worker_objective.py` (10). `math/04` §4 (O4)–(O6), change log; `math/06` §4 spreads, change log;
+  `math/12` §7b, change log; `notation.md` ($\theta_O$, $f_1$–$f_3$, $H_0$, $H_t$, $H$, $H^{\mathrm{cal}}$: the
+  horizons were used in 06 and 12 but not registered).
+- **Found:** the trade-off instance, worked out by hand first, behaves as computed: threshold $\theta_O = 1/90$;
+  with $1/60$ one day late, with $1/120$ 90 minutes of overtime. Breaks rank before the makespan (job moved after
+  the break). One bug: the per-day max/min of the break spread was bounded by the horizon, but breaks exist up to the
+  day after it (infeasible model); now bounded by the day. The weights are large (about $4 \cdot 10^{11}$ already on
+  toy-workers) because $H^{\mathrm{cal}}$ is loose; the $2^{53}$ check makes larger instances fail loudly.
+  Regression: the objective, day-tardiness, CP-SAT and rescheduling tests pass unchanged (spreads change only with
+  workers and a calendar).
+- **Open:** a tighter $H^{\mathrm{cal}}$ (or two-stage lexicographic solves) before phase 5's larger instances; the
+  exact activity clock for level 3 stays a metric; symmetry among identical workers; thesis sections on the
+  objective; commit. Phase 4 complete after this task.
+
+## 2026-11-09 (36) — Phase 4 Task 4: CP-SAT with the calendar — uncommitted
+
+- **Decided (user):** start Task 4. **Own:** the calendar through each worker's `add_no_overlap` (night and weekend
+  intervals, an overtime interval with an affine start in $\mathrm{ot}_{z,\nu}$) instead of an end-of-day variable
+  linked to every share (no share-to-day link needed; $e_{z,\nu}$ of the plan not used); breaks per decision 2a,
+  forced postponement as a constant; a pending removal near a break window keeps one candidate worker; serial
+  calendar plan as the horizon; with workers and a calendar the planner raises without a solution instead of
+  keeping the current plan (it has no current breaks).
+- **Done:** `planners/cpsat.py` (`_calendar`, `_serial_end`, `_clear_start`, `CpSatResult.breaks`, frozen share
+  lengths in the output, all taken breaks kept, guard removed); `cpsat_planner` returns the breaks. Tests
+  `tests/test_cpsat_calendar.py` (hand optima 390 / 240, 660, 1740; zero disturbance with replay and with repair on
+  six instances; pending removal → break 13:10; sweep 152 snapshot plans; targeted noon test; `execute` with
+  `cpsat_planner` on seven instances); calendar guard test removed. `math/12` §7b, change log; `math/04` §5, change
+  log; `notation.md` ($\underline{\mathrm{ot}}_{z,\nu}$).
+- **Found:** three bugs found by the tests: (1) `_serial_end` looped forever for a 300-minute share without
+  overtime (fits neither before noon nor 13:00–17:30; the model allows overtime, the bound now too, with a guard);
+  (2) frozen operations without the snapshot's share lengths in the output: the checker saw a prefix of planned
+  length overlapping the break; (3) taken breaks of earlier days missing from the output (C7$^b$, C14). My hand
+  value 2040 for the 300-minute job was wrong: a break may start at 13:00, so 08:00–13:00 then break gives 1740.
+  The coarse sweep never plans a late break; the targeted noon test does. Overtime is free so far (Task 5).
+- **Open:** Task 5 (objective levels, $\theta_O$; the test "overtime only when it saves a day" needs it); the
+  symmetry among identical workers; commit.
+
+## 2026-11-09 (35) — Phase 4 Task 3: CP-SAT with workers, no calendar — uncommitted
+
+- **Decided (user):** start Task 3. **Own:** the forced removal end in CP-SAT from a planner-side helper
+  `planners.repair.forced_removals` (shared by the planners, not the checker's `forced_end`, so the checker stays
+  an independent verification); each pending removal on its own, as the checker computes it. A batch's shares
+  belong to its slot. Symmetry breaking among identical workers not added (hand cases solve in well under 1 s).
+- **Done:** `planners/cpsat.py`: machine-less operations (C1'), share intervals per qualified worker with presence
+  $v_{\eta,z}$ (prefix, suffix fixed size; whole with a size variable, interval terms must be affine), C11 per share,
+  `add_no_overlap` per worker (C12), batch shares per slot (slot end as a variable), frozen started shares fixed,
+  pending removal at the forced end with only the free workers, a frozen batch blocking its machine until that
+  end, worker hints, workers and machine `None` in the output; the change budget skips machine-less operations;
+  guard only for workers with a calendar. `compiled.reject_workers` removed. Tests `tests/test_cpsat_workers.py`
+  (22: hand optima 30 / 20, 170, 19 with checker, replay and value = makespan; forced overstay and pending removal
+  from snapshots; snapshot sweep 78 plans; targeted sweep with 12 forced overstays; `execute` with
+  `cpsat_planner`); `test_worker_compile.py` calendar guard. `math/12` §7a, change log; `math/04` §5, change log.
+  Symbols: only existing ones ($v_{\eta,z}$, $I_\eta$, $a^{\mathrm{pre}}_o$, $a^{\mathrm{suf}}_o$, $S^{\mathrm{slot}}_j$,
+  $g_{j,m}$).
+- **Found:** the random snapshot sweep never forces an overstay (13 of 78 snapshots have a pending removal); the
+  targeted one-worker cases, set up for it from the start, give 12. All existing CP-SAT test files pass unchanged
+  (456 tests).
+- **Open:** Task 4 (calendar in CP-SAT); symmetry among identical workers to measure on larger instances; commit.
+
+## 2026-11-09 (34) — C14$^f$ extended: a forced removal may postpone a break — uncommitted
+
+- **Decided (user):** a pending removal forced later (C7$^o$) is a valid reason for a break after the window
+  (open point of (33)). Working style (user): build targeted instances for rare cases from the start; while
+  iterating run only the affected test files; the full suite after every task.
+- **Decided (own):** general form instead of a second special case: after the window, the break starts at the
+  earliest time from $\max(h^{\mathrm{B}-}, t)$ clear of the worker's frozen part (started shares and pending
+  removals at the plan's forced times), $\operatorname{free}^{\mathrm{br}}_z$. A first version (break at the end of
+  a busy stretch through 13:00) missed the case "free from 12:50, removal at 13:09": a 60-minute break fits nowhere
+  in the window, the worker is not busy at 13:00. The old rule (a started share covering 13:00, break at its end)
+  is the special case.
+- **Done:** checker `break_violations` (pending removals with the plan's worker in the frozen part,
+  `_clear_from`); repair: pending break after the window recomputed from the window start, `ValueError` and the old
+  `forced` test removed, no new break for a day before the snapshot's; rule `break_at`: no `ValueError`, `None` only
+  on the snapshot's day after the window with no frozen share before it. Tests: `test_snapshot_breaks.py` (the
+  hand-built "packaging from 13:05" case is now accepted at the earliest clear start, a later one is C14),
+  `test_repair_calendar.py::test_pending_removal_postpones_the_break`. `math/04` (C14$^f$ formula, change log),
+  `math/05` §3, §6, change log, `math/11` §3, change log, `notation.md` ($\operatorname{free}^{\mathrm{br}}_z$; $F$
+  avoided: flow time, batch family).
+- **Found:** the old negative test was a state the DES never reaches (a share started while a break is due); under
+  the new rule it is accepted, since at $t$ after the window nothing earlier is possible. Three change-log rows were
+  added with a literal script instead of the Edit tool (slip); checked by grep, correct.
+- **Open:** thesis sections on C14$^f$, if already written; commit.
+
+## 2026-11-09 (33) — Phase 4 Task 2: shift repair with the calendar — uncommitted
+
+- **Decided (user):** decision (1) of (31) confirmed (a forced removal may switch to another free worker); start
+  Task 2. **Own (advisor review before coding):** `repair_plan(..., breaks) -> Plan` beside `repair` (as
+  `dispatch_plan` / `dispatch`); the repair creates no overtime, per worker and day at most the plan's last share
+  end (keeps planned overtime, so zero disturbance holds for CP-SAT plans later); pending breaks stay unless due
+  or clashing with the frozen part; owed breaks added only where owed.
+- **Done:** `planners/repair.py`: `repair_plan`, `_calendar` (breaks per worker and day, `fit`, `owe`),
+  `shift_repair(..., fit)`, `_free_from` with the shift window (C7$^o$ as the checker: overtime, taken breaks);
+  `calendar.shift_window` (from the rule's closure, `planners/dispatching.py` uses it); `control/rescheduling.py`:
+  `adapt_plan` passes `current_breaks()`, uses the repaired breaks, `_same_breaks`. Tests
+  `tests/test_repair_calendar.py` (zero disturbance on 6 instances × 15 rule plans, 3 hand cases, end to end with
+  coverage assertions); spy in `tests/test_repair_workers.py` follows `repair_plan`. `math/05` §3, §5, §6, change
+  log; `math/04` §5, change log; `math/11` change log. Symbol check: only existing symbols used
+  ($\mathrm{br}$, $\widehat{\mathrm{br}}$, $h^{\mathrm{E}}$, $h^{\mathrm{B}\pm}$, $\mathrm{ot}$, $\overline{\mathrm{ot}}$).
+- **Found:** worker-free repair still identical (195 runs). A first sweep (5 instances, 40 seeds, $\sigma = 0.8$,
+  both policies) failed 5 runs with C14 "no break on day 2": a mill removal planned at 13:00 (no break owed)
+  started at 12:01 because the mill ran short, so a break was owed on a day with only frozen shares; fixed by `owe`
+  over all shares. The five sweep instances never produce a break after 13:00 or a forced overstay; two targeted
+  instances do (factors only: offsets of the prints shift the oven by up to 30 min and break the timing). Coverage
+  in the test over 140 runs: 274 due breaks moved, 8 forced postponements, 66 forced overstays, 34 moves to another
+  day, 9 added breaks. Realized schedules: only C2 and one C14 per break realized after 13:00 (forced, legal
+  against its snapshot).
+- **Open:** a pending break pushed past 13:00 by a pending removal (not a started share) is not covered by
+  C14$^f$; the repair raises `ValueError` like the rule; not observed ([05](05_rescheduling-frozen-part.md) §6).
+  The 49 protocol titles; commit. Next: Task 3 (CP-SAT with workers).
+
+## 2026-11-09 (32) — Phase 4 Task 1: sweep with forced overstays — uncommitted
+
+- **Decided (user):** create a sweep that produces forced overstays (none in the sweep of (31)).
+- **Done:** `tests/test_repair_workers.py::test_sweep_with_forced_overstays` (counts forced overstays through a
+  wrapped `repair`); `math/05` §5.
+- **Found:** rule plans put worker time next to a removal only if something becomes ready in the oven window: one
+  worker and a packaging released at 6 gives 5 forced overstays in 40 runs (FIFO, MWKR); without the release
+  (polishing ready at 0) and with two workers none. The hand plan with a slower polishing gives 34. All plans
+  feasible.
+- **Found (user's question on the late prefix):** no defect. The DES serves each worker's shares in planned
+  order (no overtaking); if the planned worker is busy at a share's start, the swap rule hands it to a free
+  qualified worker, otherwise the share waits. A prefix overrun is visible only when the next share is due (no
+  event at the planned prefix end), so the realized schedule is the same with and without repair (checked:
+  packaging by B at 15 with B qualified; by A at 30 with only A qualified). The worker blockers in the repair
+  matter for the projected plan (triggers, later shares), not for this realized case.
+- **Open:** as (31).
+
+## 2026-11-09 (31) — Phase 4 Task 1: shift repair with workers, no calendar — uncommitted
+
+- **Decided (own, to confirm):** (1) A pending removal takes the planned worker if free at the C7$^o$ end,
+  otherwise the first free qualified one. The plan said "keep the remover, otherwise the forced end"; that
+  contradicts the checker, whose forced end is the min over all qualified workers, so keeping a busy remover would
+  end later than C7$^o$ allows; the worker change is forced like the overstay. Plan text corrected. (2) Iteration
+  to a fixpoint instead of one pass in planned order or a topological order: worker blockers can be cyclic across
+  workers in a feasible plan (example in [05](05_rescheduling-frozen-part.md) §3). Start values: the planned
+  starts (prefix blockers end at their planned prefix end), not 0; otherwise a zero-weight cycle would left-shift
+  without a deviation; trade-off recorded in §3. (3) The repair computes the forced end itself, not with the
+  checker's `forced_end` (independent verification, as the rule's `removal_free`). (4) The repair emits the
+  snapshot's `share_lengths` of started operations where they differ from the planned ones (the checker reads
+  them, e.g. C12 after a short finished prefix); `adapt_plan` compares plans up to share lengths (`_same`), since
+  the factory's plan carries none.
+- **Done:** `planners/repair.py`: `shift_repair(..., workers, share_len)` with share blockers $\operatorname{bl}(\eta)$,
+  no overlap with frozen shares, machine-less operations, fixpoint passes; `repair` with pending removals (C7$^o$),
+  workers in the output, guard only for workers with a calendar (Task 2). `control/rescheduling.py`: `_same`.
+  Guard case removed from `tests/test_worker_compile.py`; new `tests/test_repair_workers.py` (zero disturbance for
+  30 rule plans, 6 hand cases, two cycles, forced overstay through `execute`, sweep 54 runs). `math/05` §2, §3
+  (formulas with $\operatorname{bl}(\eta)$, $E_\eta$), §5, §6, change log; `math/04` §5, change log; `notation.md`
+  ($\operatorname{bl}(\eta)$, $E_\eta$). Symbol check: $E_o$ in [06](06_due-dates.md), [12](12_cp-sat.md) is the
+  same quantity; no clash.
+- **Found:** worker-free repair unchanged: 195 executions (13 worker-free instances × 5 rules × 3 seeds,
+  $\sigma = 0.3$, offsets ±5, repair only) give identical realized schedules and decisions before and after (also
+  after `_same`). Without `_same`, 522 of 1233 `REPAIR` records of the worker sweep changed nothing (only the share
+  lengths of finished shares differed); with it 789 records, 78 without a start shift (expected ends of running
+  operations). The DES releases an operation at its planned start before the repair of that time point, so a late
+  prefix noticed only then does not delay the next share of the same worker: the DES swap gives it to another free
+  qualified worker. The sweep hits pending removals (246) and remover changes (6) but no forced overstay; covered by
+  the hand test and by `execute` on the one-worker case of `tests/test_forced_overstay.py` (repairs at 8, 9, 10
+  each +1; removal realized $[11, 12)$, oven batch ends at 12).
+- **Open:** Task 2 (calendar: shifts, breaks, overdue break to $\max(\text{planned}, t)$); user to confirm
+  decision (1); the 49 protocol titles still say "uncommitted" (only change logs filled, (30)); commit.
+
+## 2026-11-09 (30) — Phase 4 plan (repair and CP-SAT with workers); commit hashes — no code change
+
+- **Decided (user):** everything up to (29) committed (`78e228d`, `ef6f798`, `7274636`); continue. Phase 4 plan
+  approved with the recommendations: repair first, one break per worker and working day in CP-SAT, level 0 only a
+  metric, overtime weight $\theta_O$ (required parameter). Hashes filled by a script (user).
+- **Done:** plan `docs/superpowers/plans/2026-11-09-workers-phase4-repair-cpsat.md` (5 tasks). The 130
+  "uncommitted" change-log rows in 13 component files now carry the code commit; word diff checked: only the 130
+  tokens changed.
+- **Found:** exact hashes only for rows dated from 2026-11-06 (`math/` tracked since `6463434`, 2026-11-05):
+  `git log -S` finds the introducing commit. Older rows were added in bulk with `6463434` (and `03_carriers.md`
+  was renamed in `78e228d`), so their date gives only the candidates: the code commits of the first commit day on
+  or after the row date, written as a range `a–b` when there are several (e.g. `17d05a8–28ac70f` for 2026-10-29/30;
+  `e5348b0–78e228d` for 2026-11-05, since code written that evening went into `78e228d`). The protocol entries
+  keep their "uncommitted" titles (history, not change logs).
+- **Open:** commit.
+
 ## 2026-11-09 (29) — C14 relaxed: no break owed for a late starter — uncommitted
 
 - **Decided (user):** not as strict as §4 ArbZG (proposal of (28) dropped): a worker who works in the morning gets

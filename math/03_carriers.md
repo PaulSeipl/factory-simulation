@@ -153,18 +153,18 @@ Not affected. Order-based objectives use the order completions $C_k = \max_{o: k
 |---|---|---|
 | 2026-10-19 | — | Draft with options, assessment and open questions. |
 | 2026-11-02 | — | Decisions from the load spec and the user's answers: MES data model with parts and derived synchronization, QM per plate, print runs given, oven batching later. |
-| 2026-11-02 | uncommitted | Step 1: terminology carrier / load / run; instance format 0.4; derivation rule and compilation; checker C8 (one machine per run) and C9 (blocked span); mini instance and tests. |
-| 2026-11-02 | uncommitted | Step 2: order completion over served operations; scenarios over compiled operations; dispatching of runs as one unit; DES unchanged (C9 through no overtaking); tests. |
-| 2026-11-02 | uncommitted | Step 3: CP-SAT with C8 (equal machine choices) and C9 (span interval per run); optimum 20 by hand; zero-disturbance; blocking and partly started runs from a snapshot. |
-| 2026-11-02 | uncommitted | Step 4: run duration from nesting, else estimator $p^0 + \lambda \sum p_\pi$ clamped to $[\max, \sum]$, else constant; set once in the compilation; tests. |
-| 2026-11-02 | uncommitted | Step 5: dispatching continues partly started runs; rescheduling with rules and CP-SAT on carriers; due dates for carrier instances; open: generator, print file generation. |
-| 2026-11-02 | uncommitted | Generator with carriers (see 21 §4a). |
-| 2026-11-03 | uncommitted | Oven batches step 1: decisions (fixed duration, loading inside, greedy rule, any carriers), C10, format and checker; sources checked. |
-| 2026-11-03 | uncommitted | Oven batches step 2: DES joint start and fixed duration, greedy batching in dispatching, repair moves batches as one; tests. |
-| 2026-11-03 | uncommitted | Oven batches step 3: CP-SAT batch slots (also from snapshots); hand optimum 36 vs. 18. |
-| 2026-11-03 | uncommitted | Oven batches step 4: rescheduling tests, generator parameter, one Gantt bar per batch, notebook 05 (makespan 1850 → 978). |
-| 2026-11-03 | uncommitted | Runs per carrier (`CarrierStep.runs`: none / given / per_carrier, schema 0.5); setup, removal, estimator validated against the run mode. |
-| 2026-11-03 | uncommitted | Carrier kinds (`Operation.carries`): one chain per part type, blanks as carriers, synchronization across kinds. |
-| 2026-11-03 | uncommitted | Dental example with blanks, carrier milling, separation and polishing (notebook 05 re-run). |
-| 2026-11-06 | uncommitted | Renamed from `03_loads.md` to `03_carriers.md` (links in `math/`, code comments, tests, notebook 05, `CLAUDE.md` updated); intro and status cover both carrier kinds (plates, blanks) and oven batching. |
-| 2026-11-09 | uncommitted | Symbols renamed (protocol 2026-11-09 (24)): batch slot start $S^B_j$ → $S^{\mathrm{slot}}_j$, slot machine choice $z_{j,m}$ → $g_{j,m}$; carrier $b$ kept (own concept; the batching literature uses $b$ or $B$ for the capacity, ours is $c_s$). |
+| 2026-11-02 | ee3b2b1–cd7ca2b | Step 1: terminology carrier / load / run; instance format 0.4; derivation rule and compilation; checker C8 (one machine per run) and C9 (blocked span); mini instance and tests. |
+| 2026-11-02 | ee3b2b1–cd7ca2b | Step 2: order completion over served operations; scenarios over compiled operations; dispatching of runs as one unit; DES unchanged (C9 through no overtaking); tests. |
+| 2026-11-02 | ee3b2b1–cd7ca2b | Step 3: CP-SAT with C8 (equal machine choices) and C9 (span interval per run); optimum 20 by hand; zero-disturbance; blocking and partly started runs from a snapshot. |
+| 2026-11-02 | ee3b2b1–cd7ca2b | Step 4: run duration from nesting, else estimator $p^0 + \lambda \sum p_\pi$ clamped to $[\max, \sum]$, else constant; set once in the compilation; tests. |
+| 2026-11-02 | ee3b2b1–cd7ca2b | Step 5: dispatching continues partly started runs; rescheduling with rules and CP-SAT on carriers; due dates for carrier instances; open: generator, print file generation. |
+| 2026-11-02 | ee3b2b1–cd7ca2b | Generator with carriers (see 21 §4a). |
+| 2026-11-03 | 31b7574–91ebc7c | Oven batches step 1: decisions (fixed duration, loading inside, greedy rule, any carriers), C10, format and checker; sources checked. |
+| 2026-11-03 | 31b7574–91ebc7c | Oven batches step 2: DES joint start and fixed duration, greedy batching in dispatching, repair moves batches as one; tests. |
+| 2026-11-03 | 31b7574–91ebc7c | Oven batches step 3: CP-SAT batch slots (also from snapshots); hand optimum 36 vs. 18. |
+| 2026-11-03 | 31b7574–91ebc7c | Oven batches step 4: rescheduling tests, generator parameter, one Gantt bar per batch, notebook 05 (makespan 1850 → 978). |
+| 2026-11-03 | 31b7574–91ebc7c | Runs per carrier (`CarrierStep.runs`: none / given / per_carrier, schema 0.5); setup, removal, estimator validated against the run mode. |
+| 2026-11-03 | 31b7574–91ebc7c | Carrier kinds (`Operation.carries`): one chain per part type, blanks as carriers, synchronization across kinds. |
+| 2026-11-03 | 31b7574–91ebc7c | Dental example with blanks, carrier milling, separation and polishing (notebook 05 re-run). |
+| 2026-11-06 | 78e228d | Renamed from `03_loads.md` to `03_carriers.md` (links in `math/`, code comments, tests, notebook 05, `CLAUDE.md` updated); intro and status cover both carrier kinds (plates, blanks) and oven batching. |
+| 2026-11-09 | ef6f798 | Symbols renamed (protocol 2026-11-09 (24)): batch slot start $S^B_j$ → $S^{\mathrm{slot}}_j$, slot machine choice $z_{j,m}$ → $g_{j,m}$; carrier $b$ kept (own concept; the batching literature uses $b$ or $B$ for the capacity, ours is $c_s$). |

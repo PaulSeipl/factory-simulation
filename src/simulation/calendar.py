@@ -71,6 +71,15 @@ def next_start(cal, t: int, length: int, latest: int) -> int:
     raise AssertionError("unreachable: a working day within a week has room for the share")
 
 
+def shift_window(cal, s: int, n: int, latest: int) -> int:
+    """Earliest s' >= s with [s', s' + n) inside one working day's [shift start, latest] (minutes of the day)."""
+    for d in range(day_index(cal, s), day_index(cal, s) + 8):
+        a = max(s, day_start(cal, d) + cal.shift_start)
+        if is_working_day(cal, d) and a + n <= day_start(cal, d) + latest:
+            return a
+    raise ValueError(f"a share of {n} minutes fits in no shift ending at minute {latest}")
+
+
 def days_late(cal, due: int, end: int) -> int:
     """Missed shipping cutoffs |{c : due <= c < end}|; `due` is itself a cutoff."""
     return sum(c >= due for c in cutoffs(cal, end - 1)) if end > due else 0

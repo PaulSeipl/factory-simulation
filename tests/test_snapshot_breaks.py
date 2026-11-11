@@ -96,13 +96,16 @@ def test_forced_postponement_later_than_the_share_end_is_c14():
     assert [v.constraint for v in violations] == ["C14"] and "not forced" in violations[0].message
 
 
-def test_postponement_without_a_frozen_share_covering_13_00_is_c14():
-    # hand-built: the same snapshot, but the packaging started at 13:05, so nothing kept A from breaking by 13:00
+def test_postponement_is_the_earliest_clear_start_from_t():
+    # hand-built (not reachable in the DES, which takes a due break before a new share): the packaging started at
+    # 13:05. C14^f since 2026-11-09 (user): after the window only the earliest start from max(12:00, t) clear of
+    # the frozen part is allowed; at t = 13:10 that is the packaging's end 311, whatever kept A from 13:00
     snap, _ = at_1310()
     frozen = tuple(f.model_copy(update={"start": 305}) if f.order_id == "k1" and f.op_id == "pack" else f
                    for f in snap.frozen)
     snap = snap.model_copy(update={"frozen": frozen})
-    assert constraints(frozen_rows(snap), snap, (Break(worker="A", start=311), *snap.breaks)) == ["C14"]
+    assert constraints(frozen_rows(snap), snap, (Break(worker="A", start=311), *snap.breaks)) == []
+    assert constraints(frozen_rows(snap), snap, (Break(worker="A", start=320), *snap.breaks)) == ["C14"]
 
 
 def test_realized_break_outside_the_window_is_history():

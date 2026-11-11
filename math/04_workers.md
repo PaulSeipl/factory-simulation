@@ -97,22 +97,44 @@ $\widehat{\mathrm{br}}_{z,\nu}$ started by $t$ are part of the snapshot):
 (C7$^b$) Started breaks are unchanged: $\mathrm{br}_{z,\nu} = \widehat{\mathrm{br}}_{z,\nu}$ for every break of the snapshot. They are realized
 history and are not checked against the window (like C2 for frozen operations).
 
-(C14$^f$) Forced postponement: a break not started may start after the window only if a started share of the
-worker covers the latest break start and the break starts exactly at that share's expected end:
-$$\mathrm{br}_{z,\nu} > \operatorname{start}(\nu) + h^{\mathrm{B}+} \ \Rightarrow\ \exists \eta \text{ frozen}: v_{\eta,z} = 1,\ \underline{I}_\eta < \operatorname{start}(\nu) + h^{\mathrm{B}+} < \overline{I}_\eta = \mathrm{br}_{z,\nu}$$
-It arises only from disturbances (an overrun or a late start of that share; user 2026-11-08: a planner must never
-cause it, forced by the frozen part it is the shortest delay). $I_\eta$ of a frozen share uses the snapshot's
-(expected) times and the planned share length, i.e. what a planner sees.
+(C14$^f$) Forced postponement: a break not started may start after the window only at the earliest time from
+$\max(\operatorname{start}(\nu) + h^{\mathrm{B}-},\ t)$ at which it is clear of the worker's frozen part, i.e.
+only if no break fits in the window next to it:
+$$\mathrm{br}_{z,\nu} > \operatorname{start}(\nu) + h^{\mathrm{B}+} \ \Rightarrow\ \mathrm{br}_{z,\nu} = \operatorname{free}^{\mathrm{br}}_z\big(\max(\operatorname{start}(\nu) + h^{\mathrm{B}-},\ t)\big)$$
+where $\operatorname{free}^{\mathrm{br}}_z(s)$ is the earliest $s' \ge s$ at which $[s', s' + p^{\mathrm{br}})$ is
+clear of the frozen part of $z$: its started shares ($v_{\eta,z} = 1$ in the snapshot) and the pending removals
+(C7$^o$) that the plan gives to $z$, at their forced times (no shift window: a break is no share). It arises only from disturbances (an overrun or a late
+start of a share, a removal forced later; user 2026-11-08: a planner must never cause it, forced by the frozen part
+it is the shortest delay). $I_\eta$ of a started share uses the snapshot's (expected) times and share lengths,
+i.e. what a planner sees. Until 2026-11-09 only a started share covering $h^{\mathrm{B}+}$, with the break at its
+end, was allowed; a pending removal forced into the window (e.g. 13:09 while the worker is free from 12:50, so a
+60-minute break fits nowhere in between) was rejected. Extended by the user's decision (protocol (34)); the old
+case is the special one where the started share covers $h^{\mathrm{B}+}$.
 
-(C7$^o$) Forced overstay: a running operation $o$ whose suffix $\eta$ has not started at $t$ ends at
-$$C_o = \min_{z \in W_o} \operatorname{free}_z\!\big(\tilde C_o - a^{\mathrm{suf}}_o\big) + a^{\mathrm{suf}}_o$$
-where $\operatorname{free}_z(s)$ is the earliest $s' \ge s$ at which $[s', s' + a^{\mathrm{suf}}_o)$ is clear of
-the frozen part of $z$ (started shares and started breaks) and lies within one day's shift window (C13). If a
-qualified worker is free at the expected interval, $C_o = \tilde C_o$ (C7 as before); otherwise the delay is
-forced by a disturbance and the shortest possible (user 2026-11-08: a planner must never cause an overstay). All
-members of a batch end together. Since the suffix is booked before any new share, only the frozen part can block
-it. The snapshot's expected end of such an operation is $\tilde C_o = \max(\hat S_o + p_{o,\bar m(o)},\ t +
-a^{\mathrm{suf}}_o)$: the removal cannot start before $t$ ([13](13_des.md) §6).
+(C7$^o$) Forced overstay: let $O^{\mathrm{rm}}_t$ be the running operations whose suffix has not started at $t$
+(one per batch: all members of a batch end together), taken in the plan's order of their removal starts
+$C_o - a^{\mathrm{suf}}_o$ (ties: operation index). Each $o \in O^{\mathrm{rm}}_t$ ends at
+$$C_o = \min_{z \in W_o} \operatorname{free}_{z,o}\!\big(\tilde C_o - a^{\mathrm{suf}}_o\big) + a^{\mathrm{suf}}_o$$
+where $\operatorname{free}_{z,o}(s)$ is the earliest $s' \ge s$ at which $[s', s' + a^{\mathrm{suf}}_o)$ is clear
+of the frozen part of $z$ (started shares and started breaks) and of the removals before $o$ in that order that the
+plan gives to $z$, and lies within one day's shift window (C13). If a qualified worker is free at the expected
+interval, $C_o = \tilde C_o$ (C7 as before); otherwise the delay is forced by a disturbance or by a removal before
+it, and the shortest possible (user 2026-11-08: a planner must never cause an overstay). Since the removals are
+booked before any new share, only the frozen part and the other removals can block them. The snapshot's expected
+end of such an operation is $\tilde C_o = \max(\hat S_o + p_{o,\bar m(o)},\ t + a^{\mathrm{suf}}_o)$: the removal
+cannot start before $t$ ([13](13_des.md) §6).
+
+The order is the plan's (user 2026-11-11): any order passes, as long as each removal starts as early as the ones
+before it allow. Until 2026-11-11 every removal was computed on its own, against the frozen part only; when two
+pending removals needed the only free worker, the rule required both at their own earliest times, which overlap: no
+plan passed C7 and C12 at once (found on an earlier draft of toy-workshop with print and mill removals; reproducible
+case: `tests/test_competing_removals.py`, two oven removals at $t = 10$ with W1 the only worker free from 11).
+The planners (repair, rule, CP-SAT) book one fixed order, `forced_removals`: always the removal with the earliest
+possible start next, ties by the earliest due date of its orders, then by operation index, each by the plan's worker
+if free then (repair), the least loaded free one (rule), otherwise the first free one. Booking only adds busy time, so the starts come out in booking
+order and the checker, sorting the plan by removal start, recomputes the same times. Choosing among the orders (an
+optimization over the permutations of $O^{\mathrm{rm}}_t$, usually one or two removals) is not implemented; it would
+change only which removal waits, by at most one removal length.
 
 Overtime $\mathrm{ot}_{z,\nu} = \max(0,\ \max_\eta \overline{I}_\eta - \operatorname{start}(\nu) - h^{\mathrm{E}})$ is bounded by
 C13 ($\le \overline{\mathrm{ot}}$) and otherwise a cost (§4, planned), not a constraint. The common break (same start for all) is a
@@ -126,7 +148,66 @@ $$T_k = \left|\{\, c \in \Gamma : d_k \le c < C_k \,\}\right|,$$
 
 so a completion by the cutoff of the due date is on time, by the next working day's cutoff 1 day late, and a
 missed Friday cutoff shipped on Monday 1 day late. *Implemented* as (O1') in [06](06_due-dates.md) §4 (evaluation,
-CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further levels (spec §5) are *planned*.
+CP-SAT, spread, metric `tardy_days`).
+
+*Implemented* (phase 4, task 5; spec §5, user; level structure own): the worker objective, lexicographic by (O3)
+of [06](06_due-dates.md):
+
+(O4) Level 1, tardiness and overtime, one weighted level:
+$$f_1 = \sum_{k} T_k + \theta_O \sum_{z,\nu} \mathrm{ot}_{z,\nu}, \qquad \mathrm{ot}_{z,\nu} = \max\big(0,\ e_{z,\nu} - \operatorname{start}(\nu) - h^{\mathrm{E}}\big),$$
+$e_{z,\nu}$ the end of $z$'s last share starting on day $\nu$ (as metric M7, [23](23_metrics.md)). $\theta_O \ge 0$ is
+days of tardiness per minute of overtime, a required parameter without a default (varied in experiments to show
+the trade-off; user: a late order is worse than overtime "to a certain degree"). Weighted sums of criteria as an a
+priori approach for the FJSP: Dauzère-Pérès et al. (2024), p. 416. In code $\theta_O$ is a fraction
+$\mathrm{num}/\mathrm{den}$ and the level is scaled to the integer $\mathrm{den} \sum_k T_k + \mathrm{num} \sum \mathrm{ot}$ (the
+same order).
+
+(O5) Level 2, breaks: postponement plus spread, equal weights (spec §5, own),
+$$f_2 = \sum_{z,\nu} \max\big(0,\ \operatorname{mod}(\mathrm{br}_{z,\nu}) - h^{\mathrm{B}-}\big) + \sum_\nu \big(\max_z \mathrm{br}_{z,\nu} - \min_z \mathrm{br}_{z,\nu}\big),$$
+over the planned breaks (as M7 over the realized ones). Postponement is penalized only after the earliest break
+start; a postponement past the window happens only by force (C14$^f$, a constant of the model).
+
+(O6) Level 3: the activity clock at the end of the plan (spec §5, user: a print until 22:00 counts, 22:00–08:00
+does not; user 2026-11-10: worker overtime and unattended rest count too, since that time is needed):
+$$C^{\mathrm{act}}_{\max} = \sum_{\nu} \big|[\operatorname{start}(\nu) + h^{\mathrm{S}},\ \operatorname{start}(\nu) + h^{\mathrm{E}}) \cap [0, C_{\max})\big| + \sum_{\iota} \max\Big(0,\ \max_{o:\ S_o < \overline{\mathrm{gap}}_\iota} \min(C_o, \overline{\mathrm{gap}}_\iota) - \underline{\mathrm{gap}}_\iota\Big)$$
+over the working days $\nu$ and the gaps $\mathrm{gap}_\iota = [\underline{\mathrm{gap}}_\iota, \overline{\mathrm{gap}}_\iota)$ between
+their regular shift windows (nights, weekends): per gap, from its start to the last end of an operation that started
+before the gap ends. This is the
+measure of the union of the shift windows and all operation intervals up to $C_{\max}$ if the activity in each gap
+runs without a pause from the gap's start (the normal case: night work continues the day's work); otherwise an
+upper bound (user's choice "night = last end", 2026-11-10). One definition for the objective, the CP-SAT model and
+the metric (M1 in [23](23_metrics.md)); without a calendar $C^{\mathrm{act}}_{\max} = C_{\max}$.
+
+Level 0 (oven overstay) of the spec is not a planning objective (phase 4 plan, decision 3): with C7$^o$ it is fixed
+by the frozen part and the same for every plan; it stays metric M7. Priority (user): a late order is worse than
+overtime to a degree ($\theta_O$), overtime worse than a postponed break, which is worse than a later end.
+`objectives.worker_objective(theta_O)`; levels `tardiness_and_overtime(theta_O)`, `BREAK_PENALTY`, `ACTIVE_MAKESPAN`;
+`objectives.overtime(ci, schedule)`. CP-SAT mapping in [12](12_cp-sat.md) §7b.
+
+(O7) Cutoff slack (2026-11-11, user; own modeling after the slack and buffer ideas below): the shortfall of a buffer
+$\mathrm{buf}$ (minutes, $0 < \mathrm{buf} < 1440$) before the cutoff an order ships with,
+$$f^{\mathrm{sl}} = \sum_k \mathrm{sh}_k, \qquad \mathrm{sh}_k = \max\big(0,\ \mathrm{buf} - (d^{\mathrm{ship}}_k - C_k)\big), \qquad d^{\mathrm{ship}}_k = \max\big(d_k,\ \min\{c \in \Gamma : c \ge C_k\}\big),$$
+over the orders with a due date: an order ending less than $\mathrm{buf}$ before its shipping cutoff counts the missing
+minutes, on time or late (then before the cutoff it actually ships with). Why: with planned durations an optimal
+plan may end an order exactly at its cutoff, and the next delay costs a whole day (toy-workshop, seed 1, protocol
+(42): CP-SAT moved k1 to Tuesday 11:40–12:00 to save overtime, k8's QM ran 24% longer, k1 and k8 missed the cutoff).
+Sources for slack as protection against disturbances: Davenport, Gefflot & Beck (2001, `T67B96FW`, pp. 1–3: temporal
+protection extends durations, time window slack requires slack per activity in the model; job shop with due dates,
+sum of tardiness); time buffers before milestone deadlines: Klimek & Łebkowski (2009, `8SPWPQ6M`, pp. 3–7). The
+form $\mathrm{sh}_k$ per order and shipping cutoff is our own.
+
+Worker objective with slack (user 2026-11-11: the slack right after tardiness), five levels:
+$$\mathrm{Lex}\Big(\sum_k T_k,\ f^{\mathrm{sl}},\ \sum_{z,\nu} \mathrm{ot}_{z,\nu},\ f_2,\ C^{\mathrm{act}}_{\max}\Big),$$
+tardiness strictly first (no trade-off $\theta_O$), then the buffer, then overtime. `objectives.worker_objective_with_slack(buf)`;
+levels `TOTAL_TARDINESS`, `cutoff_slack(buf)`, `OVERTIME`, `BREAK_PENALTY`, `ACTIVE_MAKESPAN`. CP-SAT: per due order
+and cutoff $c \ge d_k$ (and the first cutoff after the horizon) a literal $[C_k > c]$ in both directions and a term
+$C_k - c + \mathrm{buf}$ if not late at $c$, else 0; $\mathrm{sh}_k = \max(0, \text{terms})$ (`add_max_equality`): the
+first cutoff not missed is $d^{\mathrm{ship}}_k$, later ones lie at least a day further and give negative terms
+(hence $\mathrm{buf} < 1440$). Exact on every solution. `OVERTIME` uses the overtime variables of §7b, lower bounds
+that are exact where this level minimizes them. Tests `tests/test_worker_objective.py` (by hand: buffer 60, order due
+Tuesday 12:00 ending 10:40, 11:40, 12:00, Monday 11:55, Wednesday 11:30 → 0, 40, 60, 0, 30; one worker, A (90) from
+Monday 16:30 and B (150) from Tuesday 08:00, both due Tuesday 12:00: the $\theta_O$ objective puts A Tuesday
+10:30–12:00 without overtime, the slack objective Monday 16:30–18:00 with 30 minutes, levels (0, 0, 30)).
 
 ## 5. Implementation in code
 
@@ -239,9 +320,32 @@ CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further
 - Dispatching with the calendar (phase 3, task 3): shares only within the shift without overtime and outside the
   worker's break of that day (12:00 without a snapshot); `dispatch_plan` gives the plan's breaks (C14); machines
   run overnight, attended removals wait for the morning. See [11](11_dispatching-rules.md) §3.
-- Guards (until their phase): CP-SAT (`solve`) and repair (`repair`) raise `NotImplementedError` for instances with workers or machine-less operations
-  (`compiled.reject_workers`). Tests: `tests/test_worker_compile.py` (shares of the three order kinds, of the
-  oven batch and the attended mill run, intervals, instances without workers unchanged, horizon, 4 guard cases).
+- Shift repair with workers, no calendar (phase 4, task 1): workers and the share order per worker kept, worker
+  blockers per share, machine-less operations, a pending removal at the C7$^o$ end with its planned worker if
+  free, otherwise the first free qualified one; see [05](05_rescheduling-frozen-part.md) §3. Tests
+  `tests/test_repair_workers.py`.
+- Shift repair with the calendar (phase 4, task 2): shares inside the shift without new overtime (C13; per worker
+  and day at most the plan's last share end) and outside the worker's break; pending breaks moved when due or
+  clashing with the frozen part (C6$^b$, C14$^f$), owed breaks added (C14), the pending removal with the calendar
+  as the checker (C7$^o$); `repair_plan` returns `Plan(assignments, breaks)`. See [05](05_rescheduling-frozen-part.md)
+  §3. Tests `tests/test_repair_calendar.py`.
+- CP-SAT with workers and machine-less operations, no calendar (phase 4, task 3): share intervals per qualified
+  worker, no overlap per worker, batch shares per slot, frozen shares and the forced removal; see
+  [12](12_cp-sat.md) §7a. Tests `tests/test_cpsat_workers.py`.
+- CP-SAT with the calendar (phase 4, task 4): night and weekend intervals, overtime per worker and day, one break
+  per worker and working day, C14$^f$; see [12](12_cp-sat.md) §7b. Tests `tests/test_cpsat_calendar.py`.
+- Competing removals (2026-11-11, C7$^o$ in the plan's order): checker `forced_ends` (replaces `forced_end`) books
+  the pending removals in the plan's order of removal starts with the plan's workers; `planners/repair.py`
+  `forced_removals` (list scheduling: earliest possible start, then earliest due date, then index; returns share,
+  start, free workers and the booked worker; callback `choose` picks among the free ones: repair its planned worker,
+  the rule the least loaded) is used by repair, the rule (before: snapshot order) and CP-SAT (with more than one pending run its
+  removal worker is fixed to the booked one, since each forced time assumes the others' workers). Tests
+  `tests/test_competing_removals.py` (by hand: two ovens, W1 the only worker free from 11 at $t = 10$; Y, due
+  earlier, removed [11, 13), X [13, 15); the other order passes the checker, both at 11 does not (C7, C12), X
+  delayed on its own does not (C7); repair, rule and CP-SAT give Y first; `execute` with every policy).
+- Guards: none left; `compiled.reject_workers` removed (every consumer handles workers and the calendar since
+  phase 4). Tests: `tests/test_worker_compile.py` (shares of the three order kinds, of the oven batch and the
+  attended mill run, intervals, instances without workers unchanged, horizon).
 - Tests: `tests/test_calendar.py` (arithmetic by hand: Monday 12:00 is $t = 240$, Tuesday 00:00 is $t = 960$,
   weekend skipped, Friday 12:01 → Monday 12:00; one negative test per validation rule).
 
@@ -290,20 +394,29 @@ CP-SAT, spread, metric `tardy_days`). The weighted overtime term and the further
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-11-05 | uncommitted | Component created: design summary; work calendar implemented (`Calendar`, `simulation.calendar`, schema 0.6, due dates on cutoffs). |
-| 2026-11-06 | uncommitted | DES: shares, calendar, swap rule (phase 2, tasks 1–3). |
-| 2026-11-06 | uncommitted | Dispatching rule with shares and machine-less operations, no calendar (phase 3, task 2). |
-| 2026-11-07 | uncommitted | Dispatching rule with the calendar and `default_breaks` (phase 3, task 3). |
-| 2026-11-08 | uncommitted | Dispatching from a snapshot with workers, no calendar (phase 3, task 4); open point: breaks through rescheduling. |
-| 2026-11-08 | uncommitted | Breaks in the snapshot; (C6$^b$), (C7$^b$), (C14$^f$) in the checker; symbols $v_{\eta,w}$, $I_\eta$, $\mathrm{br}_{w,d}$, $\widehat{\mathrm{br}}_{w,d}$ in `notation.md`. |
-| 2026-11-09 | uncommitted | (C14) a break is owed only on a day with a share starting before the latest break start (user); fallback "no new share that day" removed. |
-| 2026-11-09 | uncommitted | Breaks through rescheduling, task 4: rule from a snapshot with the calendar (breaks as bookings, removals as C7$^o$), `FrozenOperation.share_lengths`. |
-| 2026-11-09 | uncommitted | Breaks through rescheduling, task 3: `Plan`, break handover in `update_plan` and `execute`. |
-| 2026-11-09 | uncommitted | (C7$^o$) forced overstay: checker, snapshot expected end, rule, DES worker takeover for a pending share. |
-| 2026-11-09 | uncommitted | Symbols renamed (user, grounded in the literature, protocol 2026-11-09 (24)): worker index $w$ → $z$ (Berti et al. 2021), day index $d$ → $\nu$, qualified workers $W_\eta$ → $W_o$, overtime $O_{w,d}$, $\bar O$ → $\mathrm{ot}_{z,\nu}$, $\overline{\mathrm{ot}}$, break length $L^{\mathrm{B}}$ → $p^{\mathrm{br}}$, worker load $V_w$ → $V_z$. |
-| 2026-11-08 | uncommitted | Symbols renamed (user): break start $b_{w,d}$ → $\mathrm{br}_{w,d}$ (clash with the late offset $b$ of [22](22_scenarios.md)); worker assignment $y_{\eta,w}$ → $v_{\eta,w}$ (clash with the batch slot assignment $y_{o,j}$ of [03](03_carriers.md)). |
-| 2026-11-05 | uncommitted | Constraints (C1'), (C11)–(C14) and the checker; mini instance `toy-workers.json`. |
-| 2026-11-05 | uncommitted | Schedule format: machine optional, workers per assignment, breaks in the schedule. |
-| 2026-11-05 | uncommitted | Compilation of workers and shares (`Share`, `share_interval`, `fixed_duration`), guards in DES, rules, CP-SAT, repair; fallback options (prefix + unattended only, or fully attended operations) recorded in §6. |
-| 2026-11-05 | uncommitted | Worker shares and machine-less operations in the format; table of the kinds; symbols $W$, $\mathcal{A}_o$, $W_\eta$, $a^{\mathrm{pre}}_o$, $a^{\mathrm{suf}}_o$, $O^{\emptyset}$. |
-| 2026-11-05 | uncommitted | Tardiness in missed shipping days implemented ([06](06_due-dates.md) (O1')); `CompiledInstance.calendar` (`WeekCalendar`). |
+| 2026-11-05 | e5348b0–78e228d | Component created: design summary; work calendar implemented (`Calendar`, `simulation.calendar`, schema 0.6, due dates on cutoffs). |
+| 2026-11-06 | 78e228d | DES: shares, calendar, swap rule (phase 2, tasks 1–3). |
+| 2026-11-06 | 78e228d | Dispatching rule with shares and machine-less operations, no calendar (phase 3, task 2). |
+| 2026-11-07 | 78e228d | Dispatching rule with the calendar and `default_breaks` (phase 3, task 3). |
+| 2026-11-08 | 78e228d | Dispatching from a snapshot with workers, no calendar (phase 3, task 4); open point: breaks through rescheduling. |
+| 2026-11-08 | 78e228d | Breaks in the snapshot; (C6$^b$), (C7$^b$), (C14$^f$) in the checker; symbols $v_{\eta,w}$, $I_\eta$, $\mathrm{br}_{w,d}$, $\widehat{\mathrm{br}}_{w,d}$ in `notation.md`. |
+| 2026-11-09 | 7274636 | (C14) a break is owed only on a day with a share starting before the latest break start (user); fallback "no new share that day" removed. |
+| 2026-11-09 | 7274636 | Breaks through rescheduling, task 4: rule from a snapshot with the calendar (breaks as bookings, removals as C7$^o$), `FrozenOperation.share_lengths`. |
+| 2026-11-09 | 7274636 | Breaks through rescheduling, task 3: `Plan`, break handover in `update_plan` and `execute`. |
+| 2026-11-09 | ef6f798 | (C7$^o$) forced overstay: checker, snapshot expected end, rule, DES worker takeover for a pending share. |
+| 2026-11-09 | uncommitted | Shift repair with workers, no calendar (phase 4, task 1); repair guard removed. |
+| 2026-11-09 | uncommitted | Shift repair with the calendar (phase 4, task 2). |
+| 2026-11-09 | uncommitted | CP-SAT with workers, no calendar (phase 4, task 3); `reject_workers` removed. |
+| 2026-11-09 | uncommitted | CP-SAT with the calendar (phase 4, task 4); no guard left. |
+| 2026-11-09 | uncommitted | Objective (O4)–(O6) implemented (phase 4, task 5): tardiness + $\theta_O$ overtime, break penalty, makespan; level 0 a metric only. |
+| 2026-11-10 | uncommitted | (O6) the activity clock $C^{\mathrm{act}}_{\max}$ instead of the plain makespan (user: overtime and unattended rest count; night = last end); $\mathrm{gap}_\iota$. |
+| 2026-11-11 | uncommitted | (O7) cutoff slack $f^{\mathrm{sl}}$ (user: right after tardiness), `cutoff_slack(buf)`, `OVERTIME`, `worker_objective_with_slack(buf)`; $\mathrm{buf}$, $d^{\mathrm{ship}}_k$, $\mathrm{sh}_k$. |
+| 2026-11-11 | uncommitted | (C7$^o$) pending removals in the plan's order, each also clear of the removals before it (user); $O^{\mathrm{rm}}_t$, $\operatorname{free}_{z,o}$; planners book earliest possible start first, ties by due date then index; checker `forced_ends`, `forced_removals` shared by repair, rule and CP-SAT. |
+| 2026-11-09 | uncommitted | (C14$^f$) extended (user): the earliest clear start from $\max(h^{\mathrm{B}-}, t)$ next to started shares and pending removals; $\operatorname{free}^{\mathrm{br}}_z$; checker, repair, rule. |
+| 2026-11-09 | ef6f798 | Symbols renamed (user, grounded in the literature, protocol 2026-11-09 (24)): worker index $w$ → $z$ (Berti et al. 2021), day index $d$ → $\nu$, qualified workers $W_\eta$ → $W_o$, overtime $O_{w,d}$, $\bar O$ → $\mathrm{ot}_{z,\nu}$, $\overline{\mathrm{ot}}$, break length $L^{\mathrm{B}}$ → $p^{\mathrm{br}}$, worker load $V_w$ → $V_z$. |
+| 2026-11-08 | ef6f798 | Symbols renamed (user): break start $b_{w,d}$ → $\mathrm{br}_{w,d}$ (clash with the late offset $b$ of [22](22_scenarios.md)); worker assignment $y_{\eta,w}$ → $v_{\eta,w}$ (clash with the batch slot assignment $y_{o,j}$ of [03](03_carriers.md)). |
+| 2026-11-05 | e5348b0–78e228d | Constraints (C1'), (C11)–(C14) and the checker; mini instance `toy-workers.json`. |
+| 2026-11-05 | e5348b0–78e228d | Schedule format: machine optional, workers per assignment, breaks in the schedule. |
+| 2026-11-05 | e5348b0–78e228d | Compilation of workers and shares (`Share`, `share_interval`, `fixed_duration`), guards in DES, rules, CP-SAT, repair; fallback options (prefix + unattended only, or fully attended operations) recorded in §6. |
+| 2026-11-05 | e5348b0–78e228d | Worker shares and machine-less operations in the format; table of the kinds; symbols $W$, $\mathcal{A}_o$, $W_\eta$, $a^{\mathrm{pre}}_o$, $a^{\mathrm{suf}}_o$, $O^{\emptyset}$. |
+| 2026-11-05 | e5348b0–78e228d | Tardiness in missed shipping days implemented ([06](06_due-dates.md) (O1')); `CompiledInstance.calendar` (`WeekCalendar`). |

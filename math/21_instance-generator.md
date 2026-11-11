@@ -97,8 +97,8 @@ Own design. Benchmark generators from the literature (e.g. the generation of the
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-10-22 | uncommitted | Instance generator with routing modes chain, split, join, split_join, templates, parameter file. |
-| 2026-10-30 | uncommitted | Parameter `due_date_tightness` (due dates, see 06); schema 0.3. |
-| 2026-11-02 | uncommitted | Generator for instances with carriers: one carried part per order with size = number of counted parts, carrier capacity, runs, nesting emulation in due-date order; dental example parameters. |
-| 2026-11-03 | uncommitted | Generator parameter batch_capacity (oven runs). |
-| 2026-11-03 | uncommitted | Blanks, steps per carrier and machine pools in the carrier generator; dental example with blank milling, separation, polishing and carrier milling. |
+| 2026-10-22 | 2b20b69 | Instance generator with routing modes chain, split, join, split_join, templates, parameter file. |
+| 2026-10-30 | 17d05a8–28ac70f | Parameter `due_date_tightness` (due dates, see 06); schema 0.3. |
+| 2026-11-02 | ee3b2b1–cd7ca2b | Generator for instances with carriers: one carried part per order with size = number of counted parts, carrier capacity, runs, nesting emulation in due-date order; dental example parameters. |
+| 2026-11-03 | 31b7574–91ebc7c | Generator parameter batch_capacity (oven runs). |
+| 2026-11-03 | 31b7574–91ebc7c | Blanks, steps per carrier and machine pools in the carrier generator; dental example with blank milling, separation, polishing and carrier milling. |

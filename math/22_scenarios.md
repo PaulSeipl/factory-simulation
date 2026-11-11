@@ -62,9 +62,9 @@ Tests (`tests/test_scenario.py`): same seed same factors, other seed other facto
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-10-22 | uncommitted | Scenario with log-normal processing-time factor per operation, realized duration with half-up rounding. |
-| 2026-10-29 | uncommitted | Start offsets: 0 with probability q, otherwise uniform in [-a, b] minutes, separate random stream. |
-| 2026-10-30 | uncommitted | Late start offset relative to actual readiness (see 13). |
-| 2026-11-02 | uncommitted | Scenarios over all compiled operations (carriers, runs). |
-| 2026-11-05 | uncommitted | Realized durations of operations with worker shares (rest and programs fixed). |
-| 2026-11-09 | uncommitted | Symbols renamed (protocol 2026-11-09 (24)): maximum early / late offset $a$, $b$ → $\Delta^{-}_{\max}$, $\Delta^{+}_{\max}$ ($b$ is the carrier, $a$ the prefix/suffix length). |
+| 2026-10-22 | 2b20b69 | Scenario with log-normal processing-time factor per operation, realized duration with half-up rounding. |
+| 2026-10-29 | 17d05a8–28ac70f | Start offsets: 0 with probability q, otherwise uniform in [-a, b] minutes, separate random stream. |
+| 2026-10-30 | 17d05a8–28ac70f | Late start offset relative to actual readiness (see 13). |
+| 2026-11-02 | ee3b2b1–cd7ca2b | Scenarios over all compiled operations (carriers, runs). |
+| 2026-11-05 | e5348b0–78e228d | Realized durations of operations with worker shares (rest and programs fixed). |
+| 2026-11-09 | ef6f798 | Symbols renamed (protocol 2026-11-09 (24)): maximum early / late offset $a$, $b$ → $\Delta^{-}_{\max}$, $\Delta^{+}_{\max}$ ($b$ is the carrier, $a$ the prefix/suffix length). |

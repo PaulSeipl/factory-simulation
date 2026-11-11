@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.6",
+  "name": "toy-workshop",
+  "machines": ["printer", "oven", "mill"],
+  "workers": ["A", "B"],
+  "calendar": {},
+  "orders": [
+    {"id": "k1", "due_date": 1680, "operations": [
+        {"id": "print", "step": "print", "options": {"printer": 300}, "worker": {"prefix": 20}},
+        {"id": "oven", "step": "oven", "options": {"oven": 60}, "worker": {"prefix": 10, "suffix": 10}, "predecessors": ["print"]},
+        {"id": "qm", "step": "qm", "duration": 40, "worker": {"whole": true, "qualified": ["A"]}, "predecessors": ["oven"]},
+        {"id": "pack", "step": "pack", "duration": 20, "worker": {"whole": true}, "predecessors": ["qm"]}
+      ]},
+    {"id": "k2", "due_date": 240, "operations": [
+        {"id": "mill", "step": "mill", "options": {"mill": 90}, "worker": {"prefix": 15}},
+        {"id": "pack", "step": "pack", "duration": 20, "worker": {"whole": true}, "predecessors": ["mill"]}
+      ]},
+    {"id": "k3", "due_date": 1680, "operations": [
+        {"id": "gb", "step": "gegenbetten", "duration": 150, "worker": {"prefix": 30}},
+        {"id": "qm", "step": "qm", "duration": 60, "worker": {"whole": true, "qualified": ["A"]}, "predecessors": ["gb"]},
+        {"id": "pack", "step": "pack", "duration": 20, "worker": {"whole": true}, "predecessors": ["qm"]}
+      ]},
+    {"id": "k4", "release": 420, "due_date": 1680, "operations": [
+        {"id": "print", "step": "print", "options": {"printer": 300}, "worker": {"prefix": 20}},
+        {"id": "oven", "step": "oven", "options": {"oven": 60}, "worker": {"prefix": 10, "suffix": 10}, "predecessors": ["print"]},
+        {"id": "mill", "step": "mill", "options": {"mill": 60}, "worker": {"prefix": 15}, "predecessors": ["oven"]},
+        {"id": "pack", "step": "pack", "duration": 20, "worker": {"whole": true}, "predecessors": ["mill"]}
+      ]},
+    {"id": "k5", "release": 120, "due_date": 1680, "operations": [
+        {"id": "mill", "step": "mill", "options": {"mill": 120}, "worker": {"prefix": 15}},
+        {"id": "qm", "step": "qm", "duration": 30, "worker": {"whole": true, "qualified": ["A"]}, "predecessors": ["mill"]},
+        {"id": "pack", "step": "pack", "duration": 20, "worker": {"whole": true}, "predecessors": ["qm"]}
+      ]},
+    {"id": "k6", "release": 300, "due_date": 1680, "operations": [
+        {"id": "pack", "step": "pack", "duration": 30, "worker": {"whole": true}}
+      ]},
+    {"id": "k7", "release": 450, "due_date": 1680, "operations": [
+        {"id": "qm", "step": "qm", "duration": 150, "worker": {"whole": true, "qualified": ["A"]}},
+        {"id": "pack", "step": "pack", "duration": 20, "worker": {"whole": true}, "predecessors": ["qm"]}
+      ]},
+    {"id": "k8", "release": 1440, "due_date": 1680, "operations": [
+        {"id": "qm", "step": "qm", "duration": 180, "worker": {"whole": true, "qualified": ["A"]}},
+        {"id": "pack", "step": "pack", "duration": 20, "worker": {"whole": true}, "predecessors": ["qm"]}
+      ]}
+  ]
+}

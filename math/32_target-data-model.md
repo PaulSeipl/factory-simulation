@@ -54,5 +54,5 @@ Own modeling: the three building blocks for attended time, plate sets as reusabl
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-11-04 | uncommitted | Created: correspondence with the target data model, decisions and todos. |
-| 2026-11-04 | uncommitted | Attended time decided (three building blocks); workload balance likely out of scope; sources checked in Zotero. |
+| 2026-11-04 | 31b7574–91ebc7c | Created: correspondence with the target data model, decisions and todos. |
+| 2026-11-04 | 31b7574–91ebc7c | Attended time decided (three building blocks); workload balance likely out of scope; sources checked in Zotero. |

@@ -43,10 +43,11 @@ from dataclasses import dataclass
 from functools import cache
 from typing import TYPE_CHECKING
 
-from simulation.calendar import WEEK, day_index, day_start, is_working_day
+from simulation.calendar import WEEK, day_index, day_start, shift_window
 from simulation.model.compiled import CompiledInstance, Share, share_interval
 from simulation.model.schedule import Assignment, Break, Plan
 from simulation.objectives import MAKESPAN, Objective
+from simulation.planners.repair import forced_removals
 
 if TYPE_CHECKING:
     from simulation.sim.snapshot import Snapshot
@@ -161,12 +162,7 @@ def dispatch_plan(
              if cal is not None and snapshot else {})
 
     def window(s: int, n: int, latest: int) -> int:
-        """Earliest s' >= s with [s', s' + n) inside one working day's [shift start, latest] (minutes of the day)."""
-        for d in range(day_index(cal, s), day_index(cal, s) + 8):
-            if is_working_day(cal, d) and (a := max(s, day_start(cal, d) + cal.shift_start)) + n <= \
-                    day_start(cal, d) + latest:
-                return a
-        raise AssertionError(f"a share of {n} minutes fits in no shift")  # validation: a working day every week
+        return shift_window(cal, s, n, latest)
 
     def clash_end(intervals, s: int, n: int) -> int | None:
         return next((e for a, e in intervals if a < s + n and s < e), None)
@@ -186,10 +182,10 @@ def dispatch_plan(
         while (e := clash_end(fixed[w], s, cal.break_length)) is not None:
             s = e
         latest = day_start(cal, d) + cal.break_latest
-        if s > latest and not any(a < latest < e == s for a, e in frozen_time[w]):  # C14^f
-            if any(day_start(cal, d) <= a < latest for a, _ in frozen_time[w]):  # a break is owed, none possible
-                raise ValueError(f"break of {ci.worker_ids[w]} on day {d} would start after the window at {s}; only "
-                                 "a frozen share may postpone it (math/04_workers.md, C14^f)")
+        # after the window: nothing fits in it next to the frozen part and the pending removals (C14^f). None if no
+        # break can be owed: the snapshot's day after the window (new shares start later) and no frozen share before
+        if s > latest and d == snap_day and t0 >= latest and not any(
+                day_start(cal, d) <= a < latest for a, _ in frozen_time[w]):
             return None
         return s
 
@@ -206,16 +202,6 @@ def dispatch_plan(
                 if (b := break_at(w, day_index(cal, s))) is not None:
                     intervals = [*busy[w], (b, b + cal.break_length)]
             if (e := clash_end(intervals, s, n)) is None:
-                return s
-            s = e
-
-    def removal_free(w: int, s: int, n: int) -> int:
-        """Earliest s' >= s for a pending removal, as the checker computes a forced overstay (C7^o): clear of the
-        frozen part only, inside the shift window with overtime (C13)."""
-        while True:
-            if cal is not None:
-                s = window(s, n, cal.shift_end + cal.max_overtime)
-            if (e := clash_end(fixed[w], s, n)) is None:
                 return s
             s = e
 
@@ -236,14 +222,13 @@ def dispatch_plan(
         if load:
             worker_load[w] += e - s
 
-    def pick(o: int, sh: Share, s: int, n: int, removal: bool = False) -> str:
+    def pick(o: int, sh: Share, s: int, n: int) -> str:
         """Book the free qualified worker for [s, s + n) with the least worker load, then the lowest index."""
-        free_at = removal_free if removal else free_from
-        free = [w for w in sh.workers if free_at(w, s, n) == s]
+        free = [w for w in sh.workers if free_from(w, s, n) == s]
         if not free:  # cannot happen: every caller passes a time at which a qualified worker is free
             raise ValueError(f"{ci.op_keys[o]}: no qualified worker free for its {sh.kind} [{s},{s + n})")
         w = min(free, key=lambda w: (worker_load[w], w))
-        book(w, s, s + n, part_of_fixed=removal)
+        book(w, s, s + n)
         return ci.worker_ids[w]
 
     def take_workers(o: int, t: int, p: int) -> tuple[str, ...]:
@@ -269,17 +254,19 @@ def dispatch_plan(
                 insort(frozen_time[z], interval)
     for (z, _), s in taken.items():  # started breaks block their worker like the frozen part
         book(z, s, s + cal.break_length, part_of_fixed=True, load=False)
-    # a pending share at its expected interval if a qualified worker is free then; otherwise at the earliest time one
-    # is free of the frozen part (forced overstay, C7^o), computed as the checker does: booked before any break and
-    # any new share, so only the frozen part blocks it
+    # pending removals in the order of C7^o (forced_removals): before any break and any new share, so only the
+    # frozen part and the removals before block them; each by the free qualified worker with the least load
+    def least_load(o: int, free: list[int]) -> int:
+        w = min(free, key=lambda w: (worker_load[w], w))
+        worker_load[w] += next(sh.length for sh in ci.shares[o] if sh.kind == "suffix")
+        return w
+
     end_of: dict[int, int] = {}
-    for o, ws in workers_of.items():
-        for i, w in enumerate(ws):
-            if w is None:
-                sh, f = ci.shares[o][i], frozen[o]
-                s = min(removal_free(v, f.end - sh.length, sh.length) for v in sh.workers)
-                ws[i] = pick(o, sh, s, sh.length, removal=True)
-                end_of[o] = s + sh.length
+    for o, (i, s, _, z) in (forced_removals(ci, snapshot, least_load) if snapshot else {}).items():
+        if workers_of[o][i] is None:  # once per batch: the members share the list
+            workers_of[o][i] = ci.worker_ids[z]
+            book(z, s, s + ci.shares[o][i].length, part_of_fixed=True, load=False)  # load counted in least_load
+        end_of[o] = s + ci.shares[o][i].length
 
     def lead(o: int, f) -> int:
         return batch_lead[f.machine, f.start, f.end] if ci.batch_capacity[o] > 1 else o
@@ -410,11 +397,12 @@ def _spans(shares: tuple[Share, ...], p: int) -> list[tuple[Share, int, int]]:
 def best_dispatch(ci: CompiledInstance, objective: Objective = MAKESPAN) -> tuple[str, list[Assignment]]:
     """Best schedule over all sequencing rules x (assignment rules + joint) under the objective."""
     runs = (
-        (f"{s}/{a or 'joint'}", dispatch(ci, SEQUENCING_RULES[s], ASSIGNMENT_RULES[a] if a else None))
+        (f"{s}/{a or 'joint'}", dispatch_plan(ci, SEQUENCING_RULES[s], ASSIGNMENT_RULES[a] if a else None))
         for s in SEQUENCING_RULES
         for a in [*ASSIGNMENT_RULES, None]
     )
-    return min(runs, key=lambda run: objective.evaluate(ci, run[1]))
+    name, plan = min(runs, key=lambda run: objective.evaluate(ci, run[1].assignments, run[1].breaks))
+    return name, plan.assignments
 
 
 def dispatch_planner(sequencing: SequencingRule, assignment: AssignmentRule | None = None):

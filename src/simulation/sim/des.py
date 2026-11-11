@@ -91,6 +91,7 @@ class SimState:
     started_batch: dict[int, tuple[int, ...]] = field(default_factory=dict)  # first op -> its started batch
     followers: set[int] = field(default_factory=set)  # started batch members whose shares the first one carries
     suffix_due: dict[int, int] = field(default_factory=dict)  # op -> time its removal became due (waiting)
+    suffix_start: dict[int, int] = field(default_factory=dict)  # op -> time its removal started (for the snapshot)
     break_until: list[int] = field(default_factory=list)  # per worker: end of its current break
     pending_breaks: list[list[tuple[int, int]]] = field(default_factory=list)  # per worker: (planned start, idx)
     break_start: list[int | None] = field(default_factory=list)  # per planned break: realized start
@@ -190,19 +191,24 @@ class Simulation:
                 self._on_planned_start(o)
         return state.t
 
-    def start_operations(self) -> None:
+    def start_operations(self) -> int:
         """Start every released operation that can start now, and every due removal (suffix) whose worker is
         free (a start cannot enable another one: p >= 1).
 
         A batch is handled by its first operation and starts only when all its operations are ready; a late
         start offset of any of them delays the whole batch (the largest one counts).
+
+        Returns the number of starts at this time point (operations, removals, breaks): each is an event for the
+        planning tool, on time or not (math/13_des.md section 3, user 2026-11-11).
         """
         state = self.state
-        self._take_breaks()
+        starts = self._take_breaks()
         for o in sorted(state.suffix_due):
             i = self._suffix(o)
             if self._worker_ready(o, i):
                 self._start_share(o, i)
+                state.suffix_start[o] = state.t
+                starts += 1
                 for q in state.started_batch[o]:
                     state.push(state.t + self.share_len[o][i], EventType.COMPLETE, q)
                 if minutes := state.t - state.suffix_due.pop(o):
@@ -224,6 +230,8 @@ class Simulation:
                 if state.late_start_at[o] is not None and state.t < state.late_start_at[o]:
                     continue
                 self._start(batch)
+                starts += 1
+        return starts
 
     def check_completed(self) -> None:
         if any(e is None for e in self.state.end):
@@ -416,13 +424,15 @@ class Simulation:
         sh = self.ci.shares[o][i]
         return self._planned_duration(o) if sh.kind == "whole" else sh.length
 
-    def _take_breaks(self) -> None:
-        s = self.state
+    def _take_breaks(self) -> int:
+        s, taken = self.state, 0
         for w, pending in enumerate(s.pending_breaks):
             if pending and pending[0][0] <= s.t and s.worker_on[w] is None and s.break_until[w] <= s.t:
                 _, idx = pending.pop(0)
                 s.break_start[idx], s.break_until[w] = s.t, s.t + self.ci.calendar.break_length
                 self._wake(s.break_until[w])
+                taken += 1
+        return taken
 
     def _wake(self, t: int) -> None:
         if t not in self.state.wakes:

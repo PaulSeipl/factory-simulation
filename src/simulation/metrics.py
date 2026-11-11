@@ -9,6 +9,7 @@ from simulation.calendar import day_index, day_start, days_late, minute_of_day
 from simulation.check.feasibility import worker_intervals
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment
+from simulation.objectives import ACTIVE_MAKESPAN
 
 if TYPE_CHECKING:
     from simulation.control.rescheduling import ExecutionResult
@@ -36,6 +37,8 @@ def run_metrics(ci: CompiledInstance, plan: Sequence[Assignment], result: Execut
         "accepted_reschedulings": sum(d["accepted"] for d in replans),
         "planner_time": sum(d["planner_time"] for d in replans),
     }
+    if ci.calendar is not None:  # the activity clock at the end (math/04_workers.md (O6), math/23_metrics.md M1)
+        metrics["active_makespan"] = ACTIVE_MAKESPAN.evaluate(ci, result.schedule)
     # due-date metrics only for instances with due dates, so that rows of one experiment share their columns
     lateness = [order_end[k] - d for k, d in zip(ci.order_ids, ci.due_date, strict=True) if d is not None]
     if lateness:

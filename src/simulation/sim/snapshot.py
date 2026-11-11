@@ -60,11 +60,14 @@ def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
                    for i in range(len(ci.shares[o]))]
         if end is None:
             # expected end from the planned duration; an overrunning operation ends at t + 1 at the earliest, one
-            # whose removal (suffix) has not started at t + its planned length
+            # whose removal (suffix) has not started at t + its planned length, one whose removal started at that
+            # start + its planned length
             planned = ci.fixed_duration[o] if m is None else dict(ci.options[o])[ci.machine_index[m]]
             rest = next((sh.length for sh, s in zip(ci.shares[o], started, strict=True)
                          if sh.kind == "suffix" and not s), 1)
             end = max(start + planned, state.t + rest)
+            if (suffix_start := state.suffix_start.get(first)) is not None:  # a removal started late: its own end
+                end = max(end, suffix_start + next(sh.length for sh in ci.shares[o] if sh.kind == "suffix"))
         lengths = []
         for i, sh in enumerate(ci.shares[o]):
             if share_len and (state.end[o] is not None or (first, i) in state.share_done):

@@ -82,6 +82,7 @@ calendar ([04](04_workers.md)).
 | $\mathrm{br}_{z,\nu}$ | $\mathbb{Z}_{\ge 0}$ | break start of worker $z$ on day $\nu$; upright, one name (not $b$: the carrier) | [04](04_workers.md) |
 | $\widehat{\mathrm{br}}_{z,\nu}$ | $\mathbb{Z}_{\ge 0}$ | realized break start, started by snapshot time $t$ (part of the snapshot) | [04](04_workers.md) |
 | $\mathrm{ot}_{z,\nu}$, $e_{z,\nu}$ | $\mathbb{Z}_{\ge 0}$ | overtime of worker $z$ on day $\nu$; end of its last share that day (planned objective term, [23](23_metrics.md) M7) | [04](04_workers.md) |
+| $\underline{\mathrm{ot}}_{z,\nu}$ | $\mathbb{Z}_{\ge 0}$ | lower bound of $\mathrm{ot}_{z,\nu}$ from the frozen part (frozen work of $z$ after $h^{\mathrm{E}}$ on $\nu$); CP-SAT from a snapshot | [12](12_cp-sat.md) |
 
 ## Derived quantities (solution methods)
 
@@ -142,8 +143,10 @@ Extensions (checked in Zotero, 2026-11-09). [Be] = Berti et al. (2021, PDF p. 5)
 | $\hat S_o$, $\hat C_o$ | realized start and completion of $o$ in the simulation | [13](13_des.md) |
 | $\hat p_o$ | realized processing time of $o$ | [13](13_des.md) |
 | $\operatorname{prev}(o)$ | operation planned directly before $o$ on $\bar m(o)$ | [13](13_des.md) |
-| $\tilde C_o$ | expected completion of an operation running at snapshot time $t$: $\max(\hat S_o + p_{o,\bar m(o)}, t + 1)$; with a suffix not started $\max(\hat S_o + p_{o,\bar m(o)}, t + a^{\mathrm{suf}}_o)$ | [13](13_des.md) |
+| $\tilde C_o$ | expected completion of an operation running at snapshot time $t$: $\max(\hat S_o + p_{o,\bar m(o)}, t + 1)$; with a suffix not started $\max(\hat S_o + p_{o,\bar m(o)}, t + a^{\mathrm{suf}}_o)$; with a suffix started late at $\hat S^{\mathrm{suf}}_o$: $\max(\hat S_o + p_{o,\bar m(o)}, \hat S^{\mathrm{suf}}_o + a^{\mathrm{suf}}_o, t + 1)$ | [13](13_des.md) |
 | $\operatorname{free}_z(s)$ | earliest $s' \ge s$ at which a share interval of the needed length is clear of the frozen part of worker $z$ and inside one day's shift window | [04](04_workers.md) |
+| $O^{\mathrm{rm}}_t$, $\operatorname{free}_{z,o}(s)$ | running operations with a suffix (removal) not started at $t$, one per batch, in the plan's order of removal starts; $\operatorname{free}_z$ also clear of the removals before $o$ in that order that the plan gives to $z$ (C7$^o$) | [04](04_workers.md) |
+| $\operatorname{free}^{\mathrm{br}}_z(s)$ | the same for a break of length $p^{\mathrm{br}}$: clear of $z$'s started shares and pending removals (at their forced times), no shift window (C14$^f$) | [04](04_workers.md) |
 | $\varepsilon_o$ | disturbance factor of $o$ (realized / planned processing time before rounding) | [22](22_scenarios.md) |
 | $\sigma$ | standard deviation of $\ln \varepsilon_o$ | [22](22_scenarios.md) |
 | $\Delta_o$ | start offset of $o$ in minutes (< 0 early, > 0 late) | [22](22_scenarios.md) |
@@ -151,11 +154,12 @@ Extensions (checked in Zotero, 2026-11-09). [Be] = Berti et al. (2021, PDF p. 5)
 | $t$ | current time / rescheduling point | [05](05_rescheduling-frozen-part.md) |
 | $\bar C_o$ | completion of $o$ in the current plan | [05](05_rescheduling-frozen-part.md) |
 | $\bar S'_o$, $\bar C'_o$ | start and completion of $o$ in the repaired plan | [05](05_rescheduling-frozen-part.md) |
-| $\operatorname{bl}(o)$ | blockers of $o$: predecessors and $\operatorname{prev}(o)$ (upright like $\operatorname{prev}$; not $B$: the carriers $\mathcal{B}$) | [05](05_rescheduling-frozen-part.md) |
-| $E_q$ | known end of blocker $q$ at time $t$ (realized, expected or repaired) | [05](05_rescheduling-frozen-part.md) |
+| $\operatorname{bl}(o)$, $\operatorname{bl}(\eta)$ | blockers of $o$: predecessors and $\operatorname{prev}(o)$ (upright like $\operatorname{prev}$; not $B$: the carriers $\mathcal{B}$); of a share $\eta$: the share planned directly before it on its worker (another operation's) and the nearest earlier one of an operation not started | [05](05_rescheduling-frozen-part.md) |
+| $E_q$, $E_{\eta}$ | known end of blocker $q$ (or blocker share $\eta$) at time $t$ (realized, expected or repaired) | [05](05_rescheduling-frozen-part.md) |
 | $\beta_o$, $\beta'_o$ | old and new block of $o$ in the shift repair | [05](05_rescheduling-frozen-part.md) |
 | $\bar S^A_o$, $\bar C^A_o$ | start and completion of $o$ in the anchor: the plan of the last complete rescheduling, at first the start plan | [05](05_rescheduling-frozen-part.md) |
 | $\Delta C$, $\Delta S$, $\Delta S_{\mathrm{mean}}$ | deviation of the projected makespan, largest and mean start deviation (over the operations not started) of the repaired plan from the anchor | [05](05_rescheduling-frozen-part.md) |
+| $\Delta E$, $\delta_E$ | earliness $\max_{o:\ \hat C_o = t} (\bar C_o - \hat C_o)$ of the operations completed at $t$ against the current plan; its threshold for the early-finish trigger (with tardiness or overtime $> 0$) | [05](05_rescheduling-frozen-part.md) |
 | $\delta_C$, $\delta_S$, $\delta_{S,\mathrm{mean}}$ | thresholds for $\lvert \Delta C \rvert$, $\Delta S$ and $\Delta S_{\mathrm{mean}}$ that trigger a complete rescheduling | [05](05_rescheduling-frozen-part.md) |
 | $\Delta f$, $\delta_f$ | deviation of the planner's objective $f$ of the repaired plan from the anchor; its threshold | [05](05_rescheduling-frozen-part.md) |
 | $\delta_t$, $t_A$ | period of the safety net (a threshold on $t - t_A$, family $\delta$; not $\tau$: the carrier kind); time of the anchor (last complete rescheduling, 0 for the start plan) | [05](05_rescheduling-frozen-part.md) |
@@ -173,3 +177,9 @@ Extensions (checked in Zotero, 2026-11-09). [Be] = Berti et al. (2021, PDF p. 5)
 | $L_k$, $T_k$, $U_k$ | lateness $C_k - d_k$, tardiness $\max(L_k, 0)$, unit penalty $[C_k > d_k]$ of order $k$ | [06](06_due-dates.md) |
 | $\mathcal{K}^d \subseteq \mathcal{K}$ | orders with a due date | [06](06_due-dates.md) |
 | $\operatorname{spr}(f)$, $\theta_i$ | spread of objective $f$ (bound on the value difference of two solutions of one model); weight of level $i$ in a lexicographic objective (Pinedo, 2022: $\theta$ weights of objectives) | [06](06_due-dates.md) |
+| $C^{\mathrm{act}}_{\max}$ | activity clock at the end of a plan: regular shift windows plus, per gap, the time until the last end of an operation running in it ((O6)) | [04](04_workers.md) |
+| $\mathrm{gap}_\iota = [\underline{\mathrm{gap}}_\iota, \overline{\mathrm{gap}}_\iota)$, $\iota$ | gaps between the regular shift windows (nights, weekends), gap index (not $g$: the slot machine choice $g_{j,m}$; not $G$: the runs $G_R$) | [04](04_workers.md) |
+| $\theta_O$ | weight of the overtime in level 1 of the worker objective: days of tardiness per minute of overtime, $\ge 0$, required (not $w_O$: $w$ is the literature's job weight) | [04](04_workers.md) |
+| $\mathrm{buf}$, $d^{\mathrm{ship}}_k$, $\mathrm{sh}_k$, $f^{\mathrm{sl}}$ | buffer before the cutoff (minutes, $< 1440$); cutoff order $k$ ships with, $\max(d_k, \min\{c \in \Gamma : c \ge C_k\})$ (a variant of $d_k$); shortfall $\max(0, \mathrm{buf} - (d^{\mathrm{ship}}_k - C_k))$; cutoff slack $\sum_k \mathrm{sh}_k$ ((O7)) | [04](04_workers.md) |
+| $f_1, f_2, f_3$ | levels of an objective in lexicographic order (worker objective: (O4)–(O6)) | [04](04_workers.md), [06](06_due-dates.md) |
+| $H_0$, $H_t$, $H$, $H^{\mathrm{cal}}$ | horizons: static ($r_{\max}$ plus every operation on its slowest machine), of a model from a snapshot at $t$, the bound on $H_t - t$ used by the spreads ($= H_0$ without workers or calendar), and that bound with workers and a calendar ($H_0$ plus three days at the start and per operation with a worker share); upper case, unlike the clock times $h^{\mathrm{S}}$, $h^{\mathrm{E}}$ | [06](06_due-dates.md), [12](12_cp-sat.md) |

@@ -28,6 +28,7 @@ New symbols, registered in [notation.md](notation.md):
 
 (M1) Realized makespan:
 $$\hat C_{\max} = \max_{o \in O} \hat C_o$$
+With a work calendar also the activity clock at the end, $\hat C^{\mathrm{act}}_{\max}$ (`active_makespan`, definition (O6) of [04](04_workers.md) on the realized schedule): only time in the regular shift windows or with an operation in progress counts (a print until 22:00 counts, the dead night after it does not).
 
 (M2) Mean flow time: average time an order spends from its release to its completion.
 $$\bar F = \frac{1}{|\mathcal{K}|} \sum_{k \in \mathcal{K}} \big(\hat C_k - r_k\big)$$
@@ -91,11 +92,12 @@ CP-SAT, which minimizes the makespan only, has the lowest makespan but a higher 
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-11-09 | uncommitted | Maximum overtime written $\overline{\mathrm{ot}}$ (missed in the rename). |
-| 2026-11-09 | uncommitted | Symbols renamed (protocol 2026-11-09 (24)): worker $z$, day $\nu$ in M7; machine changes $D_M$ → $N_M$ (a count, like $N_R$, $N_C$, $N_A$; $D$ stays for deviations). |
-| 2026-11-08 | uncommitted | Break start written $\mathrm{br}_{w,d}$ (renamed from $b_{w,d}$, [notation](notation.md)). |
-| 2026-11-06 | uncommitted | M7 worker metrics: overstay, swaps; with a calendar overtime, overruns, break postponement and spread; hand values in `tests/test_worker_snapshot_metrics.py`. |
-| 2026-10-30 | uncommitted | First version: M1–M5, planner time in the decision log, CSV output. |
-| 2026-10-30 | uncommitted | Definition of the sequence deviation of Wu et al. (1993) read and recorded. |
-| 2026-10-30 | uncommitted | M6 due-date metrics (total tardiness, tardy orders, maximum lateness); test with hand values (a3 overrun, due dates 10/11/10: lateness 4, 5, 0). |
-| 2026-10-30 | uncommitted | Stability measures of Shiau et al. (2026) recorded as candidates (Kendall concordance for sequences). |
+| 2026-11-10 | uncommitted | M1: `active_makespan` (activity clock, (O6) of [04](04_workers.md)) for instances with a calendar. |
+| 2026-11-09 | 7274636 | Maximum overtime written $\overline{\mathrm{ot}}$ (missed in the rename). |
+| 2026-11-09 | ef6f798 | Symbols renamed (protocol 2026-11-09 (24)): worker $z$, day $\nu$ in M7; machine changes $D_M$ → $N_M$ (a count, like $N_R$, $N_C$, $N_A$; $D$ stays for deviations). |
+| 2026-11-08 | ef6f798 | Break start written $\mathrm{br}_{w,d}$ (renamed from $b_{w,d}$, [notation](notation.md)). |
+| 2026-11-06 | 78e228d | M7 worker metrics: overstay, swaps; with a calendar overtime, overruns, break postponement and spread; hand values in `tests/test_worker_snapshot_metrics.py`. |
+| 2026-10-30 | 17d05a8–28ac70f | First version: M1–M5, planner time in the decision log, CSV output. |
+| 2026-10-30 | 17d05a8–28ac70f | Definition of the sequence deviation of Wu et al. (1993) read and recorded. |
+| 2026-10-30 | 17d05a8–28ac70f | M6 due-date metrics (total tardiness, tardy orders, maximum lateness); test with hand values (a3 overrun, due dates 10/11/10: lateness 4, 5, 0). |
+| 2026-10-30 | 17d05a8–28ac70f | Stability measures of Shiau et al. (2026) recorded as candidates (Kendall concordance for sequences). |

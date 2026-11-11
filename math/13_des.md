@@ -59,7 +59,17 @@ Per time point $t$ the DES
 2. gives the planning tool the chance to send a new plan (`update_plan`): it is checked against the frozen part (C1–C7) and the PLANNED_START events of operations not yet released are moved,
 3. makes one start step: every released operation that is ready starts at $t$ (a late one: schedules LATE_START at $t + \Delta_o$ the first time it is ready, and starts when that time is reached); a COMPLETE event is scheduled at $t + \hat p_o$.
 
-A start cannot enable another start at the same $t$ (it occupies a machine and completes at $t + \hat p_o > t$), so one pass suffices. Processing all events of a time point before repair and start step makes the result independent of the order in the heap among equal times: a machine finishing at $t$ is always free for an operation released at $t$ (touching intervals $[S, C)$, as in C5), and the repair sees a consistent state.
+4. **every start is an event** (2026-11-11, user): if the start step started anything (an operation, a removal, a
+   break; a takeover by the swap rule happens at such a start), the planning tool is called again at $t$, now with
+   these starts in the snapshot, and a new plan may release further operations at $t$, which start in another start
+   step. Each operation starts once, so the loop ends. An early, on-time or late start, a swapped worker and a
+   started removal thus reach the planning tool at once, independent of the plan; finishes already did (COMPLETE,
+   SHARE_END). Before, the tool saw a start only at the next event time. `Simulation.start_operations()` returns the
+   number of starts; `control.rescheduling.execute` loops. Test `test_an_early_start_reaches_the_planning_tool_at_once`
+   (Y planned at 5 starts at 2: REPAIR at 2, before at 10). Cost: one more repair per time point with a start (full
+   test suite 283 s → 288 s).
+
+A start cannot enable another start at the same $t$ under the same plan (it occupies a machine and completes at $t + \hat p_o > t$), so without a planning tool one pass suffices. Processing all events of a time point before repair and start step makes the result independent of the order in the heap among equal times: a machine finishing at $t$ is always free for an operation released at $t$ (touching intervals $[S, C)$, as in C5), and the repair sees a consistent state.
 
 **Workers** ([04](04_workers.md), phase 2 task 1; calendar effects follow). Every share $\eta$ is served by its planned worker, in the planned order per worker (sorted by the planned start of the share; no overtaking, as for machines). An operation starts only when, in addition, the workers of its whole share and its prefix are free and this share is next in their order; the worker is busy for the realized share length (event SHARE_END). An operation with a suffix (oven removal) raises SUFFIX_DUE when its machine part ends ($t + \hat p_o - \hat a^{\mathrm{suf}}_o$); the removal starts as soon as its worker is free and next, and the operation (all members of its batch) completes $\hat a^{\mathrm{suf}}_o$ later. Waiting minutes are logged as OVERSTAY (soft suffix, user 2026-11-05); the machine stays blocked meanwhile. A batch's shares count once (its first operation carries them). Operations without machine wait only for predecessors, release and workers. Event priorities at equal time: COMPLETE, SHARE_END, SUFFIX_DUE, LATE_START, PLANNED_START, OVERDUE, WAKE, so a worker free at $t$ can start a share at $t$.
 
@@ -146,7 +156,13 @@ First robustness observation (notebook, one run, 30 scenario seeds per row, same
 
 **Workers in the snapshot** (phase 2 task 4). `FrozenOperation.machine` is `None` for operations without machine; their expected completion uses the fixed duration $p_o$. `FrozenOperation.workers` holds the actual worker of every started share and `None` for a share not started yet: the removal of a running oven (suffix) may still be given to another worker, by the swap rule or by rescheduling. After a swap the snapshot shows the actual worker. C7 keeps the workers of the started shares ([04](04_workers.md)). A running operation whose suffix has not started
 is expected to end at $\max(\hat S_o + p_{o,\bar m(o)},\ t + a^{\mathrm{suf}}_o)$ instead of $t + 1$: its removal
-cannot start before $t$ (the OVERDUE events stay on the $t + 1$ rhythm). A new plan may give that suffix another
+cannot start before $t$ (the OVERDUE events stay on the $t + 1$ rhythm). One whose removal started late, at
+$\hat S^{\mathrm{suf}}_o$ (after the machine part, because its worker was busy), is expected to end at
+$\max(\hat S_o + p_{o,\bar m(o)},\ \hat S^{\mathrm{suf}}_o + a^{\mathrm{suf}}_o,\ t + 1)$, the planned removal
+length from its start (2026-11-11; `SimState.suffix_start`). Before, the snapshot kept $\hat S_o + p_{o,\bar m(o)}$,
+so the started removal seemed to lie before its real start, overlapping its worker's previous share; the repair
+then returned a plan with a C12 overlap (toy-workshop, CP-SAT start plan, seed 4, $t = 381$; test
+`test_snapshot_expects_a_late_started_removal_to_its_own_end`). A new plan may give that suffix another
 worker and, if forced, a later end (C7$^o$); `update_plan` then takes the new worker for the share not started
 (before 2026-11-09 the plan's worker was ignored for running operations). `FrozenOperation.share_lengths` (2026-11-09): per share the realized length if done (observed), at least until $t + 1$ for a running prefix, the planned length otherwise (no leakage). `Snapshot.breaks` holds the breaks started by
 $t$ with their realized starts $\widehat{\mathrm{br}}_{z,\nu}$ (a postponed break with its actual start); breaks planned but not yet
@@ -188,22 +204,24 @@ Snapshots are Pydantic models (`Snapshot`, `FrozenOperation`) and can be stored 
 |---|---|---|
 | 2026-10-21 | `6300e52` | Version 1: event loop with replay of a plan, start check, event log; zero-disturbance tests. |
 | 2026-10-21 | `bf25ab4` | Zero-disturbance makespan check extended to all instances (rule and CP-SAT plans); result table. |
-| 2026-10-22 | uncommitted | Version 2: disturbance scenarios, right-shift execution keeping machine and planned order, DUE events and start step per time point, plan validated with the feasibility checker before the run. |
-| 2026-10-23 | uncommitted | Pausable run (`until`), snapshot with frozen part (finished and running operations), expected completion of running operations, leakage test. |
-| 2026-10-29 | uncommitted | Start offsets (early/late release, late offset fixed once), RELEASE events, repair step between event processing and start step, state with current plan; release time checked at start. |
-| 2026-10-29 | uncommitted | Replanning: snapshot before the start step, plan swap (machines, order per machine, durations of reassigned operations, DUE events); machine and order moved into the state. |
-| 2026-10-30 | uncommitted | DES as `Simulation` object (process_events, start_operations, snapshot, current_plan, update_plan); repair and rescheduling moved to the planning tool (math/05). |
-| 2026-10-30 | uncommitted | Late start offset counted from actual readiness $R_o$ (released and ready), not from the planned start; RELEASE event replaced by LATE_START. Reason: with repair the old rule added the offset to predecessor delays (mk01: 65 vs 45). |
-| 2026-10-30 | uncommitted | OVERDUE event at the expected end of a running operation (planned end, then every minute). |
-| 2026-10-30 | uncommitted | Event DUE renamed to PLANNED_START (`due_at` to `planned_start_at`), no change in behavior. |
-| 2026-10-30 | uncommitted | WAKE event for time points requested by the planning tool; `has_unstarted`. |
-| 2026-11-02 | uncommitted | Carriers and runs run unchanged; blocking of a run through the planned order per machine. |
-| 2026-11-03 | uncommitted | Batches: joint start, fixed duration. |
-| 2026-11-06 | uncommitted | Snapshot with workers (phase 2, task 4): machine optional, workers of started shares, expected end of machine-less operations; `ExecutionResult.breaks`. |
-| 2026-11-06 | uncommitted | Swap rule (phase 2, task 3): free qualified worker takes a due share of a busy one if it fits before its next planned share; SWAP log; tests `tests/test_des_swap.py`. |
-| 2026-11-05 | uncommitted | Work calendar (phase 2, task 2): shift window with wake-ups, planned breaks taken or postponed, realized breaks and share lengths in the result; tests `tests/test_des_calendar.py`. |
-| 2026-11-05 | uncommitted | Workers (phase 2, task 1): shares in planned order per worker, suffix with OVERSTAY, machine-less operations, SHARE_END and SUFFIX_DUE events; `Simulation(..., breaks)`, `replay(..., breaks)`, `SimResult.breaks`; tests `tests/test_des_workers.py`. |
-| 2026-11-08 | uncommitted | `Snapshot.breaks`: breaks started by $t$ with their realized starts. |
-| 2026-11-09 | uncommitted | Expected end $t + a^{\mathrm{suf}}_o$ for a pending suffix; `update_plan` takes the plan's worker for a share not started of a running operation. |
-| 2026-11-09 | uncommitted | `update_plan(plan, breaks)`, `current_breaks()`: taken breaks kept, pending ones replaced. |
-| 2026-11-09 | uncommitted | `FrozenOperation.share_lengths`; swap-rule worker written $z' \in W_o$; $\overline{\mathrm{ot}}$. |
+| 2026-10-22 | 2b20b69 | Version 2: disturbance scenarios, right-shift execution keeping machine and planned order, DUE events and start step per time point, plan validated with the feasibility checker before the run. |
+| 2026-10-23 | d7ca0e5 | Pausable run (`until`), snapshot with frozen part (finished and running operations), expected completion of running operations, leakage test. |
+| 2026-10-29 | 17d05a8–28ac70f | Start offsets (early/late release, late offset fixed once), RELEASE events, repair step between event processing and start step, state with current plan; release time checked at start. |
+| 2026-10-29 | 17d05a8–28ac70f | Replanning: snapshot before the start step, plan swap (machines, order per machine, durations of reassigned operations, DUE events); machine and order moved into the state. |
+| 2026-10-30 | 17d05a8–28ac70f | DES as `Simulation` object (process_events, start_operations, snapshot, current_plan, update_plan); repair and rescheduling moved to the planning tool (math/05). |
+| 2026-10-30 | 17d05a8–28ac70f | Late start offset counted from actual readiness $R_o$ (released and ready), not from the planned start; RELEASE event replaced by LATE_START. Reason: with repair the old rule added the offset to predecessor delays (mk01: 65 vs 45). |
+| 2026-10-30 | 17d05a8–28ac70f | OVERDUE event at the expected end of a running operation (planned end, then every minute). |
+| 2026-10-30 | 17d05a8–28ac70f | Event DUE renamed to PLANNED_START (`due_at` to `planned_start_at`), no change in behavior. |
+| 2026-10-30 | 17d05a8–28ac70f | WAKE event for time points requested by the planning tool; `has_unstarted`. |
+| 2026-11-02 | ee3b2b1–cd7ca2b | Carriers and runs run unchanged; blocking of a run through the planned order per machine. |
+| 2026-11-03 | 31b7574–91ebc7c | Batches: joint start, fixed duration. |
+| 2026-11-06 | 78e228d | Snapshot with workers (phase 2, task 4): machine optional, workers of started shares, expected end of machine-less operations; `ExecutionResult.breaks`. |
+| 2026-11-06 | 78e228d | Swap rule (phase 2, task 3): free qualified worker takes a due share of a busy one if it fits before its next planned share; SWAP log; tests `tests/test_des_swap.py`. |
+| 2026-11-05 | e5348b0–78e228d | Work calendar (phase 2, task 2): shift window with wake-ups, planned breaks taken or postponed, realized breaks and share lengths in the result; tests `tests/test_des_calendar.py`. |
+| 2026-11-05 | e5348b0–78e228d | Workers (phase 2, task 1): shares in planned order per worker, suffix with OVERSTAY, machine-less operations, SHARE_END and SUFFIX_DUE events; `Simulation(..., breaks)`, `replay(..., breaks)`, `SimResult.breaks`; tests `tests/test_des_workers.py`. |
+| 2026-11-08 | 78e228d | `Snapshot.breaks`: breaks started by $t$ with their realized starts. |
+| 2026-11-09 | ef6f798 | Expected end $t + a^{\mathrm{suf}}_o$ for a pending suffix; `update_plan` takes the plan's worker for a share not started of a running operation. |
+| 2026-11-09 | 7274636 | `update_plan(plan, breaks)`, `current_breaks()`: taken breaks kept, pending ones replaced. |
+| 2026-11-09 | 7274636 | `FrozenOperation.share_lengths`; swap-rule worker written $z' \in W_o$; $\overline{\mathrm{ot}}$. |
+| 2026-11-11 | uncommitted | Every start is an event: the planning tool is called again after the start step (`start_operations` returns the number of starts; user). |
+| 2026-11-11 | uncommitted | Expected end of a running operation whose removal started late: from the removal's start ($\hat S^{\mathrm{suf}}_o$, `SimState.suffix_start`). |

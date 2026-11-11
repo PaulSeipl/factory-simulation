@@ -44,6 +44,7 @@ def check_schedule(
     by_op, violations = assigned_exactly_once(ci, assignments)
     frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
     blocked = _frozen_worker_time(ci, snapshot, with_breaks=True) if snapshot else {}
+    forced = forced_ends(ci, frozen, by_op, blocked)
     for o, a in by_op.items():
         key = ci.op_keys[o]
         p_of = {ci.machine_ids[m]: p for m, p in ci.options[o]}
@@ -59,7 +60,7 @@ def check_schedule(
             *worker_shares_wrong(ci, o, a),
             *starts_before_predecessors(ci, o, a, by_op),
             starts_before_release(key, a.start, ci.release[o]),
-            frozen_changed(key, a, frozen[o], forced_end(ci, o, frozen[o], blocked)) if o in frozen else None,
+            frozen_changed(key, a, frozen[o], forced.get(o)) if o in frozen else None,
             starts_before_t(key, a.start, snapshot.t) if snapshot and o not in frozen else None,
         ]
         violations += [v for v in found if v]
@@ -125,7 +126,7 @@ def starts_before_release(key: OpKey, start: int, release: int) -> Violation | N
 
 def frozen_changed(key: OpKey, a: Assignment, f: FrozenOperation, end: int | None = None) -> Violation | None:
     """C7: a frozen operation appears with the machine, times and workers of the started shares of the snapshot.
-    `end`: its required end if not the snapshot's (forced overstay, see forced_end)."""
+    `end`: its required end if not the snapshot's (forced overstay, see forced_ends)."""
     started = [(i, w) for i, w in enumerate(f.workers) if w is not None]
     end = f.end if end is None else end
     if (a.machine, a.start, a.end) != (f.machine, f.start, end) or any(
@@ -136,17 +137,35 @@ def frozen_changed(key: OpKey, a: Assignment, f: FrozenOperation, end: int | Non
     return None
 
 
-def forced_end(ci: CompiledInstance, o: int, f: FrozenOperation, blocked: Mapping[str, list[tuple[int, int]]]) -> int:
+def forced_ends(ci: CompiledInstance, frozen: Mapping[int, FrozenOperation], by_op: Mapping[int, Assignment],
+                blocked: Mapping[str, list[tuple[int, int]]]) -> dict[int, int]:
     """C7 with a forced overstay (math/04_workers.md, C7^o): a running operation whose suffix (removal) has not
     started ends at the snapshot's expected end if a qualified worker is free then; otherwise at the earliest time a
-    qualified worker is free of the frozen part (started shares, started breaks) and within the shift window (C13).
-    A planner may not delay it on its own; the delay comes only from disturbances."""
-    i = next((i for i, sh in enumerate(ci.shares[o]) if sh.kind == "suffix"), None)
-    if not f.running or i is None or i >= len(f.workers) or f.workers[i] is not None:
-        return f.end
-    sh = ci.shares[o][i]
-    return min(_free_from(ci, blocked.get(ci.worker_ids[w], ()), f.end - sh.length, sh.length)
-               for w in sh.workers) + sh.length
+    qualified worker is free of the frozen part (started shares, started breaks), within the shift window (C13).
+    Several pending removals are taken in the plan's order of their starts (ties: operation index), each also clear
+    of the removals before it, with the plan's worker; a batch (one run) has one removal. A planner may not delay a
+    removal on its own; the delay comes only from disturbances and from the removals before it."""
+    busy = {w: list(v) for w, v in blocked.items()}
+    runs: dict[tuple[str | None, int, int], list[int]] = defaultdict(list)
+    for o, f in frozen.items():
+        i = next((i for i, sh in enumerate(ci.shares[o]) if sh.kind == "suffix"), None)
+        if f.running and i is not None and i < len(f.workers) and f.workers[i] is None and o in by_op:
+            runs[(f.machine, f.start, f.end) if ci.batch_capacity[o] > 1 else (str(o), 0, 0)].append(o)
+    out = {}
+    def removal_start(o: int) -> int:
+        return by_op[o].end - next(sh.length for sh in ci.shares[o] if sh.kind == "suffix")
+
+    for ops in sorted(runs.values(), key=lambda ops: (removal_start(ops[0]), ops[0])):
+        o, f = ops[0], frozen[ops[0]]
+        i = next(i for i, sh in enumerate(ci.shares[o]) if sh.kind == "suffix")
+        sh = ci.shares[o][i]
+        end = min(_free_from(ci, busy.get(ci.worker_ids[w], ()), f.end - sh.length, sh.length)
+                  for w in sh.workers) + sh.length
+        out |= dict.fromkeys(ops, end)
+        a = by_op[o]
+        if i < len(a.workers):  # the plan's removal blocks its worker for the removals after it
+            busy.setdefault(a.workers[i], []).append((a.end - sh.length, a.end))
+    return out
 
 
 def _free_from(ci: CompiledInstance, busy: Iterable[tuple[int, int]], s: int, n: int) -> int:
@@ -305,13 +324,23 @@ def break_violations(ci: CompiledInstance, by_op: Mapping[int, Assignment], brea
     break start, starting in [break_earliest, break_latest], at most one break a day, and no share during a break.
 
     With a snapshot: its breaks are realized history and not checked against the window (like C2 for frozen
-    operations); a later break is a forced postponement and allowed only if a frozen share of the worker covers the
-    latest break start and the break starts exactly at that share's (expected) end."""
+    operations); a later break is a forced postponement and allowed only if it starts at the earliest time from
+    max(earliest break start, t) at which it is clear of the worker's frozen part (C14^f): no break fits in the
+    window. The frozen part: started shares at their (expected) times and pending removals of running operations
+    at their planned (forced, C7^o) times (user 2026-11-09)."""
     if (cal := ci.calendar) is None:
         return []
     violations = []
     taken = {(b.worker, b.start) for b in snapshot.breaks} if snapshot else set()
     frozen_time = _frozen_worker_time(ci, snapshot) if snapshot else {}
+    for f in snapshot.frozen if snapshot else ():  # pending removals with the plan's worker and times
+        o = ci.op_index.get((f.order_id, f.op_id))
+        if o is None or not f.running or o not in by_op:
+            continue
+        a = by_op[o]
+        for i, (sh, w) in enumerate(zip(ci.shares[o], f.workers, strict=False)):
+            if sh.kind == "suffix" and w is None and i < len(a.workers):
+                frozen_time[a.workers[i]].append(share_interval(sh, a.start, a.end))
     per_day: dict[tuple[str, int], list[int]] = defaultdict(list)
     for b in breaks:
         if b.worker not in ci.worker_ids:
@@ -319,7 +348,8 @@ def break_violations(ci: CompiledInstance, by_op: Mapping[int, Assignment], brea
             continue
         per_day[b.worker, (d := day_index(cal, b.start))].append(b.start)
         latest = day_start(cal, d) + cal.break_latest
-        forced = b.start > latest and any(s < latest < e == b.start for s, e in frozen_time.get(b.worker, ()))
+        forced = b.start > latest and snapshot is not None and b.start == _clear_from(
+            frozen_time.get(b.worker, ()), max(day_start(cal, d) + cal.break_earliest, snapshot.t), cal.break_length)
         if (not cal.break_earliest <= (m := minute_of_day(cal, b.start)) <= cal.break_latest
                 and (b.worker, b.start) not in taken and not forced):
             why = ", not forced by a frozen share ending then" if snapshot else ""
@@ -340,6 +370,14 @@ def break_violations(ci: CompiledInstance, by_op: Mapping[int, Assignment], brea
             if s < b + cal.break_length and b < e
         ]
     return violations
+
+
+def _clear_from(intervals: Iterable[tuple[int, int]], s: int, n: int) -> int:
+    """Earliest s' >= s with [s', s' + n) clear of `intervals` (no shift window: a break is no share)."""
+    intervals = tuple(intervals)
+    while (e := next((e for a, e in intervals if a < s + n and s < e), None)) is not None:
+        s = e
+    return s
 
 
 def breaks_changed(breaks: Iterable[Break], snapshot: Snapshot | None) -> list[Violation]:
