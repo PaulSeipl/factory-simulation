@@ -8,6 +8,79 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-12 (46) — Order arrivals: design, DES spike, step 1 (format and visibility) — uncommitted
+
+- **Decided (user):** order of work arrivals → expected orders → GA; arrival = end of a nesting batch (sales releases
+  for design, orders are prioritized and nested with MES capacities, then reach the planning tool); nesting cycle
+  (daily or on given weekdays, the advisor's idea, not decided at the company) as an experiment setting; due date as
+  fixed working days (default 4, configurable) or from the lead time, both selectable; complete rescheduling at every
+  arrival in v1, CP-SAT insertion (old machines and order fixed) kept in mind for large instances; arrival window up
+  to 2 weeks; parameter files as one experiment config later; carriers shared across orders and arrivals during a run
+  must be tested (step 2).
+- **Decided (own, user agreed):** three times per order (accepted ≤ arrival ≤ release); packages: a carrier and a run
+  never span arrivals; instance = hindsight container, planner sees only the visible sub-instance; the DES masks
+  unplanned operations. Design: `docs/superpowers/specs/2026-11-11-order-arrivals-design.md` (D1–D13).
+- **Done:**
+  - Spike (throwaway, scratchpad, not kept): a copy of `des.py` in which operations without an assignment are inert;
+    arrivals with CP-SAT replanning on toy-3x3, toy-workers, toy-workshop, σ ∈ {0, 0.2, 0.3}: every operation done,
+    arrived orders start at or after their arrival, realized schedules violate only C2 (durations), as without
+    arrivals. About 8 touch points in `des.py`.
+  - Step 1: `Order.accepted`, `Order.arrival` (schema 0.7, `schemas/instance-0.7.json`; data, generators, loader and
+    tests on 0.7), validation (V1) and (V2), `visible_instance(inst, t)` (V3) ([07](07_order-arrivals.md), new;
+    `notation.md` $A_k$, $A^{\mathrm{acc}}_k$, $\mathcal{K}(t)$; README; references Song et al. 2025).
+    Tests `tests/test_arrivals.py` (13); 1475 tests pass (261 s).
+- **Found:**
+  - The DES needs no notion of "known", only of "planned"; visibility lives in the planning tool. Rebuilding the
+    simulation with state transfer is not needed.
+  - In `rescheduling.py`, `_change` and `_reschedule` look up every unstarted operation in the previous plan
+    (`KeyError` for new orders), and the change budget can reject a plan that is the only one holding the new order
+    (step 3).
+  - C9 (a run blocks its machine from setup to removal) holds in checker, CP-SAT, rules and DES ([03](03_carriers.md)
+    §3–4); relevant for a frozen horizon later.
+  - Literature (Zotero, added by the user): Yang & Geunes 2008 (`E4JW2F97`) planned idle time for uncertain future
+    jobs; Song et al. 2025 (`999TFMAJ`) insertion at every arrival, no threshold (PDF p. 14–15); Zhang et al. 2026
+    (`UTY4Q8FP`, preprint) episode with an arrival window and baselines Myopic, Rolling, MSA, SAA, EV (p. 6–7).
+    No source for weekday arrival rates **[uncertain]**.
+- **Open:** `notebooks/06_workers.ipynb` still writes schema 0.6 inline (left alone, another session edits it; one
+  string to change to 0.7); steps 2–5; whether nesting may top up an existing carrier; utilization and order volume
+  per day (company data).
+
+## 2026-11-11 (16) — [thesis] Outline: flow shop vs. FJSP with the full route — uncommitted
+
+- **Decided (user):** the FJSP definition with eligible machine sets is cited from Dauzère-Pérès et al. (2024,
+  §2, p. 410); 2.3 states that the literature's "job" is an order here. Today every mill can do blank and
+  carrier milling; after an expansion some mills may do only one (user requirement).
+- **Found (user, route facts not yet in `math/`):** QM is a checkout with an optional rework loop on the mill,
+  repeated until every part passes. Design comes first and is needed before nesting; it creates the two part
+  kinds. After QM the primary parts go to a part-scope step, the carrier goes to sawing; an order-scope
+  inspection later needs every part of the order (join → split → join). My earlier reading of
+  [03](03_carriers.md) ("QM manual, no split after QM") was wrong because the route there is incomplete.
+- **Found (me):** a rework loop "until pass" is a cycle and does not fit the acyclic route of
+  [03](03_carriers.md); it needs a dynamic event that inserts rework operations, or a bounded unrolling.
+  Consensus search: Mlekusch et al. 2024 (dual-resource re-entrant flexible flow shop, CP + hybrid GA) is the
+  closest related work so far; Lee et al. 2020 and Sim et al. 2025 (multi-fixturing pallets, in Zotero) are
+  analogues of carriers. Abstracts only.
+- **Open:** document the full Fidentis route in [03](03_carriers.md) (checkout and rework loop, part-scope step
+  after QM, order-scope inspection); decide how rework is modeled; add the flow-shop and related-work
+  candidates to Zotero.
+
+
+## 2026-11-11 (45) — Repair: tight through the calendar — uncommitted
+
+- **Decided (user):** trace why repair with overtime misses more cutoffs than no tool (cutoff-slack start plan);
+  then change the tight rule.
+- **Found (trace, seeds 2 and 8):** the repair pushed shares behind a break (or to the next morning) while a blocker
+  was expected to end late; the share then started at 13:00, not at its blocker's end, counted as planned with a
+  gap and stayed there when the blocker ended early (seed 2: k7's QM planned 150, real 75; k8's QM and B's packings
+  stayed at 13:00, k3 and k4 late). Without a tool the factory starts them at once and takes the break late.
+- **Done:** tight also if $\bar S_o = \operatorname{fit}_o(\beta_o)$, the earliest calendar start after the blocker
+  (`shift_repair.candidate`, `math/05` §3). Test `test_a_share_behind_the_break_comes_back_when_its_blocker_ends_early`.
+  1462 tests pass. Notebook 06 re-run: $\theta_O$ start plan: repair only 20 → 16 days, CP-SAT 6 → 5, every 15 min
+  5 → 4; slack start plan: repair with overtime 6 → 4 (no tool 3), CP-SAT 2 (unchanged). Seed 2 now equals no tool.
+- **Decided (user, after the trace):** the swap case of seed 8 (a DES swap changes the blocker set, the share behind
+  the break stays) and postponing a break to keep a cutoff are not added to the repair: "A repair tool should not be
+  too complicated." Complete rescheduling covers both (`math/05` §6).
+
 ## 2026-11-11 (44) — Early-finish trigger, every start an event — uncommitted
 
 - **Decided (user):** buffer size, $\theta_O$ and the stochastic FJSP are todos for later; now the early-finish trigger
@@ -25,8 +98,18 @@ the commits and the change logs of the component files and are therefore shorter
   - 1461 tests pass (288 s, before 283 s).
 - **Found:** finishes were already events (COMPLETE, SHARE_END); only starts (incl. swaps, removals, breaks) reached
   the tool late, at the next event time.
+- **Notebook 06** (user: show the trigger and the repair option): execution with 8 policies, start plan now one
+  thread with a deterministic limit (reproducible). Days late over 10 runs / overtime minutes per run: no tool 2 /
+  46.3; repair only 20 / 11.4; repair with overtime 3 / 48.4; rule 13 / 9.6; CP-SAT 6 / 28.2; CP-SAT + early finish
+  ($\delta_E = 10$) 6 / 28.2 (36 early-finish replans, same plans); + repair overtime 7 / 21.6; CP-SAT every 15 min
+  5 / 28.0. The trigger gains nothing with the $\theta_O$ objective on these seeds.
+- **Notebook 06, cutoff slack** (user: add it): section "Cutoff slack (O7)" with `worker_objective_with_slack(60)`:
+  start plan levels (0, 20, 30, 0, 920), the same values as the $\theta_O$ plan; execution, days late / realized
+  shortfall (totals) / overtime per run: no tool 3 / 530 / 35.5; repair with overtime 6 / 308 / 37.5; CP-SAT 2 / 144 /
+  28.8; + early finish 2 / 144 / 29.1 (37 early-finish replans); + repair overtime 2 / 144 / 32.9. The comparison code
+  is one function `compare(start, breaks, policies)`; a column "short" (cutoff shortfall) in both tables.
 - **Open:** buffer size and $\theta_O$ (later, user); stochastic FJSP (later, user); notebook 06 still on $\theta_O$
-  and without the new trigger and repair option; the direction of the deviation triggers (`math/05` §6) partly
+  (the cutoff-slack objective not shown there); the direction of the deviation triggers (`math/05` §6) partly
   answered by $\Delta E$.
 
 ## 2026-11-11 (43) — Cutoff slack objective (O7) — uncommitted

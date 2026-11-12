@@ -19,7 +19,7 @@ from simulation.planners.cpsat import cpsat_planner
 
 def instance(due_b):
     return compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "early", "machines": ["M1"],
+        "schema_version": "0.7", "name": "early", "machines": ["M1"],
         "orders": [{"id": "A", "operations": [{"id": "a1", "step": "s", "options": {"M1": 10}}]},
                    {"id": "B", "due_date": due_b, "operations": [{"id": "b1", "step": "s", "options": {"M1": 10}}]}]}))
 
@@ -63,7 +63,7 @@ def test_an_early_start_reaches_the_planning_tool_at_once():
     # repair of time point 2 after the start already sees Y running from 2 (a REPAIR record at 2); before, the tool
     # learned about it only at the next event (X's completion at 10)
     ci = compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "starts", "machines": ["M1", "M2"],
+        "schema_version": "0.7", "name": "starts", "machines": ["M1", "M2"],
         "orders": [{"id": "X", "operations": [{"id": "x", "step": "s", "options": {"M1": 10}}]},
                    {"id": "Y", "operations": [{"id": "y", "step": "s", "options": {"M2": 10}}]}]}))
     plan = [Assignment(order_id="X", op_id="x", machine="M1", start=0, end=10),

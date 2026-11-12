@@ -100,7 +100,10 @@ def shift_repair(
                          *(planned_interval(q, k)[1] - off for q, k, off in own)])
         new_block = max([t, ci.release[o], *(new_end[q] for q in blockers),
                          *(interval(q, k, new_start[q], new_end[q])[1] - off for q, k, off in own)])
-        return new_block if planned_start[o] == old_block else max(planned_start[o], new_block)  # tight or gap
+        # tight: planned at the blocker's end, or at the earliest start the calendar allows after it (behind a break,
+        # the next morning; user 2026-11-11): such a share comes back when its blocker ends earlier; else a gap
+        tight = planned_start[o] == old_block or (fit is not None and planned_start[o] == fit(o, old_block))
+        return new_block if tight else max(planned_start[o], new_block)
 
     def clear_of_frozen(o: int, s: int) -> int:
         """Earliest s' >= s at which no share of o (a batch's first member) overlaps a share of a started op."""

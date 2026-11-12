@@ -173,7 +173,7 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
                 blanks[-1]["parts"].append([o["id"], f"n{j}"])
 
     return Instance.model_validate({
-        "schema_version": "0.6",
+        "schema_version": "0.7",
         "name": params.name or params.default_name(),
         "machines": [m for ms in machines.values() for m in ms],
         "orders": [{k: v for k, v in o.items() if k != "size"} for o in orders],

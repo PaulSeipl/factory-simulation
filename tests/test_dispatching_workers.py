@@ -91,7 +91,7 @@ def one_pack(release: int, due: int | None = None, duration: int = 60):
     order = {"id": "k", "release": release,
              "operations": [{"id": "pack", "step": "pack", "duration": duration, "worker": {"whole": True}}]}
     return compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "cal", "machines": ["M"], "workers": ["A"], "calendar": {},
+        "schema_version": "0.7", "name": "cal", "machines": ["M"], "workers": ["A"], "calendar": {},
         "orders": [order | ({"due_date": due} if due is not None else {})]}))
 
 

@@ -22,7 +22,7 @@ def data() -> dict:
             {"id": "mill", "step": "mill", "scope": "carrier", "role": "separate", "predecessors": ["print"]},
         ]}
     return {
-        "schema_version": "0.6", "name": "carrier-runs", "machines": ["D", "P", "M"],
+        "schema_version": "0.7", "name": "carrier-runs", "machines": ["D", "P", "M"],
         "carrier_steps": {
             "print": {"options": {"P": 2}},
             "mill": {"options": {"M": 9}, "runs": "per_carrier", "setup": 1, "removal": 1,

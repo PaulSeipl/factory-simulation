@@ -27,7 +27,7 @@ from simulation.sim.snapshot import FrozenOperation, Snapshot
 def jobs(workers, durations, release):
     """Machine-less operations with a whole share each, released at `release`, with the default calendar."""
     return compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "jobs", "machines": ["M"], "workers": list(workers), "calendar": {},
+        "schema_version": "0.7", "name": "jobs", "machines": ["M"], "workers": list(workers), "calendar": {},
         "orders": [{"id": f"J{i}", "release": release, "operations": [
             {"id": "op", "step": "s", "duration": d, "worker": {"whole": True}}]} for i, d in enumerate(durations)]}))
 

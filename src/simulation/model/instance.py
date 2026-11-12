@@ -69,6 +69,9 @@ class Part(BaseModel):
 class Order(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     id: str
+    # accepted <= arrival <= release (math/07_order-arrivals.md); defaults: known from the start
+    accepted: NonNegativeInt = 0  # released for design by sales; the due-date clock starts here
+    arrival: NonNegativeInt = 0  # nesting batch done: the planning tool learns the order
     release: NonNegativeInt = 0  # earliest start time
     due_date: NonNegativeInt | None = None  # soft: completing later is tardy, not infeasible
     parts: tuple[Part, ...] = ()
@@ -156,7 +159,7 @@ class Calendar(BaseModel):
 
 class Instance(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal["0.6"]
+    schema_version: Literal["0.7"]
     name: str
     time_unit: Literal["s", "min", "h"] = "min"
     machines: tuple[str, ...]
@@ -200,6 +203,10 @@ class Instance(BaseModel):
         if self.calendar is not None and self.time_unit != "min":
             raise ValueError("a calendar needs time_unit 'min' (calendar times are minutes)")
         for order in self.orders:
+            if order.arrival > order.release:
+                raise ValueError(f"order {order.id}: arrival {order.arrival} after release {order.release}")
+            if order.accepted > order.arrival:
+                raise ValueError(f"order {order.id}: accepted {order.accepted} after arrival {order.arrival}")
             if order.due_date is not None and order.due_date < order.release:
                 raise ValueError(f"order {order.id}: due date {order.due_date} before release {order.release}")
             due = order.due_date
@@ -290,6 +297,17 @@ class Instance(BaseModel):
                 if part in on_carrier:
                     raise ValueError(f"part {part} on carriers {on_carrier[part]} and {c.id}")
                 on_carrier[part] = c.id
+        # a carrier and a run belong to one nesting batch: the planner never sees half of one (math/07)
+        arrival = {o.id: o.arrival for o in self.orders}
+        carrier_arrival = {}
+        for c in self.carriers:
+            if len(set((at := {k: arrival[k] for k, _ in c.parts}).values())) > 1:
+                raise ValueError(f"carrier {c.id}: orders with different arrivals {at}")
+            carrier_arrival[c.id] = arrival[c.parts[0][0]]
+        for r in self.runs:
+            at = {cid: carrier_arrival[cid] for cid in r.carriers if cid in carrier_arrival}
+            if len(set(at.values())) > 1:
+                raise ValueError(f"run {r.id}: carriers with different arrivals {at}")
         kind = carrier_kinds(self)
         carried: dict[str, set[str]] = defaultdict(set)  # order -> part types it has on carriers
         for c in self.carriers:
@@ -341,6 +359,16 @@ class Instance(BaseModel):
                 if cs.runs == "per_carrier" and cs.estimator is not None and (
                         missing := [part for part in c.parts if step not in times[part]]):
                     raise ValueError(f"carrier {c.id}: no {step} time for parts {missing} (needed by the estimator)")
+
+
+def visible_instance(inst: Instance, t: int) -> Instance:
+    """The orders the planning tool knows at t (arrival <= t), with their carriers and runs (math/07_order-arrivals.md).
+    Valid on its own: carriers and runs never span arrivals (Instance validation)."""
+    known = {o.id for o in inst.orders if o.arrival <= t}
+    carriers = tuple(c for c in inst.carriers if c.parts[0][0] in known)
+    ids = {c.id for c in carriers}
+    return inst.model_copy(update={"orders": tuple(o for o in inst.orders if o.id in known), "carriers": carriers,
+                                   "runs": tuple(r for r in inst.runs if r.carriers[0] in ids)})
 
 
 def carrier_kinds(inst: Instance) -> dict[str, str]:

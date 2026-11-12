@@ -215,3 +215,23 @@ def test_execute_with_the_repair_overtime_option(overtime, o1_start):
     result = execute(ci, plan.assignments, sc, ReschedulingPolicy(repair_overtime=overtime), breaks=plan.breaks)
     assert next(a.start for a in result.schedule if a.op_id == "o1") == o1_start
     assert {v.constraint for v in check_schedule(ci, result.schedule, breaks=result.breaks)} <= {"C2"}
+
+
+def test_a_share_behind_the_break_comes_back_when_its_blocker_ends_early():
+    # one worker: o0 [10:00, 11:50), o1 (50) would end after 12:00, so the rule plans it behind the break at 13:00:
+    # tight through the calendar (user 2026-11-11). o0 takes half as long and ends at 10:55: the repair moves o1 to
+    # 10:55 (it ends 11:45, before the break). Before, o1 counted as planned with a gap and stayed at 13:00
+    from test_des_workers import scenario
+    from test_worker_objective import chain
+
+    ci = chain(120, (110, 50), 3120)
+    plan = dispatch_plan(ci, spt)
+    assert [(a.start, a.end) for a in plan.assignments] == [(120, 230), (300, 350)]
+    sim = Simulation(ci, plan.assignments, scenario(ci, K_o0=0.5), plan.breaks)
+    sim.run(until=175)
+    snap = sim.snapshot()
+    new = repair_plan(ci, snap, plan.assignments, sim.current_breaks())
+    assert check_schedule(ci, new.assignments, snap, new.breaks) == []
+    assert next(a.start for a in new.assignments if a.op_id == "o1") == 175
+    result = execute(ci, plan.assignments, scenario(ci, K_o0=0.5), ReschedulingPolicy(), breaks=plan.breaks)
+    assert next(a.start for a in result.schedule if a.op_id == "o1") == 175

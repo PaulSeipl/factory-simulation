@@ -79,7 +79,7 @@ def test_forced_postponement_after_an_overrunning_prefix():
 def two_steps(x_len=100):
     """A alone; X (machine-less, whole, released 11:00) then Y (whole, 20)."""
     return compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "xy", "machines": ["M"], "workers": ["A"], "calendar": {},
+        "schema_version": "0.7", "name": "xy", "machines": ["M"], "workers": ["A"], "calendar": {},
         "orders": [{"id": "k", "release": 180, "operations": [
             {"id": "x", "step": "x", "duration": x_len, "worker": {"whole": True}},
             {"id": "y", "step": "y", "duration": 20, "worker": {"whole": True}, "predecessors": ["x"]},
@@ -117,7 +117,7 @@ def test_forced_postponement_when_the_frozen_share_runs_past_13_00():
 def morning_and_afternoon(release=480):
     """A does X (08:00-10:00, only A); B does Y (30 minutes, only B, released 16:00 = t 480 by default)."""
     return compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "late", "machines": ["M"], "workers": ["A", "B"], "calendar": {},
+        "schema_version": "0.7", "name": "late", "machines": ["M"], "workers": ["A", "B"], "calendar": {},
         "orders": [
             {"id": "k", "operations": [{"id": "x", "step": "x", "duration": 120,
                                         "worker": {"whole": True, "qualified": ["A"]}}]},

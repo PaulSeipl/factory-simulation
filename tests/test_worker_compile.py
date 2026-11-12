@@ -5,7 +5,7 @@ from simulation.model.instance import Instance
 from simulation.objectives import static_horizon
 
 ORDER = {
-    "schema_version": "0.6", "name": "workers", "machines": ["P"], "workers": ["W1", "W2"],
+    "schema_version": "0.7", "name": "workers", "machines": ["P"], "workers": ["W1", "W2"],
     "orders": [{"id": "k", "operations": [
         {"id": "print", "step": "print", "options": {"P": 60}, "worker": {"prefix": 15}},
         {"id": "gb", "step": "gegenbetten", "duration": 90, "worker": {"prefix": 30, "qualified": ["W2"]},
@@ -25,7 +25,7 @@ def carriers() -> dict:
             {"id": "mill", "step": "mill", "scope": "carrier", "role": "separate", "predecessors": ["oven"]},
         ]}
     return {
-        "schema_version": "0.6", "name": "carrier-workers", "machines": ["P", "O", "M"], "workers": ["W1", "W2"],
+        "schema_version": "0.7", "name": "carrier-workers", "machines": ["P", "O", "M"], "workers": ["W1", "W2"],
         "carrier_steps": {
             "print": {"options": {"P": 2}},
             "oven": {"options": {"O": 5}, "batch_capacity": 2, "worker": {"prefix": 1, "suffix": 1}},

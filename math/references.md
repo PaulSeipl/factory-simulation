@@ -65,6 +65,7 @@
   Used for: completely reactive / predictive-reactive / robust pro-active scheduling, continuous (event-driven) vs. periodic rescheduling (PDF p. 5), response time (PDF p. 2). Cited in [05](05_rescheduling-frozen-part.md).
 
 - Li, K., Zheng, B., Xu, L., Xie, F., & Wang, Z. (2026). Multi-objective dynamic flexible job shop scheduling using multi-head network-based deep reinforcement learning. *Expert Systems with Applications*, 298, 129542. https://doi.org/10.1016/j.eswa.2025.129542 (Zotero `6GGUPZNL`)
+- Song, J., Shen, Y., Wang, L., Liu, C., Tang, D., & Nie, Q. (2025). An efficient job insertion algorithm for hybrid human–machine collaborative flexible job shop scheduling with random job arrivals. *Electronics*, 14(17), 3397. https://doi.org/10.3390/electronics14173397 (Zotero `999TFMAJ`)
   Used for: due date from work content and tightness factor $D_i = A_i + (\sum_j t_{i,j}) \cdot DDT$, $DDT \in \{0.5, 1, 1.5\}$ (p. 11) ([06](06_due-dates.md)).
 
 - Ouelhadj, D., & Petrovic, S. (2009). A survey of dynamic scheduling in manufacturing systems. *Journal of Scheduling*, 12(4), 417–431. https://doi.org/10.1007/s10951-008-0090-8 (Zotero `DG38JM6L`)

@@ -41,7 +41,7 @@ def chain(release, durations, due):
     ops = [{"id": f"o{i}", "step": "s", "duration": d, "worker": {"whole": True},
             **({"predecessors": [f"o{i - 1}"]} if i else {})} for i, d in enumerate(durations)]
     return compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "chain", "machines": ["M"], "workers": ["W1"], "calendar": {},
+        "schema_version": "0.7", "name": "chain", "machines": ["M"], "workers": ["W1"], "calendar": {},
         "orders": [{"id": "K", "release": release, "due_date": due, "operations": ops}]}))
 
 
@@ -168,7 +168,7 @@ def test_threshold_at_one_ninetieth(theta, uses_overtime):
 def evening(ops):
     """One worker W1 and printer P, the default calendar (shift until 17:30 = 570); `ops` of one order K."""
     return compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "evening", "machines": ["P"], "workers": ["W1"], "calendar": {},
+        "schema_version": "0.7", "name": "evening", "machines": ["P"], "workers": ["W1"], "calendar": {},
         "orders": [{"id": "K", "release": 540, "due_date": 3120, "operations": ops}]}))
 
 
@@ -238,7 +238,7 @@ def two_orders():
         return {"id": k, "release": release, "due_date": 1680, "operations": [
             {"id": "op", "step": "s", "duration": duration, "worker": {"whole": True}}]}
     return compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "two-orders", "machines": ["M"], "workers": ["W1"], "calendar": {},
+        "schema_version": "0.7", "name": "two-orders", "machines": ["M"], "workers": ["W1"], "calendar": {},
         "orders": [order("A", 510, 90), order("B", 1440, 150)]}))
 
 
@@ -247,7 +247,7 @@ def test_cutoff_slack_by_hand(end, shortfall):
     # one order due Tuesday 12:00, buffer 60: ends 10:40 (0), 11:40 (40), 12:00 (60), Monday 11:55 (ships Tuesday:
     # 0), Wednesday 11:30 (one day late, ships Wednesday 12:00: 30)
     ci = compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "one", "machines": ["M"], "workers": ["W1"], "calendar": {},
+        "schema_version": "0.7", "name": "one", "machines": ["M"], "workers": ["W1"], "calendar": {},
         "orders": [{"id": "K", "due_date": 1680, "operations": [
             {"id": "op", "step": "s", "duration": 10, "worker": {"whole": True}}]}]}))
     plan = [Assignment(order_id="K", op_id="op", machine=None, start=end - 10, end=end, workers=("W1",))]
@@ -273,7 +273,7 @@ def test_cutoff_slack_buys_overtime_before_a_full_cutoff(objective, a_end, minut
 def test_cutoff_slack_needs_a_calendar():
     plan = [Assignment(order_id="J0", op_id="op", machine=None, start=0, end=10, workers=("W1",))]
     ci = compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "nocal", "machines": ["M"], "workers": ["W1"],
+        "schema_version": "0.7", "name": "nocal", "machines": ["M"], "workers": ["W1"],
         "orders": [{"id": "J0", "due_date": 20, "operations": [
             {"id": "op", "step": "s", "duration": 10, "worker": {"whole": True}}]}]}))
     with pytest.raises(ValueError, match="calendar"):

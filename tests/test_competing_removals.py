@@ -26,7 +26,7 @@ from simulation.planners.repair import forced_removals, repair_plan
 OVEN = {"step": "oven", "worker": {"prefix": 1, "suffix": 2}}
 PACK = {"step": "pack", "worker": {"whole": True}}
 CI = compile_instance(Instance.model_validate({
-    "schema_version": "0.6", "name": "competing-removals", "machines": ["O1", "O2"], "workers": ["W1", "W2"],
+    "schema_version": "0.7", "name": "competing-removals", "machines": ["O1", "O2"], "workers": ["W1", "W2"],
     "orders": [
         {"id": "X", "due_date": 30, "operations": [{"id": "oven", "options": {"O1": 10}, **OVEN}]},
         {"id": "Y", "due_date": 20, "operations": [{"id": "oven", "options": {"O2": 12}, **OVEN}]},

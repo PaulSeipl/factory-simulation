@@ -26,7 +26,7 @@ from simulation.sim.scenario import sample_scenario
 def two_jobs(workers):
     """Two machine-less operations of 10 and 20 minutes, each needing a worker all the time."""
     return compile_instance(Instance.model_validate({
-        "schema_version": "0.6", "name": "two-jobs", "machines": ["M"], "workers": list(workers),
+        "schema_version": "0.7", "name": "two-jobs", "machines": ["M"], "workers": list(workers),
         "orders": [{"id": k, "operations": [{"id": "op", "step": "s", "duration": d, "worker": {"whole": True}}]}
                    for k, d in (("A", 10), ("B", 20))]}))
 

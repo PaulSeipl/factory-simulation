@@ -13,7 +13,7 @@ from simulation.due_dates import lead_time_bound
 from simulation.model.instance import Instance, WorkerShare
 
 BASE = {
-    "schema_version": "0.6", "name": "workers", "machines": ["P"], "workers": ["A", "B"],
+    "schema_version": "0.7", "name": "workers", "machines": ["P"], "workers": ["A", "B"],
     "orders": [{"id": "k", "operations": [
         {"id": "print", "step": "print", "options": {"P": 60}, "worker": {"prefix": 15}},
         {"id": "gb", "step": "gegenbetten", "duration": 90, "worker": {"prefix": 30, "qualified": ["A"]},

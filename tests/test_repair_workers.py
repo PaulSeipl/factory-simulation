@@ -82,7 +82,7 @@ def test_a_workers_gap_is_kept():
 def test_cross_worker_cycle_reaches_the_fixpoint():
     # X: prefix A, suffix B; Y: prefix B, suffix A; A does X's prefix before Y's suffix, B Y's prefix before X's
     # suffix: the blockers form a cycle between X and Y. A late release of Y moves Y, and X stays clear of it.
-    data = {"schema_version": "0.6", "name": "cycle", "machines": ["M1", "M2"], "workers": ["A", "B"], "orders": [
+    data = {"schema_version": "0.7", "name": "cycle", "machines": ["M1", "M2"], "workers": ["A", "B"], "orders": [
         {"id": "X", "operations": [{"id": "x", "step": "s", "options": {"M1": 150},
                                     "worker": {"prefix": 10, "suffix": 10}}]},
         {"id": "Y", "operations": [{"id": "y", "step": "s", "options": {"M2": 110},
@@ -186,7 +186,7 @@ def test_zero_weight_cycle_stays_unchanged():
     # X and Y start together, each fully covered by prefix and suffix, workers swapped: each is tight only to the
     # other. The passes start from the planned starts of the prefixes, not from 0, so nothing moves without a
     # deviation (from 0, both would left-shift to t)
-    data = {"schema_version": "0.6", "name": "cycle0", "machines": ["M1", "M2"], "workers": ["A", "B"], "orders": [
+    data = {"schema_version": "0.7", "name": "cycle0", "machines": ["M1", "M2"], "workers": ["A", "B"], "orders": [
         {"id": k, "operations": [{"id": k.lower(), "step": "s", "options": {m: 20},
                                   "worker": {"prefix": 10, "suffix": 10}}]} for k, m in (("X", "M1"), ("Y", "M2"))
     ]}

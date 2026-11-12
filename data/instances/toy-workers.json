@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.6",
+  "schema_version": "0.7",
   "name": "toy-workers",
   "machines": ["P"],
   "workers": ["A", "B"],

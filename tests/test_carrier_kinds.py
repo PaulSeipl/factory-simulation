@@ -34,7 +34,7 @@ def order(k: str) -> dict:
 def data() -> dict:
     """Blank K1 holds the primary parts of A and B (mill per blank: setup 1, main 2 + 2, removal 1); plates L1, L2."""
     return {
-        "schema_version": "0.6", "name": "carrier-kinds", "machines": ["D", "P", "M", "W", "Q", "S"],
+        "schema_version": "0.7", "name": "carrier-kinds", "machines": ["D", "P", "M", "W", "Q", "S"],
         "carrier_steps": {
             "mill": {"options": {"M": 9}, "runs": "per_carrier", "setup": 1, "removal": 1,
                      "estimator": {"fixed": 0, "share": 1}},

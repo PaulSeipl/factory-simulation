@@ -17,6 +17,7 @@ sources read: one quantity on two resources as $F_s$, $F_k$ (Wang et al., 2025),
 | Symbol | Meaning | Code | Introduced |
 |---|---|---|---|
 | $\mathcal{K}$, $k$ | set of orders, order index | `Instance.orders`, `CompiledInstance.order_ids` | [01](01_basic-fjsp.md) |
+| $\mathcal{K}(t)$ | orders known at $t$: $A_k \le t$ (visible sub-instance) | `visible_instance` | [07](07_order-arrivals.md) |
 | $O$, $o$ | set of all operations, operation index (global) | `CompiledInstance.op_keys` / `op_index` | [01](01_basic-fjsp.md) |
 | $O_k \subseteq O$ | operations of order $k$ | `Order.operations` | [01](01_basic-fjsp.md) |
 | $k(o)$ | order(s) that operation $o$ serves: one for order operations, all orders on the carrier(s) for carrier and run operations ([03](03_carriers.md)) | `CompiledInstance.op_orders` | [01](01_basic-fjsp.md) |
@@ -52,6 +53,8 @@ Note: $\mathcal{K}$ instead of the common $J$ ("jobs"), because "Job" denotes a 
 | $a^{\mathrm{pre}}_o$, $a^{\mathrm{suf}}_o$ | $\mathbb{Z}_{\ge 0}$, $a^{\mathrm{pre}}_o + a^{\mathrm{suf}}_o \le \min_m p_{o,m}$ | attended prefix and suffix of $o$ (0: none; not $r_o$, which would clash with releases); a whole share occupies the worker for all of $o$ | `WorkerShare.prefix`, `suffix`, `whole` | [04](04_workers.md) |
 | $d_k$ | $\mathbb{Z}_{\ge 0}$, $d_k \ge r_k$ | due date of order $k$ (soft, optional) | `Order.due_date` | [06](06_due-dates.md) |
 | $r_k$ | $\mathbb{Z}_{\ge 0}$ | release time of order $k$ | `Order.release`, `CompiledInstance.release` (per operation) | [01](01_basic-fjsp.md) |
+| $A_k$ | $\mathbb{Z}_{\ge 0}$, $A_k \le r_k$ | arrival of order $k$ (its nesting batch is done; the planning tool knows $k$ from then on) | `Order.arrival` | [07](07_order-arrivals.md) |
+| $A^{\mathrm{acc}}_k$ | $\mathbb{Z}_{\ge 0}$, $A^{\mathrm{acc}}_k \le A_k$ | acceptance of order $k$ (released for design; start of the due-date clock) | `Order.accepted` | [07](07_order-arrivals.md) |
 
 ## Calendar
 

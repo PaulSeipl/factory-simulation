@@ -117,7 +117,7 @@ def test_invalid_calendar(fields):
 
 def _instance(**extra):
     return {
-        "schema_version": "0.6", "name": "cal", "machines": ["M"],
+        "schema_version": "0.7", "name": "cal", "machines": ["M"],
         "orders": [{"id": "k", "due_date": 240, "operations": [{"id": "1", "step": "s", "options": {"M": 5}}]}],
         "calendar": {}, **extra,
     }

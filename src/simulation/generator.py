@@ -96,7 +96,7 @@ def generate_instance(params: GeneratorParams) -> Instance:
         orders.append({"id": f"O{i}", "release": rng.randint(*params.release_range), "operations": ops})
 
     instance = Instance.model_validate({
-        "schema_version": "0.6",
+        "schema_version": "0.7",
         "name": params.name or params.default_name(),
         "machines": machines,
         "orders": orders,

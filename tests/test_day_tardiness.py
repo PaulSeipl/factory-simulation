@@ -28,7 +28,7 @@ def chain(*durations: int, due: int = 240, calendar: bool = True):
     """One order k: a chain of operations on machine M."""
     ops = [{"id": f"o{i}", "step": "s", "options": {"M": p}, "predecessors": [f"o{i - 1}"] if i else []}
            for i, p in enumerate(durations)]
-    data = {"schema_version": "0.6", "name": "chain", "machines": ["M"],
+    data = {"schema_version": "0.7", "name": "chain", "machines": ["M"],
             "orders": [{"id": "k", "due_date": due, "operations": ops}]}
     return compile_instance(Instance.model_validate(data | ({"calendar": {}} if calendar else {})))
 
