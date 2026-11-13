@@ -246,7 +246,7 @@ def solve(
         machine_before = {ci.op_index[a.order_id, a.op_id]: ci.machine_index[a.machine] for a in reference
                           if a.machine is not None}
         model.add(sum(1 - x for o in range(ci.n_ops) if o not in frozen
-                      for m, x in choice[o] if m == machine_before[o]) <= change_budget)
+                      for m, x in choice[o] if m == machine_before.get(o)) <= change_budget)  # arrived ops: none
 
     for a in hint or ():
         o = ci.op_index[a.order_id, a.op_id]

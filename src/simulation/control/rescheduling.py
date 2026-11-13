@@ -9,6 +9,8 @@ time point (every start is an event):
    last complete rescheduling is `period` minutes ago (safety net), ask a planner for a complete
    rescheduling and accept its plan if it stays within the change budget,
 4. send the resulting plan to the factory.
+An order arrival (the visible instance grew, math/07_order-arrivals.md) skips 2 and 3: repair cannot place a new
+order, so a complete rescheduling runs at once and is accepted regardless of the change budget.
 The DES itself never decides anything; it only executes the plan it receives.
 """
 
@@ -75,16 +77,25 @@ class ExecutionResult:
 def execute(
     ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario | None = None,
     policy: ReschedulingPolicy | None = None, breaks: Sequence[Break] = (),
+    visible: Callable[[int], CompiledInstance] | None = None,
 ) -> ExecutionResult:
-    """Run the factory on the plan and its breaks; with a policy the planning tool adapts the plan during the run."""
-    sim = Simulation(ci, plan, scenario, breaks)
+    """Run the factory on the plan and its breaks; with a policy the planning tool adapts the plan during the run.
+
+    `visible`: t -> the instance the planning tool knows at t (`compile_visible`, math/07_order-arrivals.md); the
+    tool plans over it and reschedules completely when it grows. None: every order is known from the start."""
+    if visible is not None and any(t > 0 for t in ci.arrival) and (policy is None or policy.planner is None):
+        raise ValueError("arrivals need a planner: repair cannot place a new order (math/07_order-arrivals.md)")
+    at = visible or (lambda _t: ci)
+    sim = Simulation(ci, plan, scenario, breaks, visible)
     decisions: list[dict] = []
-    anchor, wake = Anchor(sim.current_plan(), 0, sim.current_breaks()), None
+    anchor, wake, known = Anchor(sim.current_plan(), 0, sim.current_breaks()), None, at(0)
     while not sim.done:
         sim.process_events()
         while True:  # every start is an event too: the tool sees it at once (math/13 section 3, user 2026-11-11)
             if policy is not None:
-                anchor = adapt_plan(ci, sim, policy, decisions, anchor)
+                ci_t = at(sim.state.t)
+                anchor = adapt_plan(ci_t, sim, policy, decisions, anchor, arrived=ci_t is not known)
+                known = ci_t
                 # the safety net needs a time point even if the factory has no event then
                 if policy.period is not None and sim.has_unstarted and wake != anchor.t + policy.period:
                     wake = anchor.t + policy.period
@@ -98,9 +109,15 @@ def execute(
 
 def adapt_plan(
     ci: CompiledInstance, sim: Simulation, policy: ReschedulingPolicy, decisions: list[dict], anchor: Anchor,
+    arrived: bool = False,
 ) -> Anchor:
-    """One step of the planning tool; returns the anchor for the next step."""
+    """One step of the planning tool; returns the anchor for the next step. `arrived`: `ci` has grown by an order
+    arrival since the last step."""
     snap, current, current_breaks = sim.snapshot(), sim.current_plan(), sim.current_breaks()
+    if arrived:  # repair cannot place a new order: complete rescheduling, never rejected (math/07, step 3)
+        new_plan, new_breaks = _reschedule(ci, snap, current, policy, decisions, ["arrival"], always=True)
+        sim.update_plan(new_plan, new_breaks)
+        return Anchor(new_plan, snap.t, new_breaks)
     # with workers and a calendar the repair also moves overdue breaks and adds owed ones; otherwise it keeps them
     repaired, repaired_breaks = repair_plan(ci, snap, current, current_breaks, overtime=policy.repair_overtime)
     if ci.calendar is None or not ci.worker_ids:
@@ -187,9 +204,10 @@ def _triggers(policy: ReschedulingPolicy, record: dict) -> list[str]:
 
 def _reschedule(
     ci: CompiledInstance, snap: Snapshot, repaired: Sequence[Assignment], policy: ReschedulingPolicy,
-    decisions: list[dict], triggers: list[str],
+    decisions: list[dict], triggers: list[str], always: bool = False,
 ) -> Plan | None:
-    """Complete rescheduling; returns the new plan with its breaks if accepted, None if rejected."""
+    """Complete rescheduling; returns the new plan with its breaks if accepted, None if rejected. `always`: accept
+    regardless of the change budget (an arrival: the repaired plan lacks the new orders)."""
     t0 = time.perf_counter()
     proposed, breaks = policy.planner(ci, snap, repaired)
     planner_time = time.perf_counter() - t0  # wall clock seconds; varies between runs
@@ -198,11 +216,14 @@ def _reschedule(
                                 + "\n".join(f"[{v.constraint}] {v.message}" for v in violations))
     frozen = {(f.order_id, f.op_id) for f in snap.frozen}
     machine_before = {(a.order_id, a.op_id): a.machine for a in repaired}
-    changed = sum(a.machine != machine_before[a.order_id, a.op_id] for a in proposed
-                  if (a.order_id, a.op_id) not in frozen)
-    accepted = policy.change_budget is None or changed <= policy.change_budget
+    free = [a for a in proposed if (a.order_id, a.op_id) not in frozen]
+    # the budget counts operations planned before; arrived ones are inserted, not changed (math/07)
+    changed = sum(a.machine != machine_before[a.order_id, a.op_id] for a in free
+                  if (a.order_id, a.op_id) in machine_before)
+    accepted = always or policy.change_budget is None or changed <= policy.change_budget
     decisions.append({"t": snap.t, "type": "REPLAN", "triggers": triggers, "accepted": accepted,
                       "changed_assignments": changed,
+                      "inserted": sum((a.order_id, a.op_id) not in machine_before for a in free),
                       "makespan_before": max(a.end for a in repaired), "makespan_after": max(a.end for a in proposed),
                       "planner_time": planner_time})
     return Plan(proposed, breaks) if accepted else None

@@ -3,10 +3,12 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from simulation.calendar import day_index, is_working_day, minute_of_day, next_cutoff
 from simulation.carrier_generator import CarrierGeneratorParams, generate_carrier_instance
 from simulation.check.feasibility import check_schedule
 from simulation.io.json_loader import read_model
 from simulation.model.compiled import compile_instance
+from simulation.objectives import MAKESPAN
 from simulation.planners.cpsat import solve
 from simulation.planners.dispatching import dispatch, ect, spt
 from simulation.sim.des import replay
@@ -185,3 +187,62 @@ def test_example_parameter_file():
     inst = generate_carrier_instance(read_model(path, CarrierGeneratorParams))
     assert len(inst.orders) == 40 and all(o.due_date is not None for o in inst.orders)
     assert inst.carrier_steps["oven"].batch_capacity == 3
+
+
+# --- workers and calendar (step 4b, math/21_instance-generator.md) ---------------------------------------------------
+
+SHARES = [{"worker": {"whole": True}}, {"worker": {"whole": True}}, {"attended": ["setup", "removal"]},
+          {"worker": {"prefix": 10, "suffix": 10}}, {"worker": {"whole": True, "qualified": ["A"]}},
+          {"worker": {"whole": True}}, {"worker": {"whole": True}}]
+WORKERS = {"route": [op | s for op, s in zip(ROUTE, SHARES, strict=True)], "workers": ["A", "B", "C"], "calendar": {}}
+
+
+def test_worker_shares_and_calendar_reach_the_instance():
+    inst = generate_carrier_instance(params(**WORKERS, due_date_tightness=(2.0,)))
+    assert inst.workers == ("A", "B", "C") and inst.calendar is not None
+    ops = {op.id: op for op in inst.orders[0].operations}
+    assert ops["design"].worker.whole and ops["mill"].worker.whole and ops["finish"].worker.whole
+    assert ops["oven"].worker is None  # a carrier operation takes its share from the carrier step
+    steps = inst.carrier_steps
+    assert (steps["oven"].worker.prefix, steps["oven"].worker.suffix) == (10, 10)
+    assert steps["qm"].worker.qualified == ("A",) and steps["saw"].worker.whole
+    assert steps["print"].setup_attended and steps["print"].removal_attended and steps["print"].worker is None
+    assert all(next_cutoff(inst.calendar, o.due_date) == o.due_date for o in inst.orders)  # V11
+
+
+def test_generated_instance_with_workers_keeps_shift_hours():
+    # without workers 35 of 66 operations of such an instance started outside the shift (protocol 2026-11-12)
+    ci = compile_instance(generate_carrier_instance(params(**WORKERS, n_orders=6)))
+    result = solve(ci, MAKESPAN, time_limit=20, workers=1)
+    assert result.schedule and not check_schedule(ci, result.schedule, breaks=result.breaks)
+    cal = ci.calendar
+    for a in result.schedule:
+        o = ci.op_index[a.order_id, a.op_id]
+        if any(sh.kind == "whole" for sh in ci.shares[o]):  # a worker's whole share lies inside a working day
+            assert is_working_day(cal, day_index(cal, a.start))
+            assert cal.shift_start <= minute_of_day(cal, a.start) < cal.shift_end + cal.max_overtime
+    def plain(schedule):  # realized schedules carry the share lengths, plans do not
+        return sorted((a.model_copy(update={"share_lengths": ()}) for a in schedule),
+                      key=lambda a: (a.order_id, a.op_id))
+
+    assert plain(replay(ci, result.schedule, breaks=result.breaks).schedule) == plain(result.schedule)
+
+
+def test_attended_only_on_carrier_operations():
+    route = [ROUTE[0] | {"attended": ["setup"]}, *ROUTE[1:]]
+    with pytest.raises(ValidationError, match=r"attended \['setup'\] on design: only for carrier operations"):
+        params(route=route)
+
+
+def test_worker_shares_need_workers():
+    with pytest.raises(ValidationError, match=r"\[V7\]"):
+        generate_carrier_instance(params(route=WORKERS["route"]))
+
+
+def test_example_parameter_file_with_workers():
+    path = Path(__file__).parents[1] / "data" / "generator" / "dental-carriers-workers.json"
+    inst = generate_carrier_instance(read_model(path, CarrierGeneratorParams))
+    assert inst.workers == ("A", "B", "C", "D") and inst.calendar is not None
+    # every order and part operation and every carrier step needs a worker somewhere (no robot steps)
+    assert all(op.worker is not None for o in inst.orders for op in o.operations if op.scope != "carrier")
+    assert all(cs.worker is not None or cs.setup_attended for cs in inst.carrier_steps.values())

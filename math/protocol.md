@@ -8,6 +8,115 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-12 (51) — Order arrivals step 4: arrival sampler and instances with arrivals — uncommitted
+
+- **Decided (user):** see (50) (backlog spread, offset check instead of relaxing V10); the generation half of the
+  experiment configuration now, policy and seeds in step 5.
+- **Done:** `simulation.arrival_generator` (`ArrivalParams`, `sample_arrivals`, `nth_cutoff`, `nesting_times`,
+  `generate_arrival_instance`); `carrier_generator.nest` extracted (output unchanged, dumps of four parameter sets).
+  [07](07_order-arrivals.md) §2, §3a, §5; [21](21_instance-generator.md) §4b; `notation.md` $\mu(w)$,
+  $H^{\mathrm{arr}}$, $\Gamma^{\mathrm{nest}}$, $n^{\mathrm{due}}$ (checked: $\lambda$ is the estimator share,
+  $\mathcal{N}$ the normal distribution). Tests `tests/test_arrival_generator.py` (25); 1522 tests pass.
+- **Found (end-to-end, scratchpad script):** dental example with workers, 4 orders per working day for 2 weeks plus a
+  backlog of 4, daily nesting at 12:00, due 4 cutoffs after acceptance, σ = 0.2, CP-SAT (total tardiness, 30 s, 8
+  threads) at every arrival: 50 orders, 412 operations, 12 batches; 11 arrival reschedulings at 0.1–0.3 s each
+  (visible instance 63 → 412 operations, but most of it frozen by then); episode 166 s wall clock; realized total
+  tardiness 2. The volume is a guess and probably light; CP-SAT is no bottleneck at this load.
+- **Found:** with the backlog rule a backlog order may be due at the first cutoff (Monday 12:00, 4 h after t = 0)
+  although it starts from scratch at 0 (its route still begins with design); the start plan already has tardiness
+  2. **Decided (user):** the spread starts at the third cutoff, written down: `backlog_earliest_cutoff = 3`
+  ($n^{\mathrm{bl}}$, [07](07_order-arrivals.md) §3a, `notation.md`; validation $n^{\mathrm{bl}} \le n^{\mathrm{due}}$, test).
+- **Noted (user):** orders, workers and machines will grow; scaling (rates, machine and worker counts) belongs in
+  the experiments of step 5, where CP-SAT may stop being fast (cf. the 40-order gap in (50)).
+- **Open:** realistic rates (MES); notebook for the arrival experiments (user asked; with the
+  generator scaling of (50)); step 5 (hindsight comparison, metrics, experiment config).
+
+## 2026-11-12 (50) — Step 4b: workers and calendar in the carrier generator — uncommitted
+
+- **Decided (user):** workers and calendar in the generator before the arrival sampler and before any thesis
+  numbers; experiments must make sense (an honest comparison that could disprove the planner, plus settings where it
+  excels); design stays in the example route (finishing the dental route is a separate todo); due dates of a backlog
+  spread as if accepted over the previous working days (for step 4); the sampler rejects a due-date offset in working
+  days that is not longer than the longest wait of the nesting cycle, V10 unchanged; "4 days with weekly nesting" is
+  not a case to build.
+- **Found:** `carrier_generator` predates the workers component (2026-11-02 vs. 2026-11-05) and had no worker shares:
+  with the default calendar 35 of 66 operations of 6 generated orders started outside 08:00–17:30 (CP-SAT makespan
+  13.3 h), i.e. about 3.5 times the weekly capacity; tardiness would mostly vanish. The example route schedules
+  design, which in the real process precedes nesting (user: todo of the dental route).
+- **Done:** `RouteOperation.worker`, `.attended`; `CarrierGeneratorParams.workers`, `.calendar`; a carrier
+  operation's share goes to its carrier step, `attended` sets `setup_attended` / `removal_attended`; due dates on the
+  next cutoff with a calendar; validation "attended only for carrier operations". Example
+  `data/generator/dental-carriers-workers.json` (workers A–D, default calendar, placeholder shares). Without the new
+  parameters the output is identical (dumps of four parameter sets before and after, scratchpad).
+  [21](21_instance-generator.md) §4a, §5, §6, change log. Tests `tests/test_carrier_generator.py` (+5): shares and
+  calendar in the instance, cutoffs; CP-SAT plan checked, replayed unchanged, every whole share inside a shift on a
+  working day; attended on an order operation rejected; shares without workers rejected ([V7]); example file;
+  1497 tests pass.
+- **Found (example with workers):** 40 orders, 287 operations: CP-SAT (60 s, 8 threads) only FEASIBLE, makespan
+  3043 against bound 1552, total tardiness 43 against bound 0 — first sign that CP-SAT alone does not settle
+  realistic sizes (relevant for the GA question).
+- **Open:** step 4 (arrival sampler); worker counts and shares per step are placeholders (company data).
+
+## 2026-11-12 (49) — Order arrivals step 3: arrival trigger in the planning tool — uncommitted
+
+- **Decided (user, design D8–D11):** a complete rescheduling at every arrival in v1; insertion with the old
+  operations fixed kept for later.
+- **Done:** `execute(..., visible=)`; `adapt_plan(..., arrived=)`: at an arrival no repair, complete rescheduling
+  (trigger `arrival`), accepted regardless of the change budget, new anchor; `_reschedule`: the budget counts only
+  operations planned before, arrived ones recorded as `inserted`; CP-SAT change budget skips operations not in the
+  reference (`machine_before.get`); arrivals without a planner rejected (`ValueError`). [05](05_rescheduling-frozen-part.md)
+  §3 and change log, [07](07_order-arrivals.md) §5, [12](12_cp-sat.md) change log, module docstring of
+  `control/rescheduling.py`. Tests `tests/test_arrivals.py` (+10, the step-2 tests now run through `execute`):
+  CP-SAT, rule SPT + ECT, budget 0, no planner (2), four disturbed runs, hand-computed mini instance (b1 on M1 at
+  [4, 6), makespan 6 = hindsight optimum); 1492 tests pass.
+- **Found:** with the repair skipped at an arrival, the `KeyError` in `_change` (review point 1) cannot occur; only
+  `_reschedule` and the CP-SAT budget needed the fix. Disturbed runs (σ = 0.3, seeds 0–3): 18–32 repairs, 5–12
+  shift reschedulings and one arrival rescheduling each.
+- **Open:** step 4 (arrival sampler with nesting cycle and due-date rule, experiment config), step 5 (hindsight
+  comparison, metrics); a replan that moves an operation released at the same time point (not tested).
+
+## 2026-11-12 (48) — Catalogue of instance validation rules V0–V21 — uncommitted
+
+- **Decided (user):** instance validation rules are defined and numbered (useful for replication); formulas only
+  where they would go into the thesis; error messages carry their rule (`[Vn]`).
+- **Decided (own, user agreed):** the letter V for validation of the input, C for plan constraints; V0 groups the
+  structural checks (well-formed file), V1–V21 are the semantic rules; one central file instead of rules spread over
+  the component files, because the checks are one validator and rules span components.
+- **Done:** [02](02_instance-validation.md) (new): V0–V21 with formulas for V5, V8, V10, V11, V18, V20, V21, the
+  mapping rule → code → negative tests; all 64 `ValueError`s of `src/simulation/model/instance.py` start with
+  `[Vn]` (message text otherwise unchanged); test `test_every_instance_check_names_its_rule`
+  (`tests/test_instance_model.py`); 1482 tests pass. [07](07_order-arrivals.md): V1, V2 → V20, V21; V3 → definition of the visible
+  sub-instance (§2). README row.
+- **Found:** every one of the 64 checks has a negative test (throwaway pytest plugin recording the `[Vn]` tags caught
+  by `pytest.raises`, scratchpad, not kept). Pydantic's own field checks (ranges, `extra="forbid"`, schema version)
+  belong to V0 but carry no tag.
+- **Open:** whether the thesis shows the catalogue (appendix) or only V20/V21 and the formulas; step 3.
+
+## 2026-11-12 (47) — Order arrivals step 2: DES event, unplanned operations inert — uncommitted
+
+- **Decided (user):** step 2 incl. two cases: carriers shared across orders (packages with their own carriers and
+  runs) and an arrival during a run or at a planned start.
+- **Done:**
+  - `CompiledInstance.arrival` (per order), `compile_visible(inst)` (t → compiled visible sub-instance, cached per set
+    of known orders). DES ([13](13_des.md) §3): event ARRIVAL (a time point for the planning tool, no effect in the
+    factory), the set of planned operations $O^{\mathrm{pl}}$ (`Simulation.planned`): others are inert (no
+    PLANNED_START, not in the order per machine or worker, not in batches, not in `current_plan()` / `realized()`);
+    `update_plan` gives a newly placed operation its PLANNED_START; plans checked against `visible(t)`
+    (`Simulation(..., visible=)`, default the whole instance); `planned_batches(..., planned)`.
+    [07](07_order-arrivals.md) §5, `notation.md` $O^{\mathrm{pl}}$.
+  - Tests `tests/test_arrivals.py` (+6): hindsight plan with arrivals replays unchanged (zero disturbance); an
+    unplanned package stays idle, run ends with "operations never completed"; a plan holding an unknown order is
+    rejected (C0); two packages replanned at the arrival with CP-SAT; arrival inside print run R1 (R1 unchanged, C8/C9);
+    arrival at a planned start; 1481 tests pass. The tests carry a minimal planning tool (complete rescheduling when the visible
+    instance grows); step 3 moves it into `execute`.
+  - `notebooks/06_workers.ipynb`: inline schema 0.6 → 0.7 (not re-executed).
+- **Found:** at the arrival at a planned start (t = 2) CP-SAT kept the operations released at t; not tested: a replan
+  that moves an operation already released at t (exists independent of arrivals: `update_plan` does not move
+  released operations).
+- **Open:** step 3 (trigger in `execute`, the `KeyError`s in `_change` / `_reschedule`, change budget at an arrival,
+  arrivals without a planner rejected); V1–V3 in [07](07_order-arrivals.md) are input validation, not plan
+  constraints (naming, user question).
+
 ## 2026-11-12 (46) — Order arrivals: design, DES spike, step 1 (format and visibility) — uncommitted
 
 - **Decided (user):** order of work arrivals → expected orders → GA; arrival = end of a nesting batch (sales releases

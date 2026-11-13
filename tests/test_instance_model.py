@@ -1,8 +1,11 @@
 import json
+import re
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
+import simulation.model.instance as instance_module
 from simulation.io.json_loader import read_model, write_model
 from simulation.model.instance import Instance
 from simulation.model.schedule import Schedule
@@ -177,3 +180,11 @@ def test_schedule_roundtrip():
 def test_invalid_assignment_rejected(override, message):
     with pytest.raises(ValidationError, match=message):
         Schedule.model_validate({"assignments": [VALID_ASSIGNMENT | override]})
+
+
+def test_every_instance_check_names_its_rule():
+    # every ValueError of the instance model starts with its validation rule [Vn] (math/02_instance-validation.md)
+    src = Path(instance_module.__file__).read_text(encoding="utf-8")
+    calls = re.findall(r'ValueError\(f?"(.{0,6})', src)
+    assert calls
+    assert all(re.match(r"\[V\d+\] ", c) for c in calls), [c for c in calls if not re.match(r"\[V\d+\] ", c)]

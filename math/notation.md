@@ -55,6 +55,11 @@ Note: $\mathcal{K}$ instead of the common $J$ ("jobs"), because "Job" denotes a 
 | $r_k$ | $\mathbb{Z}_{\ge 0}$ | release time of order $k$ | `Order.release`, `CompiledInstance.release` (per operation) | [01](01_basic-fjsp.md) |
 | $A_k$ | $\mathbb{Z}_{\ge 0}$, $A_k \le r_k$ | arrival of order $k$ (its nesting batch is done; the planning tool knows $k$ from then on) | `Order.arrival` | [07](07_order-arrivals.md) |
 | $A^{\mathrm{acc}}_k$ | $\mathbb{Z}_{\ge 0}$, $A^{\mathrm{acc}}_k \le A_k$ | acceptance of order $k$ (released for design; start of the due-date clock) | `Order.accepted` | [07](07_order-arrivals.md) |
+| $\mu(w)$ | $\mathbb{R}_{\ge 0}$ | mean number of orders accepted on weekday $w$ (sampler; not $\lambda$: the estimator share) | `ArrivalParams.rates` | [07](07_order-arrivals.md) |
+| $H^{\mathrm{arr}}$ | $\mathbb{Z}_{>0}$ | arrival window: acceptances in $[0, H^{\mathrm{arr}})$ | `ArrivalParams.window_days` | [07](07_order-arrivals.md) |
+| $\Gamma^{\mathrm{nest}}$ | set of times | nesting times: given working weekdays at a fixed minute | `nesting_days`, `nesting_minute` | [07](07_order-arrivals.md) |
+| $n^{\mathrm{due}}$ | $\mathbb{Z}_{>0}$ | due-date offset: the $n^{\mathrm{due}}$-th cutoff after the acceptance | `due_working_days` | [07](07_order-arrivals.md) |
+| $n^{\mathrm{bl}}$ | $\mathbb{Z}_{>0}$, $\le n^{\mathrm{due}}$ | backlog due dates: a cutoff drawn uniformly among the $n^{\mathrm{bl}}$-th to $n^{\mathrm{due}}$-th after 0; default 3 | `backlog_earliest_cutoff` | [07](07_order-arrivals.md) |
 
 ## Calendar
 
@@ -145,6 +150,7 @@ Extensions (checked in Zotero, 2026-11-09). [Be] = Berti et al. (2021, PDF p. 5)
 | $\bar m(o)$, $\bar S_o$ | machine and start of $o$ in the plan | [13](13_des.md) |
 | $\hat S_o$, $\hat C_o$ | realized start and completion of $o$ in the simulation | [13](13_des.md) |
 | $\hat p_o$ | realized processing time of $o$ | [13](13_des.md) |
+| $O^{\mathrm{pl}}$ | operations with an assignment in the current plan; the others are inert in the DES | [13](13_des.md), [07](07_order-arrivals.md) |
 | $\operatorname{prev}(o)$ | operation planned directly before $o$ on $\bar m(o)$ | [13](13_des.md) |
 | $\tilde C_o$ | expected completion of an operation running at snapshot time $t$: $\max(\hat S_o + p_{o,\bar m(o)}, t + 1)$; with a suffix not started $\max(\hat S_o + p_{o,\bar m(o)}, t + a^{\mathrm{suf}}_o)$; with a suffix started late at $\hat S^{\mathrm{suf}}_o$: $\max(\hat S_o + p_{o,\bar m(o)}, \hat S^{\mathrm{suf}}_o + a^{\mathrm{suf}}_o, t + 1)$ | [13](13_des.md) |
 | $\operatorname{free}_z(s)$ | earliest $s' \ge s$ at which a share interval of the needed length is clear of the frozen part of worker $z$ and inside one day's shift window | [04](04_workers.md) |

@@ -4,7 +4,7 @@ Operations are indexed in file order: the operations of every order (contiguous 
 operations of the carriers and of the runs (math/03_carriers.md). Owners in op_keys are orders, carriers or runs.
 """
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, fields
 from types import MappingProxyType
 from typing import NamedTuple
@@ -12,7 +12,7 @@ from typing import NamedTuple
 from graphlib import TopologicalSorter
 
 from simulation.calendar import WeekCalendar
-from simulation.model.instance import Instance, operation_graph
+from simulation.model.instance import Instance, operation_graph, visible_instance
 
 type OpKey = tuple[str, str]  # (owner_id, op_id); owner: order, carrier or run
 
@@ -60,6 +60,9 @@ class CompiledInstance:
     # op idx -> duration of an operation without machine (its options are empty), None otherwise
     fixed_duration: tuple[int | None, ...] = ()
     shares: tuple[tuple[Share, ...], ...] = ()  # op idx -> worker shares (whole, prefix, suffix)
+    # order idx -> arrival: the planning tool knows the order from then on (math/07); the DES only wakes the tool
+    arrival: tuple[int, ...] = ()
+    accepted: tuple[int, ...] = ()  # order idx -> acceptance (math/07), for the lead time
 
     @property
     def n_ops(self) -> int:
@@ -120,6 +123,8 @@ def compile_instance(instance: Instance) -> CompiledInstance:
         # carrier and run operations wait for their orders anyway; the latest release is the honest bound
         release=tuple(max(release[k] for k in node.orders) for node in graph.values()),
         due_date=tuple(order.due_date for order in instance.orders),
+        arrival=tuple(order.arrival for order in instance.orders),
+        accepted=tuple(order.accepted for order in instance.orders),
         batch_capacity=tuple(
             (instance.carrier_steps[step].batch_capacity or 1) if (step := _carrier_step(instance, key)) else 1
             for key in op_keys
@@ -134,6 +139,21 @@ def compile_instance(instance: Instance) -> CompiledInstance:
         fixed_duration=tuple(node.duration for node in graph.values()),
         shares=tuple(_compile_shares(node.shares, instance.workers) for node in graph.values()),
     )
+
+
+def compile_visible(instance: Instance) -> Callable[[int], CompiledInstance]:
+    """t -> the compiled visible sub-instance at t (math/07_order-arrivals.md), compiled once per set of known orders,
+    so that the same object comes back until the next arrival."""
+    cache: dict[tuple[str, ...], CompiledInstance] = {}
+
+    def at(t: int) -> CompiledInstance:
+        vis = visible_instance(instance, t)
+        key = tuple(o.id for o in vis.orders)
+        if key not in cache:
+            cache[key] = compile_instance(vis)
+        return cache[key]
+
+    return at
 
 
 def _compile_shares(shares, workers: tuple[str, ...]) -> tuple[Share, ...]:

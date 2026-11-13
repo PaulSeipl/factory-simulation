@@ -97,7 +97,17 @@ b1 to 5 (on time, trigger `early_finish` at 5); no rescheduling without the trig
 due 40 (nothing to gain). This also answers part of the open point on the direction of the triggers (§6): an
 improvement triggers through $\Delta E$ only where there is something to gain.
 
-Each REPLAN record lists its triggers (`makespan`, `shift`, `mean_shift`, `objective`, `period`, `early_finish`).
+**Order arrival** ([07](07_order-arrivals.md), 2026-11-12): when the visible instance $\mathcal{K}(t)$ grows, the
+tool skips the repair (it cannot place a new order: machines and order per machine stay) and reschedules completely
+at once; the result is accepted regardless of the change budget $\kappa$ (the repaired plan lacks the new orders, so
+there is nothing to fall back to) and becomes the new anchor. The budget counts only operations planned before
+(with CP-SAT it stays a constraint over them); the arrived operations are recorded as `inserted`. Without a planner
+an instance with arrivals is rejected (`execute`: "arrivals need a planner"). Following Song et al. 2025
+(`999TFMAJ`, PDF p. 14), who reschedule event-driven at every arrival; an insertion that keeps the old operations
+fixed is kept for later (design D8, user).
+
+Each REPLAN record lists its triggers (`makespan`, `shift`, `mean_shift`, `objective`, `period`, `early_finish`,
+`arrival`).
 
 Hand-checked (test `test_mean_shift_trigger_next_to_the_max_shift_trigger`): toy plan, b1 takes 4 instead of 2, repair only (anchor = start plan). At $t = 5$ the operations not started are a3, b2, b3, b4, c1, c2; b2, b3, b4, c2 start 1 later: $\Delta S = 1$, $\Delta S_{\mathrm{mean}} = 4/6$. At $t = 6$ (a3 and c1 start only after the repair) the same four start 2 later: $\Delta S = 2$, $\Delta S_{\mathrm{mean}} = 8/6$. With $\delta_{S,\mathrm{mean}} = 0.5$ the first complete rescheduling is at $t = 5$ (`mean_shift`); with $\delta_S = 1$ it is at $t = 6$ (`shift`).
 
@@ -226,6 +236,7 @@ With the OVERDUE event the means are unchanged on mk01 (overruns are seen throug
 | 2026-11-11 | uncommitted | Tight through the calendar: $\bar S_o = \operatorname{fit}_o(\beta_o)$ counts as tight (user). |
 | 2026-11-11 | uncommitted | Early-finish trigger ($\Delta E \ge \delta_E$ with tardiness or overtime $> 0$, `early_finish`; user); the tool is called again after the starts of a time point ([13](13_des.md) §3). |
 | 2026-11-11 | uncommitted | Repair option `repair_overtime`: shift window up to the overtime limit (user). |
+| 2026-11-12 | uncommitted | Arrival trigger: complete rescheduling at once, never rejected, budget over old operations only, `inserted` in the REPLAN record; `execute(..., visible=)`; CP-SAT budget skips arrived operations ([07](07_order-arrivals.md)). |
 | 2026-11-11 | uncommitted | Pending removals booked as C7$^o$ orders them (`forced_removals`: earliest possible start, due date, index), not in snapshot order (user decision on C7$^o$, [04](04_workers.md)). |
 | 2026-11-09 | uncommitted | Shift repair with workers (phase 4, task 1): share blockers $\operatorname{bl}(\eta)$ in $\beta_o$, $\beta'_o$, no overlap with the frozen part, pending removal at the C7$^o$ end (forced worker change), fixpoint iteration for cross-worker cycles; machine-less operations. |
 | 2026-11-04 | 31b7574–91ebc7c | Mean start deviation $\Delta S_{\mathrm{mean}}$ as a third trigger (`max_mean_shift`), max kept for the ablation; sources for deviation triggers; open: direction of the triggers. Tardiness-trigger examples in notebook `04_rescheduling`. |

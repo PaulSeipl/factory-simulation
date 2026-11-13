@@ -26,6 +26,8 @@ New symbols, registered in [notation.md](notation.md):
 
 **Batches** ([03](03_carriers.md)): operations of a batch step planned on one machine with the same start start jointly once all are ready; the largest late offset among them delays the batch; their duration does not deviate (fixed program).
 
+**Order arrivals** ([07](07_order-arrivals.md), 2026-11-12): only operations with an assignment in the current plan, $O^{\mathrm{pl}}$, take part in the execution; the others (orders the planning tool has not placed yet) are inert: no PLANNED_START, not in the order per machine or per worker, not in batches, not in `current_plan()` / `realized()`, and the snapshot skips them as not started. An ARRIVAL event at $A_k > 0$ only marks a time point for the planning tool, like WAKE. A plan update that places an operation for the first time gives it its PLANNED_START. The plan is checked against the instance the tool knows at $t$ (`visible`, default: the whole instance), so before its arrival no plan may hold an order (C0). A plan of the full instance (all arrivals known, hindsight) runs as before: $\bar S_o \ge r_{k(o)} \ge A_{k(o)}$.
+
 **Plan validation.** Before the run, the plan is checked with the feasibility checker (C1–C5, [01](01_basic-fjsp.md) §5). An infeasible plan raises `PlanNotExecutable` with all violations. Without this check, waiting would silently repair a broken plan (e.g. two overlapping operations would simply run one after the other).
 
 **Execution rule.** Every operation $o$ runs on $\bar m(o)$, in the planned order per machine (no overtaking). It is **released** to the shop floor at $\bar S_o + \min(\Delta_o, 0)$, with the start offset $\Delta_o$ from the scenario ([22](22_scenarios.md)); if the planning tool updates the plan, $\bar S_o$ may still change until then, and the release time moves with it. A released operation is **ready** as soon as its predecessors are finished, its machine is idle, it is next in the planned order of its machine, and $t \ge r_{k(o)}$ (an early start must not precede the release of the order). Let $R_o$ be the first time at which $o$ is released and ready. Then
@@ -184,7 +186,7 @@ Snapshots are Pydantic models (`Snapshot`, `FrozenOperation`) and can be stored 
 
 - **Breaks in a plan update (2026-11-09):** `update_plan(plan, breaks=None)` checks plan and breaks against the snapshot (C1–C7, C6$^b$, C7$^b$, C14$^f$); `None` keeps the current breaks (`current_breaks()`: taken ones with their realized start, pending ones with their planned start), otherwise the taken breaks stay and the pending ones are replaced (new wake-ups at their starts). `realized_breaks()` keeps working on the merged list.
 - **Plan update (implemented):** the DES offers `snapshot()`, `current_plan()` and `update_plan(plan)` to the planning tool ([05](05_rescheduling-frozen-part.md)). An updated plan must satisfy C1–C7 against the snapshot; then machines and planned times of the operations not started are replaced, the realized durations of reassigned operations are recomputed from their factor and the new machine, the planned order per machine is rebuilt (finished operations first, then the running one, then the new plan), and the DUE events of operations not yet released are moved. Machine and order per machine are therefore part of `SimState`. The DES itself never calls a planner.
-- **Further disturbances:** machine breakdowns, order arrivals (new event type RELEASE).
+- **Further disturbances:** machine breakdowns (order arrivals: ARRIVAL, §3 and [07](07_order-arrivals.md)).
 - Online dispatching (no plan, a rule decides at every event) is then "replan at every event with a rule planner" and needs no rule logic inside the DES.
 
 ## 8. Assumptions and open points
@@ -224,4 +226,5 @@ Snapshots are Pydantic models (`Snapshot`, `FrozenOperation`) and can be stored 
 | 2026-11-09 | 7274636 | `update_plan(plan, breaks)`, `current_breaks()`: taken breaks kept, pending ones replaced. |
 | 2026-11-09 | 7274636 | `FrozenOperation.share_lengths`; swap-rule worker written $z' \in W_o$; $\overline{\mathrm{ot}}$. |
 | 2026-11-11 | uncommitted | Every start is an event: the planning tool is called again after the start step (`start_operations` returns the number of starts; user). |
+| 2026-11-12 | uncommitted | Order arrivals: ARRIVAL event, unplanned operations inert ($O^{\mathrm{pl}}$), plan checked against the visible instance (`Simulation(..., visible=)`); tests in `tests/test_arrivals.py`. |
 | 2026-11-11 | uncommitted | Expected end of a running operation whose removal started late: from the removal's start ($\hat S^{\mathrm{suf}}_o$, `SimState.suffix_start`). |

@@ -16,7 +16,8 @@ if TYPE_CHECKING:
 
 
 def run_metrics(ci: CompiledInstance, plan: Sequence[Assignment], result: ExecutionResult) -> dict[str, int | float]:
-    """One flat record per run (a CSV row); `plan` is the start plan the run began with."""
+    """One flat record per run (a CSV row); `plan` is the start plan the run began with. Deviations from it count
+    only the operations it holds (orders that arrived later are not in it, math/07_order-arrivals.md)."""
     planned = {(a.order_id, a.op_id): a for a in plan}
     order_end: dict[str, int] = {}  # owners of schedule entries can be carriers or runs; count per served order
     release: dict[str, int] = {}
@@ -26,17 +27,22 @@ def run_metrics(ci: CompiledInstance, plan: Sequence[Assignment], result: Execut
             order_end[k] = max(order_end.get(k, 0), a.end)
             release[k] = min(release.get(k, ci.release[o]), ci.release[o])  # the order's own operations
     replans = [d for d in result.decisions if d["type"] == "REPLAN"]
+    in_plan = [a for a in result.schedule if (a.order_id, a.op_id) in planned]
     metrics = {
         "planned_makespan": max(a.end for a in plan),
         "makespan": max(a.end for a in result.schedule),
         "mean_flow_time": mean(end - release[k] for k, end in order_end.items()),
-        "mean_start_deviation": mean(abs(a.start - planned[a.order_id, a.op_id].start) for a in result.schedule),
-        "machine_changes": sum(a.machine != planned[a.order_id, a.op_id].machine for a in result.schedule),
+        "mean_start_deviation": mean(abs(a.start - planned[a.order_id, a.op_id].start) for a in in_plan),
+        "machine_changes": sum(a.machine != planned[a.order_id, a.op_id].machine for a in in_plan),
         "repairs": sum(d["type"] == "REPAIR" for d in result.decisions),
         "reschedulings": len(replans),
         "accepted_reschedulings": sum(d["accepted"] for d in replans),
         "planner_time": sum(d["planner_time"] for d in replans),
     }
+    if any(ci.arrival):  # order arrivals (math/07): lead time from the acceptance, reschedulings at arrivals
+        accepted = dict(zip(ci.order_ids, ci.accepted, strict=True))
+        metrics |= {"mean_lead_time": mean(end - accepted[k] for k, end in order_end.items()),
+                    "arrival_reschedulings": sum("arrival" in d["triggers"] for d in replans)}
     if ci.calendar is not None:  # the activity clock at the end (math/04_workers.md (O6), math/23_metrics.md M1)
         metrics["active_makespan"] = ACTIVE_MAKESPAN.evaluate(ci, result.schedule)
     # due-date metrics only for instances with due dates, so that rows of one experiment share their columns

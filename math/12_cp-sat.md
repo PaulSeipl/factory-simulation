@@ -182,3 +182,4 @@ Every interval that would hit frozen work (an overrun past the window) starts af
 | 2026-11-09 | uncommitted | Objective terms of the worker model (§7b, phase 4 task 5): `CalendarVars`, overtime and break levels; horizon asserted against $H$, spreads checked against $2^{53}$. |
 | 2026-11-09 | uncommitted | Calendar (§7b, phase 4 task 4): night and weekend intervals, overtime variable per worker and day, one break per worker and working day, taken breaks fixed, C14$^f$, serial horizon; breaks in the result and the planner's `Plan`. |
 | 2026-11-09 | uncommitted | Workers and machine-less operations (§7a, phase 4 task 3): share intervals with $v_{\eta,z}$, no overlap per worker, batch shares per slot, frozen shares and the forced removal from a snapshot; guard only for a calendar with workers. |
+| 2026-11-12 | uncommitted | Change budget counts only operations of the reference plan: arrived operations (not in the reference) are free ([07](07_order-arrivals.md)). |

@@ -14,8 +14,9 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, PositiveFloat, PositiveInt, model_validator
 
+from simulation.calendar import next_cutoff
 from simulation.due_dates import lead_time_bound
-from simulation.model.instance import CARRIER, ORDER, CarrierStep, Instance, Order, RunEstimator
+from simulation.model.instance import CARRIER, ORDER, Calendar, CarrierStep, Instance, Order, RunEstimator, WorkerShare
 
 
 class RouteOperation(BaseModel):
@@ -26,6 +27,9 @@ class RouteOperation(BaseModel):
     role: Literal["form", "separate"] | None = None
     carries: str | None = None  # carrier operations: part type of the carrier (Operation.carries)
     predecessors: tuple[str, ...] = ()
+    # worker share of the step (math/04_workers.md); for a carrier operation it goes to the carrier step
+    worker: WorkerShare | None = None
+    attended: tuple[Literal["setup", "removal"], ...] = ()  # carrier steps in runs: setup / removal need a worker
 
 
 class PerCarrierStep(BaseModel):
@@ -64,6 +68,8 @@ class CarrierGeneratorParams(BaseModel):
     per_carrier: dict[str, PerCarrierStep] = {}  # carrier step -> every carrier its own run
     blank_capacity: PositiveInt | None = None  # counted parts per blank; needed iff carrier operations carry them
     due_date_tightness: tuple[PositiveFloat, ...] = ()  # theta per order (lead-time bound); () = no due dates
+    workers: tuple[str, ...] = ()  # individual workers; shares in the route (math/04_workers.md)
+    calendar: Calendar | None = None  # work calendar; due dates then lie on shipping cutoffs
 
     @model_validator(mode="after")
     def check_consistency(self) -> Self:
@@ -72,6 +78,9 @@ class CarrierGeneratorParams(BaseModel):
             if lo > hi:
                 raise ValueError(f"{what}: min {lo} > max {hi}")
         steps = {op.step for op in self.route}
+        for op in self.route:
+            if op.attended and op.scope != CARRIER:
+                raise ValueError(f"attended {list(op.attended)} on {op.id}: only for carrier operations")
         if unknown := sorted(set(self.machine_pool) - steps):
             raise ValueError(f"machine_pool for steps {unknown} not in the route")
         if missing := sorted(s for s in steps if self.machine_pool.get(s, s) not in self.machines):
@@ -108,7 +117,11 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
     machines = {s: [f"{s}{i}" for i in range(1, n + 1)] for s, n in params.machines.items()}
     pool = {op.step: machines[params.machine_pool.get(op.step, op.step)] for op in params.route}
 
-    def step_kwargs(step: str) -> dict:
+    def step_kwargs(op: RouteOperation) -> dict:
+        return _run_kwargs(op.step) | ({"worker": op.worker} if op.worker else {}) | {
+            f"{part}_attended": True for part in op.attended}
+
+    def _run_kwargs(step: str) -> dict:
         if step == params.run_step:
             return {"runs": "given", "setup": params.setup, "removal": params.removal, "estimator": params.estimator}
         if (pc := params.per_carrier.get(step)) is not None:
@@ -118,7 +131,7 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
 
     carrier_steps = {
         op.step: CarrierStep(options=dict.fromkeys(pool[op.step], rng.randint(*params.durations[op.step])),
-                             **step_kwargs(op.step))
+                             **step_kwargs(op))
         for op in params.route if op.scope == CARRIER
     }
     kind = {op.step: op.carries or params.carried_type for op in params.route if op.scope == CARRIER}
@@ -136,8 +149,10 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
         count = {params.carried_type: 1, params.counted_type: n}
         ops = []
         for op in params.route:
-            raw = op.model_dump(exclude_none=True)
-            if op.scope != CARRIER:
+            raw = op.model_dump(exclude_none=True, exclude={"attended"})
+            if op.scope == CARRIER:
+                raw.pop("worker", None)  # on the carrier step
+            else:
                 d = rng.randint(*params.durations[op.step]) * count.get(op.scope, 1)
                 raw["options"] = dict.fromkeys(pool[op.step], d)
             ops.append(raw)
@@ -149,28 +164,10 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
         for o in orders:
             bound = lead_time_bound(Order.model_validate({k: v for k, v in o.items() if k != "size"}), carrier_steps)
             o["due_date"] = o["release"] + math.floor(due_rng.choice(params.due_date_tightness) * bound + 0.5)
+            if params.calendar:  # a shipping date: the next cutoff (math/04_workers.md), as assign_due_dates
+                o["due_date"] = next_cutoff(params.calendar, o["due_date"])
 
-    # nesting emulation: earliest due date first, carriers filled in sequence, consecutive carriers form a run
-    nesting = [o for _, o in sorted(enumerate(orders), key=lambda io: (io[1].get("due_date", 0), io[1]["release"],
-                                                                         io[0]))]
-    carriers: list[dict] = []
-    load = params.carrier_capacity
-    for o in nesting:
-        if load + o["size"] > params.carrier_capacity:
-            carriers.append({"id": f"C{len(carriers) + 1}", "parts": []})
-            load = 0
-        carriers[-1]["parts"].append([o["id"], "c"])
-        load += o["size"]
-    runs = [{"id": f"R{j // params.carriers_per_run + 1}", "step": params.run_step,
-             "carriers": [c["id"] for c in carriers[j:j + params.carriers_per_run]]}
-            for j in range(0, len(carriers), params.carriers_per_run)]
-    blanks: list[dict] = []
-    if params.blank_capacity is not None:  # counted parts next fit in the same order, an order may span two blanks
-        for o in nesting:
-            for j in range(1, o["size"] + 1):
-                if not blanks or len(blanks[-1]["parts"]) == params.blank_capacity:
-                    blanks.append({"id": f"B{len(blanks) + 1}", "parts": []})
-                blanks[-1]["parts"].append([o["id"], f"n{j}"])
+    carriers, runs = nest(orders, params)
 
     return Instance.model_validate({
         "schema_version": "0.7",
@@ -178,6 +175,37 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
         "machines": [m for ms in machines.values() for m in ms],
         "orders": [{k: v for k, v in o.items() if k != "size"} for o in orders],
         "carrier_steps": carrier_steps,
-        "carriers": carriers + blanks,
+        "carriers": carriers,
         "runs": runs,
+        "workers": params.workers,
+        "calendar": params.calendar,
     })
+
+
+def nest(orders: list[dict], params: CarrierGeneratorParams, prefix: str = "") -> tuple[list[dict], list[dict]]:
+    """Nesting emulation (math/21_instance-generator.md §4a): earliest due date first (then release, then index),
+    carriers filled in sequence up to the capacity, consecutive carriers form a run; with blanks the counted parts
+    next fit in the same order (an order may span two blanks). `orders`: dicts with id, size, release and maybe
+    due_date; `prefix` keeps IDs unique when several nesting batches are nested separately (math/07).
+    Returns carriers (plates, then blanks) and runs."""
+    nesting = [o for _, o in sorted(enumerate(orders), key=lambda io: (io[1].get("due_date", 0), io[1]["release"],
+                                                                         io[0]))]
+    carriers: list[dict] = []
+    load = params.carrier_capacity
+    for o in nesting:
+        if load + o["size"] > params.carrier_capacity:
+            carriers.append({"id": f"{prefix}C{len(carriers) + 1}", "parts": []})
+            load = 0
+        carriers[-1]["parts"].append([o["id"], "c"])
+        load += o["size"]
+    runs = [{"id": f"{prefix}R{j // params.carriers_per_run + 1}", "step": params.run_step,
+             "carriers": [c["id"] for c in carriers[j:j + params.carriers_per_run]]}
+            for j in range(0, len(carriers), params.carriers_per_run)]
+    blanks: list[dict] = []
+    if params.blank_capacity is not None:
+        for o in nesting:
+            for j in range(1, o["size"] + 1):
+                if not blanks or len(blanks[-1]["parts"]) == params.blank_capacity:
+                    blanks.append({"id": f"{prefix}B{len(blanks) + 1}", "parts": []})
+                blanks[-1]["parts"].append([o["id"], f"n{j}"])
+    return carriers + blanks, runs

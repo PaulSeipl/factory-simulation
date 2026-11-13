@@ -34,7 +34,7 @@ point and starting operations (simulation.control.rescheduling).
 """
 
 import heapq
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import IntEnum
 
@@ -58,6 +58,7 @@ class EventType(IntEnum):
     PLANNED_START = 4  # planned start + min(offset, 0) reached; ignored if the plan has moved it since
     OVERDUE = 5  # a running operation has passed its expected end; ignored if it has completed
     WAKE = 6  # a time point requested by the planning tool (e.g. periodic rescheduling); no effect in the factory
+    ARRIVAL = 7  # an order arrives (math/07): a time point for the planning tool; no effect in the factory
 
 
 class PlanNotExecutable(ValueError):
@@ -114,11 +115,14 @@ class Simulation:
 
     def __init__(
         self, ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario | None = None,
-        breaks: Iterable[Break] = (),
+        breaks: Iterable[Break] = (), visible: Callable[[int], CompiledInstance] | None = None,
     ):
+        """`visible`: t -> the instance the planning tool knows at t (math/07_order-arrivals.md); plans are checked
+        against it. Default: the whole instance (every order known, e.g. a hindsight plan)."""
         self.breaks = tuple(breaks)
+        self.visible = visible or (lambda _t: ci)
         # waiting would silently repair a broken plan, so it is validated first (C1-C5, C11-C14)
-        if violations := check_schedule(ci, plan, breaks=self.breaks):
+        if violations := check_schedule(self.visible(0), plan, breaks=self.breaks):
             raise PlanNotExecutable(_describe(violations))
         self.ci = ci
         self.log: list[dict] = []
@@ -140,9 +144,14 @@ class Simulation:
             self._wake(b.start)
         self.duration = [0] * ci.n_ops  # realized durations on the currently planned machines
         self.share_len: list[list[int]] = [[] for _ in range(ci.n_ops)]  # realized share lengths
+        # operations with an assignment in the current plan; the others (orders not planned yet) are inert
+        self.planned: set[int] = set()
         self._apply(plan)
-        for o in range(ci.n_ops):
+        for o in sorted(self.planned):
             self._set_planned_start(o)
+        for k, t in enumerate(ci.arrival):
+            if t > 0:
+                self.state.push(t, EventType.ARRIVAL, k)
 
     # --- running ------------------------------------------------------------------------------
 
@@ -184,6 +193,8 @@ class Simulation:
                 pass  # only marks the time point; the start step starts the operation
             elif kind is EventType.WAKE:
                 state.wakes.discard(state.t)
+            elif kind is EventType.ARRIVAL:
+                pass  # only marks the time point; the planning tool plans the order
             elif kind is EventType.OVERDUE:
                 if state.end[o] is None:  # still running: the snapshot now expects its end at t + 1
                     state.push(state.t + 1, EventType.OVERDUE, o)
@@ -248,20 +259,22 @@ class Simulation:
         s = self.state
         return [Assignment(order_id=k, op_id=j, machine=self._machine_id(o), start=s.planned_start[o],
                            end=s.planned_end[o], workers=self._worker_ids(o))
-                for o, (k, j) in enumerate(self.ci.op_keys)]
+                for o, (k, j) in enumerate(self.ci.op_keys) if o in self.planned]
 
     def update_plan(self, plan: Sequence[Assignment], breaks: Sequence[Break] | None = None) -> None:
         """Replace the current plan and, if given, the breaks not taken yet; plan and breaks must respect the frozen
         part (C1-C7 and the break checks against the snapshot). breaks=None keeps the current breaks."""
         new_breaks = self.current_breaks() if breaks is None else tuple(breaks)
-        if violations := check_schedule(self.ci, plan, self.snapshot(), new_breaks):
+        if violations := check_schedule(self.visible(self.state.t), plan, self.snapshot(), new_breaks):
             raise PlanNotExecutable(_describe(violations))
         self._apply(plan)
         if breaks is not None:
             self._replace_breaks(new_breaks)
         for o in range(self.ci.n_ops):
-            pending = self.state.planned_start_at[o]
-            if pending is not None and self._planned_start_time(o) != pending:  # released ops are not moved any more
+            pending, s = self.state.planned_start_at[o], self.state
+            # planned for the first time (an arrived order), or moved; released ops are not moved any more
+            first = o in self.planned and pending is None and s.start[o] is None and o not in s.released
+            if first or pending is not None and self._planned_start_time(o) != pending:
                 self._set_planned_start(o)
                 if self.state.planned_start_at[o] == self.state.t:
                     self._on_planned_start(o)
@@ -302,7 +315,7 @@ class Simulation:
         s = self.state
         return [Assignment(order_id=k, op_id=j, machine=self._machine_id(o), start=s.start[o], end=s.end[o],
                            workers=self._worker_ids(o), share_lengths=tuple(self.share_len[o]))
-                for o, (k, j) in enumerate(self.ci.op_keys)]
+                for o, (k, j) in enumerate(self.ci.op_keys) if o in self.planned]
 
     # --- internals ---------------------------------------------------------------------------------
 
@@ -313,6 +326,7 @@ class Simulation:
         worker_index = {w: i for i, w in enumerate(ci.worker_ids)}
         for a in plan:
             o = ci.op_index[a.order_id, a.op_id]
+            self.planned.add(o)
             s.planned_start[o], s.planned_end[o] = a.start, a.end
             if s.start[o] is None:
                 s.machine[o] = NO_MACHINE if a.machine is None else ci.machine_index[a.machine]
@@ -324,13 +338,13 @@ class Simulation:
                     if (first, i) not in s.share_done and (first, i) not in s.worker_on:
                         s.worker[o][i] = worker_index[w]
         s.order_on = [[] for _ in range(ci.n_machines)]
-        for o in sorted(range(ci.n_ops), key=lambda o: (s.planned_start[o], o)):
+        for o in sorted(self.planned, key=lambda o: (s.planned_start[o], o)):
             if s.machine[o] != NO_MACHINE:
                 s.order_on[s.machine[o]].append(o)
-        s.batch = list(planned_batches(ci, s.machine, s.planned_start, s.start))
+        s.batch = list(planned_batches(ci, s.machine, s.planned_start, s.start, self.planned))
         s.next_pos = [sum(s.end[o] is not None for o in ops) for ops in s.order_on]
         # a batch's shares are carried by its first operation (planned, or started)
-        carriers = [o for o in range(ci.n_ops) if o not in s.followers and s.batch[o][0] == o]
+        carriers = [o for o in sorted(self.planned) if o not in s.followers and s.batch[o][0] == o]
         planned = sorted((share_interval(sh, s.planned_start[o], s.planned_end[o])[0], o, i)
                          for o in carriers for i, sh in enumerate(ci.shares[o]))
         s.worker_order = [[] for _ in ci.worker_ids]
@@ -490,11 +504,13 @@ class Simulation:
 
 
 def planned_batches(
-    ci: CompiledInstance, machine: Sequence[int], planned_start: Sequence[int], start: Sequence[int | None]
+    ci: CompiledInstance, machine: Sequence[int], planned_start: Sequence[int], start: Sequence[int | None],
+    planned: Iterable[int] | None = None,
 ) -> list[tuple[int, ...]]:
-    """Per operation its batch: not started operations of a batch step with the same machine and planned start."""
+    """Per operation its batch: not started operations of a batch step with the same machine and planned start;
+    `planned`: the operations that have a plan (default: all)."""
     groups: dict[tuple[int, int], list[int]] = {}
-    for o in range(ci.n_ops):
+    for o in range(ci.n_ops) if planned is None else sorted(planned):
         if ci.batch_capacity[o] > 1 and start[o] is None:
             groups.setdefault((machine[o], planned_start[o]), []).append(o)
     batch = [(o,) for o in range(ci.n_ops)]
