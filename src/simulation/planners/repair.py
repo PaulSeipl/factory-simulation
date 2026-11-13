@@ -64,13 +64,13 @@ def shift_repair(
                for o in range(ci.n_ops)]
 
     def interval(o: int, i: int, s: int, e: int) -> tuple[int, int]:  # with the snapshot's length
-        return share_interval(ci.shares[o][i]._replace(length=lengths[o][i]), s, e)
+        return share_interval(ci.shares[o][i], s, e, lengths[o][i])
 
     def planned_interval(o: int, i: int) -> tuple[int, int]:
         return share_interval(ci.shares[o][i], planned_start[o], planned_end[o])
 
-    def offset(o: int, i: int) -> int:  # share start - operation start, fixed for an operation not started
-        return share_interval(ci.shares[o][i], 0, p[o])[0]
+    # per share (start, end) - operation start, fixed for an operation not started; [0] is the share's offset
+    rel = [[share_interval(sh, 0, p[o]) for sh in ci.shares[o]] for o in range(ci.n_ops)]
 
     # per worker its shares in planned order (a not started batch once, with its first member). A new share is
     # blocked by the previous share of another operation, and by the previous one not started (a frozen share may
@@ -88,16 +88,29 @@ def shift_repair(
             if start[o] is not None:
                 frozen_shares[w].append((o, i))
                 continue
-            before = [(q, k) for _, q, k in reversed(shares[:j]) if q != o]
-            new_before = next(((q, k) for q, k in before if start[q] is None), None)
-            picked = {*before[:1], *([new_before] if new_before is not None else [])}
-            worker_blockers[o].update((q, k, offset(o, i)) for q, k in picked)
+            first = new_before = None  # the share directly before of another op; the nearest one not started
+            for jj in range(j - 1, -1, -1):
+                _, q, k = shares[jj]
+                if q != o:
+                    first = first or (q, k)
+                    if start[q] is None:
+                        new_before = q, k
+                        break
+            worker_blockers[o].update((q, k, rel[o][i][0]) for q, k in {first, new_before} - {None})
+    # a started operation keeps its times in this call: its worker time once. A share of an operation not started
+    # lies from s + offset >= t + min offset on (s >= t), so a frozen share ending before cannot overlap it
+    min_offset = min((r[0] for rs in rel for r in rs), default=0)
+    frozen_time = {w: [iv for q, k in shares if (iv := interval(q, k, new_start[q], new_end[q]))[1] > t + min_offset]
+                   for w, shares in frozen_shares.items()}
+
+    old_blocks: dict[int, int] = {}  # from the plan only: the same in every pass
 
     def candidate(o: int) -> int:
         blockers = [*ci.predecessors[o], *([prev[o]] if prev[o] is not None else [])]
         own = worker_blockers.get(o, ())
-        old_block = max([ci.release[o], *(planned_end[q] for q in blockers),
-                         *(planned_interval(q, k)[1] - off for q, k, off in own)])
+        if (old_block := old_blocks.get(o)) is None:
+            old_block = old_blocks[o] = max([ci.release[o], *(planned_end[q] for q in blockers),
+                                             *(planned_interval(q, k)[1] - off for q, k, off in own)])
         new_block = max([t, ci.release[o], *(new_end[q] for q in blockers),
                          *(interval(q, k, new_start[q], new_end[q])[1] - off for q, k, off in own)])
         # tight: planned at the blocker's end, or at the earliest start the calendar allows after it (behind a break,
@@ -108,10 +121,8 @@ def shift_repair(
     def clear_of_frozen(o: int, s: int) -> int:
         """Earliest s' >= s at which no share of o (a batch's first member) overlaps a share of a started op."""
         while True:
-            ends = [interval(q, k, new_start[q], new_end[q])[1] - offset(o, i)
-                    for i, w in enumerate(workers[o] if workers else ()) for q, k in frozen_shares[w]
-                    if _overlap(share_interval(ci.shares[o][i], s, s + p[o]),
-                                interval(q, k, new_start[q], new_end[q]))]
+            ends = [hi - rel[o][i][0] for i, w in enumerate(workers[o] if workers else ())
+                    for lo, hi in frozen_time.get(w, ()) if s + rel[o][i][0] < hi and lo < s + rel[o][i][1]]
             if not ends:
                 return s
             s = max(ends)
@@ -134,10 +145,6 @@ def shift_repair(
         if not changed:
             return new_start, new_end
     raise ValueError("shift repair does not converge: the orders per machine and worker contain a cycle")
-
-
-def _overlap(a: tuple[int, int], b: tuple[int, int]) -> bool:
-    return a[0] < b[1] and b[0] < a[1]
 
 
 def repair(ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignment],
@@ -297,7 +304,7 @@ def _calendar(ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignmen
         for o in range(ci.n_ops):
             for i, z in enumerate(workers[o]):
                 n = share_len[o][i] if share_len[o] else ci.shares[o][i].length
-                a = share_interval(ci.shares[o][i]._replace(length=n), new_start[o], new_end[o])[0]
+                a = share_interval(ci.shares[o][i], new_start[o], new_end[o], n)[0]
                 if a < latest_break(d := day_index(cal, a)):
                     break_at(z, d)
 
@@ -355,11 +362,12 @@ def _frozen_worker_time(ci: CompiledInstance, frozen) -> dict[int, list[tuple[in
     """Worker idx -> intervals of the started shares, from the snapshot's times and share lengths. Computed here
     and not taken from the checker, which has to verify the result independently."""
     out: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    w_index = {w: z for z, w in enumerate(ci.worker_ids)}
     for o, f in frozen:
         lengths = f.share_lengths or [sh.length for sh in ci.shares[o]]
         for sh, n, w in zip(ci.shares[o], lengths, f.workers, strict=True):
             if w is not None:
-                out[ci.worker_ids.index(w)].append(share_interval(sh._replace(length=n), f.start, f.end))
+                out[w_index[w]].append(share_interval(sh, f.start, f.end, n))
     return out
 
 

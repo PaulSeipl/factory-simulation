@@ -17,6 +17,7 @@ The DES itself never decides anything; it only executes the plan it receives.
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from operator import attrgetter
 from typing import NamedTuple
 
 from simulation.check.feasibility import check_schedule
@@ -200,8 +201,11 @@ def _room_to_gain(ci: CompiledInstance, plan: Sequence[Assignment]) -> bool:
 def _same(a: Sequence[Assignment], b: Sequence[Assignment]) -> bool:
     """Equal plans up to share lengths: a repaired plan carries the snapshot's lengths of started shares for the
     checker, the plan in the factory does not (math/05_rescheduling-frozen-part.md section 5)."""
-    return [x.model_copy(update={"share_lengths": ()}) for x in a] == [x.model_copy(update={"share_lengths": ()})
-                                                                     for x in b]
+    return len(a) == len(b) and all(_compared(x) == _compared(y) for x, y in zip(a, b, strict=True))
+
+
+# every field but share_lengths, read from the model so that a new field is compared too
+_compared = attrgetter(*(f for f in Assignment.model_fields if f != "share_lengths"))
 
 
 def _same_breaks(a: Sequence[Break], b: Sequence[Break]) -> bool:
