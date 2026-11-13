@@ -300,3 +300,18 @@ def test_disturbed_run_with_arrival_repairs_and_reschedules(seed):
     assert replans == [10]
     assert {v.constraint for v in check_schedule(ci, result.schedule)} <= {"C2"}  # realized durations deviate
     assert all(a.start >= 10 for a in result.schedule if a.order_id in LATE)
+
+
+def test_plan_history_records_every_plan_as_changes():
+    ci, at = setup()
+    policy = ReschedulingPolicy(planner=cpsat_planner(time_limit=5))
+    result = execute(ci, start_plan(at), policy=policy, visible=at, keep_history=True)
+    first, arrival = result.history[0], next(h for h in result.history if "arrival" in h["triggers"])
+    assert first["t"] == 0 and {c["order_id"] for c in first["changed"]} & LATE == set()
+    assert arrival["t"] == 10 and arrival["type"] == "REPLAN"
+    assert sum(c["order_id"] in LATE for c in arrival["changed"]) == sum(owner in LATE for owner, _ in ci.op_keys)
+    plan = {}  # replaying the change sets yields a plan of every operation
+    for h in result.history:
+        plan |= {(c["order_id"], c["op_id"]): c for c in h["changed"]}
+    assert set(plan) == set(ci.op_keys)
+    assert execute(ci, start_plan(at), policy=policy, visible=at).history == []  # off by default

@@ -1,0 +1,270 @@
+{
+  "name": "nesting-daily",
+  "arrivals": {
+    "seed": 0,
+    "base": {
+      "seed": 1,
+      "name": "dental-carriers-workers",
+      "n_orders": 40,
+      "release_range": [
+        0,
+        0
+      ],
+      "route": [
+        {
+          "id": "design",
+          "step": "design",
+          "scope": "order",
+          "role": null,
+          "predecessors": [],
+          "worker": {
+            "whole": true
+          }
+        },
+        {
+          "id": "mill_blank",
+          "step": "mill_blank",
+          "scope": "carrier",
+          "role": "form",
+          "carries": "primary",
+          "predecessors": [
+            "design"
+          ],
+          "attended": [
+            "setup",
+            "removal"
+          ]
+        },
+        {
+          "id": "separate",
+          "step": "separate",
+          "scope": "carrier",
+          "role": "separate",
+          "carries": "primary",
+          "predecessors": [
+            "mill_blank"
+          ],
+          "worker": {
+            "whole": true
+          }
+        },
+        {
+          "id": "polish",
+          "step": "polish",
+          "scope": "primary",
+          "role": null,
+          "predecessors": [
+            "separate"
+          ],
+          "worker": {
+            "whole": true
+          }
+        },
+        {
+          "id": "print",
+          "step": "print",
+          "scope": "carrier",
+          "role": "form",
+          "carries": "secondary",
+          "predecessors": [
+            "design"
+          ],
+          "attended": [
+            "setup",
+            "removal"
+          ]
+        },
+        {
+          "id": "oven",
+          "step": "oven",
+          "scope": "carrier",
+          "role": null,
+          "carries": "secondary",
+          "predecessors": [
+            "print"
+          ],
+          "worker": {
+            "prefix": 10,
+            "suffix": 10
+          }
+        },
+        {
+          "id": "mill_carrier",
+          "step": "mill_carrier",
+          "scope": "carrier",
+          "role": null,
+          "carries": "secondary",
+          "predecessors": [
+            "oven"
+          ],
+          "attended": [
+            "setup",
+            "removal"
+          ]
+        },
+        {
+          "id": "qm",
+          "step": "qm",
+          "scope": "carrier",
+          "role": null,
+          "carries": "secondary",
+          "predecessors": [
+            "mill_carrier",
+            "polish"
+          ],
+          "worker": {
+            "whole": true
+          }
+        },
+        {
+          "id": "saw",
+          "step": "saw",
+          "scope": "carrier",
+          "role": "separate",
+          "carries": "secondary",
+          "predecessors": [
+            "qm"
+          ],
+          "worker": {
+            "whole": true
+          }
+        },
+        {
+          "id": "finish",
+          "step": "finish",
+          "scope": "order",
+          "role": null,
+          "predecessors": [
+            "saw"
+          ],
+          "worker": {
+            "whole": true
+          }
+        }
+      ],
+      "machines": {
+        "design": 2,
+        "mill": 3,
+        "bench": 2,
+        "print": 2,
+        "oven": 1,
+        "qm": 1,
+        "saw": 1,
+        "finish": 2
+      },
+      "durations": {
+        "design": [
+          10,
+          20
+        ],
+        "print": [
+          60,
+          90
+        ],
+        "oven": [
+          90,
+          90
+        ],
+        "qm": [
+          10,
+          15
+        ],
+        "saw": [
+          5,
+          10
+        ],
+        "finish": [
+          10,
+          20
+        ],
+        "mill_blank": [
+          60,
+          60
+        ],
+        "mill_carrier": [
+          30,
+          30
+        ],
+        "separate": [
+          5,
+          10
+        ],
+        "polish": [
+          3,
+          6
+        ]
+      },
+      "carried_type": "secondary",
+      "counted_type": "primary",
+      "count_range": [
+        1,
+        7
+      ],
+      "carrier_capacity": 12,
+      "carriers_per_run": 4,
+      "run_step": "print",
+      "setup": 10,
+      "removal": 10,
+      "unit_time": 8,
+      "estimator": {
+        "fixed": 20,
+        "share": 0.5
+      },
+      "due_date_tightness": [],
+      "batch_capacity": {
+        "oven": 3
+      },
+      "machine_pool": {
+        "mill_blank": "mill",
+        "mill_carrier": "mill",
+        "separate": "bench",
+        "polish": "bench"
+      },
+      "per_carrier": {
+        "mill_blank": {
+          "setup": 10,
+          "removal": 10,
+          "unit_time": 8
+        },
+        "mill_carrier": {
+          "setup": 10,
+          "removal": 10,
+          "unit_time": 3
+        }
+      },
+      "blank_capacity": 16,
+      "workers": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "calendar": {}
+    },
+    "rates": {
+      "0": 6.0,
+      "1": 6.0,
+      "2": 6.0,
+      "3": 6.0,
+      "4": 6.0
+    },
+    "window_days": 14,
+    "backlog": 4,
+    "due_working_days": 6
+  },
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "policies": {
+    "cpsat+thresholds": {
+      "planner": "cpsat",
+      "max_makespan_change": 10,
+      "max_shift": 30,
+      "period": 120
+    }
+  }
+}

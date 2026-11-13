@@ -414,7 +414,7 @@ def _clear_start(intervals: Sequence[tuple[int, int]], s: int, n: int) -> int:
 
 def cpsat_planner(
     time_limit: float = 1.0, workers: int = 1, seed: int = 0, change_budget: int | None = None,
-    objective: Objective = MAKESPAN,
+    objective: Objective = MAKESPAN, deterministic_time: float | None = None,
 ):
     """Planner for the complete rescheduling: planner(ci, snapshot, current_plan) -> new complete plan.
 
@@ -424,7 +424,7 @@ def cpsat_planner(
 
     def planner(ci: CompiledInstance, snapshot: Snapshot, current: Sequence[Assignment]) -> Plan:
         result = solve(ci, objective, time_limit, workers, seed, hint=current, snapshot=snapshot,
-                       reference=current, change_budget=change_budget)
+                       reference=current, change_budget=change_budget, deterministic_time=deterministic_time)
         if not result.schedule and ci.calendar is not None and ci.worker_ids:
             # the planner interface has no current breaks to fall back on
             raise RuntimeError(f"CP-SAT found no plan within {time_limit} s ({result.status}); raise the time limit")

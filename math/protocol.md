@@ -8,6 +8,27 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-13 (52) — Order arrivals step 5: experiment runner, plan history, metrics — uncommitted
+
+- **Decided (user):** experiment plan approved (load levels 4/6/8 and 8 with doubled resources, an undisturbed level,
+  daily vs. weekly nesting, four policies, 5 seeds); runner plus CSV, notebook as reader; plans of repairs and
+  reschedulings saved per run (later: a timeline and animation of the changing plan); steps 2–4 committed by the user
+  (c72a018).
+- **Done:** `simulation.experiment` (`ExperimentConfig`, `PolicyConfig`, `run_one`, `run`, CLI);
+  `execute(..., keep_history=)` and `ExecutionResult.history` (change sets per plan update);
+  `cpsat_planner(..., deterministic_time=)`; `CompiledInstance.accepted`; `run_metrics` with arrivals ((M3), (M4) over
+  the start-plan operations — before, a `KeyError` for arrived operations; (M7) `mean_lead_time`,
+  `arrival_reschedulings`); `bottleneck_load` (M8). Seven configurations in `experiments/*.json`; notebook
+  `notebooks/07_arrivals.ipynb` (reader, not executed yet: no results); `.gitignore` for the plan histories.
+  [07](07_order-arrivals.md) §5, [23](23_metrics.md), `notation.md` ($\bar F^{\mathrm{acc}}$, $N_C^{\mathrm{arr}}$).
+  Tests: `tests/test_experiment.py` (2), `tests/test_arrivals.py` (+2: history, metrics by hand); 1527 tests pass
+  (256 s).
+- **Found:** a profile of a one-week episode: 74 % of the wall clock in shift repair (about 1,700 calls of 22 ms;
+  `clear_of_frozen`, `NamedTuple._replace`), CP-SAT about 0.1–0.3 s per call but called only at arrivals and
+  thresholds. Smoke run (7 orders, 4 policies): 45 s; hindsight+thresholds reschedules 42 times against 16 online.
+- **Open:** the full run (about 1 h, after a commit so that rows carry a clean hash); observations in notebook 07;
+  repair speed-up (user question; separate task); timeline and animation of the plan history (later).
+
 ## 2026-11-12 (51) — Order arrivals step 4: arrival sampler and instances with arrivals — uncommitted
 
 - **Decided (user):** see (50) (backlog spread, offset check instead of relaxing V10); the generation half of the

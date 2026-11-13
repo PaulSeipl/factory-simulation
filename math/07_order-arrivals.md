@@ -129,6 +129,21 @@ weekly batches, the rate in the mean (300 seeds), instance times and due dates, 
 batch per arrival, lead-time due dates, a small episode with CP-SAT rescheduling at every later batch, eleven
 negative tests (incl. the shortest offsets: daily 2, weekly 6).
 
+**Step 5, experiments** (2026-11-13): `simulation.experiment`: `ExperimentConfig` (JSON in `experiments/`: the
+`ArrivalParams`, seeds, scenario, cutoff buffer, CP-SAT limits, named policies `PolicyConfig(planner, hindsight,
+thresholds)`), `run_one` (one episode: instance and scenario per seed, start plan, `execute` with the plan history,
+CSV row with configuration hash and commit), `run` (all configurations, policies and seeds in a process pool; one CSV
+per configuration in `experiments/results/`, plan histories in `experiments/results/<config>/plans/`, not in git).
+CP-SAT: worker objective with cutoff slack, one thread, fixed seed, deterministic limit (`cpsat_planner(...,
+deterministic_time=)`), so runs are reproducible. `execute(..., keep_history=True)` records the start plan and every
+plan the factory receives as a change set (time, cause, changed assignments, breaks), the basis for an animation of
+the plan over time later. Metrics (M7), (M8) in [23](23_metrics.md). Configurations: load levels 4, 6, 8 orders per
+working day and 8 with doubled machines and workers; 6 undisturbed (the gap to hindsight is pure information); daily
+against weekly nesting (due 6 cutoffs after the acceptance). Policies: rule at arrivals, CP-SAT at arrivals,
+CP-SAT with thresholds and period, hindsight with the same thresholds. Notebook `notebooks/07_arrivals.ipynb` reads
+the results. Tests `tests/test_experiment.py` (row and history, reproducibility), `tests/test_arrivals.py` (history,
+metrics with arrivals).
+
 ## 6. Assumptions and open points
 
 - Arrival = end of a nesting batch; when nesting runs (daily, on given weekdays) is a sampler setting (step 4), not
@@ -155,5 +170,6 @@ negative tests (incl. the shortest offsets: daily 2, weekly 6).
 | 2026-11-12 | a48812c | Created: acceptance, arrival, packages, visible sub-instance (step 1); schema 0.7. |
 | 2026-11-12 | uncommitted | V1, V2 renamed V20, V21 (catalogue [02](02_instance-validation.md)); V3 became the definition of the visible sub-instance (§2). |
 | 2026-11-12 | uncommitted | Step 2: ARRIVAL event, unplanned operations inert, plan check against the visible instance. |
-| 2026-11-12 | uncommitted | Step 4: arrival process (§3a) and `arrival_generator`. |
+| 2026-11-13 | uncommitted | Step 5: experiment runner, plan history, metrics with arrivals. |
+| 2026-11-12 | c72a018 | Step 4: arrival process (§3a) and `arrival_generator`. |
 | 2026-11-12 | uncommitted | Step 3: arrival trigger in `execute` / `adapt_plan`, budget over old operations, `inserted`; hand-computed mini instance. |
