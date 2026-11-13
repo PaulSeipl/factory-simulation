@@ -8,6 +8,33 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-13 (53) — Shift repair: performance, results unchanged — uncommitted
+
+- **Decided (parent session, task):** speed up the shift repair without changing any result; candidate "skip the
+  repair when nothing happened" not taken (see found).
+- **Done:** `simulation.planners.repair.shift_repair`: worker time of the frozen shares computed once per call and
+  only for shares ending after $t$ + the smallest share offset (a share of an operation not started lies from
+  $S_o \ge t$ on, so earlier ones cannot overlap it); share offsets and $\beta_o$ (plan only) computed once instead
+  of per pass; share blockers $\operatorname{bl}(\eta)$ by a backward scan that stops at the nearest not started
+  share instead of a list of all earlier shares per share (was quadratic in the worker's history); `_overlap` removed.
+  `share_interval` takes an optional `length` (replaces `Share._replace` in `shift_repair`, `owe`,
+  `_frozen_worker_time`); worker index by dict in `_frozen_worker_time`. Checker and dispatching untouched (the
+  checker stays independent). Change log [05](05_rescheduling-frozen-part.md).
+- **Found (scratchpad scripts, not in the repo):** one-week arrival episode (`ArrivalParams` on
+  `dental-carriers-workers.json`, 4 orders per working day, `window_days` 7, backlog 4), CP-SAT makespan with
+  `deterministic_time` (2 s per rescheduling, 5 s start plan, 1 thread) instead of `cpsat_planner`'s wall-clock limit,
+  so old and new runs are reproducible and comparable. Every `repair_plan` call recorded and replayed through the
+  HEAD copy and the new code: all 5,200 calls (seeds 1, 2, 3; σ 0.2, 0.6, 0.2) give equal assignments (incl.
+  `share_lengths`) and breaks; decisions, realized schedules and breaks of the three episodes byte-identical.
+  Seed 1 (σ 0.2, 217 operations, 1,360 calls), clean sequential runs: repair 7.3 s → 2.9 s (5.4 → 2.2 ms per call),
+  episode 13.9 s → 8.8 s; replay alone 1.9–2.9× faster over the three seeds. Remaining repair cost is spread
+  (Pydantic output, `_calendar` setup, `fit`).
+- **Found:** 937 of the 1,360 calls (seed 1) return the plan unchanged; skipping them needs an exact predicate
+  (due pending breaks move to $\max(\mathrm{br}, t)$, the DES may give a share to another worker at a start,
+  `early_finish` reads the repaired plan), so not done.
+- **Open:** `adapt_plan._same` (one `model_copy` per assignment and call) is the next visible cost outside the
+  repair (≈ 4.7 s cumulative in the profiled seed-1 run with recording on).
+
 ## 2026-11-12 (51) — Order arrivals step 4: arrival sampler and instances with arrivals — uncommitted
 
 - **Decided (user):** see (50) (backlog spread, offset check instead of relaxing V10); the generation half of the

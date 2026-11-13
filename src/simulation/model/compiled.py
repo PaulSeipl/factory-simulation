@@ -26,12 +26,14 @@ class Share(NamedTuple):
     workers: tuple[int, ...]
 
 
-def share_interval(share: Share, start: int, end: int) -> tuple[int, int]:
-    """[from, to) of the worker time of a share for an operation running in [start, end)."""
+def share_interval(share: Share, start: int, end: int, length: int | None = None) -> tuple[int, int]:
+    """[from, to) of the worker time of a share for an operation running in [start, end); `length` instead of the
+    share's own (e.g. a started share's length from the snapshot)."""
+    n = share.length if length is None else length
     if share.kind == "prefix":
-        return start, start + share.length
+        return start, start + n
     if share.kind == "suffix":
-        return end - share.length, end
+        return end - n, end
     return start, end
 
 
