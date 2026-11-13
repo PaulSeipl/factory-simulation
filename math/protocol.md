@@ -8,7 +8,7 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-13 (53) — Shift repair: performance, results unchanged — uncommitted
+## 2026-11-13 (53) — Shift repair and plan comparison: performance, results unchanged — uncommitted
 
 - **Decided (parent session, task):** speed up the shift repair without changing any result; candidate "skip the
   repair when nothing happened" not taken (see found).
@@ -32,8 +32,17 @@ the commits and the change logs of the component files and are therefore shorter
 - **Found:** 937 of the 1,360 calls (seed 1) return the plan unchanged; skipping them needs an exact predicate
   (due pending breaks move to $\max(\mathrm{br}, t)$, the DES may give a share to another worker at a start,
   `early_finish` reads the repaired plan), so not done.
-- **Open:** `adapt_plan._same` (one `model_copy` per assignment and call) is the next visible cost outside the
-  repair (≈ 4.7 s cumulative in the profiled seed-1 run with recording on).
+- **Decided (user):** refactor `adapt_plan._same` as well, the next visible cost outside the repair (≈ 4.7 s
+  cumulative in the profiled seed-1 run with recording on).
+- **Done:** `control.rescheduling._same` compares the fields of each assignment pair directly (every field of
+  `Assignment.model_fields` but `share_lengths`, read from the model so a new field is compared too, stops at the
+  first difference) instead of one `model_copy` per assignment and a list comparison. Same semantics: Pydantic's `==`
+  compares the field values, `Assignment` has no extra or private attributes.
+- **Found:** on the recorded plan pairs (both calls per `adapt_plan` step, incl. pairs that differ only in
+  `share_lengths`) the same answer on all 10,400 calls, 2.3–3.3 s → 0.3 s per episode (≈ 9×); decisions, realized
+  schedules and breaks of the three episodes byte-identical again. Episode wall clocks of this second round are not
+  comparable (machine under other load: the unchanged repair took 5.6 s instead of 2.9 s on seed 1).
+- **Open:** none from this pass.
 
 ## 2026-11-12 (51) — Order arrivals step 4: arrival sampler and instances with arrivals — uncommitted
 
