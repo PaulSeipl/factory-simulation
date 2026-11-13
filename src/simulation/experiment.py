@@ -1,16 +1,24 @@
 """Arrival experiments (math/07_order-arrivals.md §6): configuration, one run, parallel runner.
 
-    uv run python -m simulation.experiment experiments/arrivals-rate4.json [...] --out experiments/results
+    uv run experiment list                      # every run (index, configuration, policy, seed)
+    uv run experiment run arrivals-rate6 [...]  # by name (experiments/<name>.json) or path; no name: all
+    uv run experiment task --index 7            # one run by index (Slurm: index from SLURM_ARRAY_TASK_ID)
+    uv run experiment merge                     # row files -> one CSV per configuration
 
-One CSV per configuration (one row per policy and seed, with the configuration hash and the git commit) and, per
-run, the plan history as JSON Lines (`<out>/<config>/plans/<policy>-<seed>.jsonl`: the start plan, then every plan
-the factory receives as a change set). CP-SAT runs with one thread, a fixed seed and a deterministic limit, so a run
-is reproducible; all policies of one seed start from the same instance and scenario.
+Each run writes its row (`<out>/<config>/rows/<policy>-<seed>.json`, with the configuration hash, the git commit
+and the host) and its plan history as JSON Lines (`<out>/<config>/plans/<policy>-<seed>.jsonl`: the start plan,
+then every plan the factory receives as a change set); `merge` (also at the end of `run`) writes one CSV per
+configuration from the rows whose hash matches the configuration. CP-SAT runs with one thread, a fixed seed and a
+deterministic limit, so a run is reproducible; all policies of one seed start from the same instance and scenario.
 """
 
 import argparse
 import hashlib
+import json
+import os
+import socket
 import subprocess
+import sys
 import time
 from multiprocessing import Pool
 from pathlib import Path
@@ -84,8 +92,8 @@ def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) ->
     plans = out / config.name / "plans"
     plans.mkdir(parents=True, exist_ok=True)
     write_jsonl(result.history, plans / f"{policy_name}-{seed}.jsonl")
-    return {"config": config.name, "config_hash": config.digest(), "commit": _commit(), "policy": policy_name,
-            "seed": seed, "orders": len(inst.orders), "operations": ci.n_ops,
+    return {"config": config.name, "config_hash": config.digest(), "commit": _commit(), "host": socket.gethostname(),
+            "policy": policy_name, "seed": seed, "orders": len(inst.orders), "operations": ci.n_ops,
             "start_status": start.status, "start_levels": " ".join(map(str, start.levels)),
             "start_bound": start.bound, "wall_time": round(time.perf_counter() - t0, 1),
             "bottleneck_load": bottleneck_load(result.schedule)} | run_metrics(ci, start.schedule, result)
@@ -109,21 +117,88 @@ def _commit() -> str:
         return "unknown"
 
 
-def run(configs: list[ExperimentConfig], out: Path, processes: int | None = None) -> None:
-    """Every (configuration, policy, seed) in parallel; one CSV per configuration."""
-    tasks = [(c, p, s, out) for c in configs for p in c.policies for s in c.seeds]
-    with Pool(processes) as pool:
-        rows = pool.starmap(run_one, tasks)
+CONFIGS = Path("experiments")
+
+
+def load(names: list[str]) -> list[ExperimentConfig]:
+    """Configurations by name (experiments/<name>.json) or path; no names: every file in experiments/."""
+    paths = [Path(n) if n.endswith(".json") else CONFIGS / f"{n}.json" for n in names] or sorted(CONFIGS.glob("*.json"))
+    for path in paths:
+        if not path.is_file():
+            raise SystemExit(f"no configuration {path}")
+    return [read_model(path, ExperimentConfig) for path in paths]
+
+
+def tasks(configs: list[ExperimentConfig]) -> list[tuple[ExperimentConfig, str, int]]:
+    """Every (configuration, policy, seed) in a fixed order; the index of a run is its position here."""
+    return [(c, p, s) for c in configs for p in c.policies for s in c.seeds]
+
+
+def run_task(config: ExperimentConfig, policy: str, seed: int, out: Path) -> Path:
+    """One run; its row goes to its own file, so runs on several machines never write the same file."""
+    row = run_one(config, policy, seed, out)
+    path = out / config.name / "rows" / f"{policy}-{seed}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    return path
+
+
+def merge(configs: list[ExperimentConfig], out: Path) -> None:
+    """One CSV per configuration from its row files, in task order; rows of another configuration hash (the file
+    changed since) or missing runs are reported, not merged."""
     for c in configs:
-        mine = [r for r in rows if r["config"] == c.name]
-        keys = list(dict.fromkeys(k for r in mine for k in r))  # columns can differ by policy (e.g. no replans)
-        write_csv([{k: r.get(k) for k in keys} for r in mine], out / f"{c.name}.csv")
+        rows, missing = [], []
+        for _, p, s in tasks([c]):
+            path = out / c.name / "rows" / f"{p}-{s}.json"
+            row = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+            if row is None or row["config_hash"] != c.digest():
+                missing.append(f"{p}-{s}")
+            else:
+                rows.append(row)
+        if missing:
+            note = f"{c.name}: {len(missing)} runs missing or from another configuration: {' '.join(missing)}"
+            print(note, file=sys.stderr)  # noqa: T201
+        if rows:
+            keys = list(dict.fromkeys(k for r in rows for k in r))  # columns can differ by policy (e.g. no replans)
+            write_csv([{k: r.get(k) for k in keys} for r in rows], out / f"{c.name}.csv")
+
+
+def run(configs: list[ExperimentConfig], out: Path, processes: int | None = None) -> None:
+    """Every (configuration, policy, seed) in parallel, then merge."""
+    with Pool(processes) as pool:
+        pool.starmap(run_task, [(c, p, s, out) for c, p, s in tasks(configs)])
+    merge(configs, out)
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="experiment", description=__doc__.splitlines()[0])
+    sub = parser.add_subparsers(dest="command", required=True)
+    for name, text in [("list", "show every run with its index"), ("run", "run configurations in parallel"),
+                       ("task", "run one run by index"), ("merge", "write the CSVs from the row files")]:
+        cmd = sub.add_parser(name, help=text)
+        if name == "task":
+            cmd.add_argument("--index", type=int, default=None, help="index from `list` (default: SLURM_ARRAY_TASK_ID)")
+        cmd.add_argument("configs", nargs="*", help="names in experiments/ or paths (default: all)")
+        cmd.add_argument("--out", type=Path, default=Path("experiments/results"))
+        if name == "run":
+            cmd.add_argument("--processes", type=int, default=None, help="default: number of CPUs")
+    args = parser.parse_args(argv)
+    configs = load(args.configs)
+    if args.command == "list":
+        for i, (c, p, s) in enumerate(tasks(configs)):
+            print(f"{i:4d}  {c.name:<28} {p:<22} {s}")  # noqa: T201
+    elif args.command == "run":
+        run(configs, args.out, args.processes)
+    elif args.command == "task":
+        index = args.index if args.index is not None else int(os.environ.get("SLURM_ARRAY_TASK_ID", -1))
+        all_tasks = tasks(configs)
+        if not 0 <= index < len(all_tasks):
+            raise SystemExit(f"task index {index} outside 0..{len(all_tasks) - 1}")
+        c, p, s = all_tasks[index]
+        print(run_task(c, p, s, args.out))  # noqa: T201
+    else:
+        merge(configs, args.out)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("configs", nargs="+", type=Path)
-    parser.add_argument("--out", type=Path, default=Path("experiments/results"))
-    parser.add_argument("--processes", type=int, default=None)
-    args = parser.parse_args()
-    run([read_model(p, ExperimentConfig) for p in args.configs], args.out, args.processes)
+    main()

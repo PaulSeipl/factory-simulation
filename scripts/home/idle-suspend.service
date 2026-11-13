@@ -1,0 +1,6 @@
+[Unit]
+Description=Suspend when no experiment runs and nobody is connected
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/idle-suspend.sh

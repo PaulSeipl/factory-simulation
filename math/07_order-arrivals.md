@@ -144,6 +144,14 @@ CP-SAT with thresholds and period, hindsight with the same thresholds. Notebook 
 the results. Tests `tests/test_experiment.py` (row and history, reproducibility), `tests/test_arrivals.py` (history,
 metrics with arrivals).
 
+**Command line** (2026-11-13, user): `uv run experiment list | run | task | merge [names]` (names of files in
+`experiments/` or paths, no name: all). Every run has an index (configurations sorted by name, then policies, then
+seeds) and writes its row to its own file (`<config>/rows/<policy>-<seed>.json`, with the host), so runs can go to
+separate machines (`task --index i`, default `SLURM_ARRAY_TASK_ID`: one Slurm array task per run); `merge` (also at
+the end of `run`) writes the CSV of a configuration from the rows whose configuration hash matches and reports
+missing or stale runs. Tests in `tests/test_experiment.py` (task by Slurm index, merge with a missing run, stale rows
+after a configuration change, index out of range, unknown configuration).
+
 ## 6. Assumptions and open points
 
 - Arrival = end of a nesting batch; when nesting runs (daily, on given weekdays) is a sampler setting (step 4), not
@@ -171,5 +179,6 @@ metrics with arrivals).
 | 2026-11-12 | uncommitted | V1, V2 renamed V20, V21 (catalogue [02](02_instance-validation.md)); V3 became the definition of the visible sub-instance (§2). |
 | 2026-11-12 | uncommitted | Step 2: ARRIVAL event, unplanned operations inert, plan check against the visible instance. |
 | 2026-11-13 | uncommitted | Step 5: experiment runner, plan history, metrics with arrivals. |
+| 2026-11-13 | uncommitted | Command line `experiment` (list, run, task, merge); one row file per run; host column. |
 | 2026-11-12 | c72a018 | Step 4: arrival process (§3a) and `arrival_generator`. |
 | 2026-11-12 | uncommitted | Step 3: arrival trigger in `execute` / `adapt_plan`, budget over old operations, `inserted`; hand-computed mini instance. |

@@ -32,3 +32,42 @@ def test_same_seed_same_row(tmp_path):
     for key in ("wall_time", "planner_time", "commit"):
         a.pop(key), b.pop(key)
     assert a == b
+
+
+def test_cli_task_by_slurm_index_then_merge(tmp_path, monkeypatch, capsys):
+    import csv
+
+    import pytest
+
+    from simulation.experiment import main
+
+    path = tmp_path / "tiny.json"
+    path.write_text(config().model_dump_json(), encoding="utf-8")
+    out = tmp_path / "results"
+    main(["list", str(path)])
+    assert len(capsys.readouterr().out.splitlines()) == 2  # rule-1, cpsat-1
+    monkeypatch.setenv("SLURM_ARRAY_TASK_ID", "1")
+    main(["task", str(path), "--out", str(out)])
+    assert (out / "tiny" / "rows" / "cpsat-1.json").is_file()
+    main(["merge", str(path), "--out", str(out)])
+    assert "1 runs missing" in capsys.readouterr().err  # rule-1 not run yet: CSV with the run that exists
+    main(["task", "--index", "0", str(path), "--out", str(out)])
+    main(["merge", str(path), "--out", str(out)])
+    with (out / "tiny.csv").open(encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert [r["policy"] for r in rows] == ["rule", "cpsat"] and rows[0]["host"]
+    # the configuration changes: its old rows are not merged
+    path.write_text(config(sigma=0.3).model_dump_json(), encoding="utf-8")
+    main(["merge", str(path), "--out", str(out)])
+    assert "2 runs missing or from another configuration" in capsys.readouterr().err
+    with pytest.raises(SystemExit, match="outside 0..1"):
+        main(["task", "--index", "2", str(path), "--out", str(out)])
+
+
+def test_cli_unknown_configuration_rejected():
+    import pytest
+
+    from simulation.experiment import main
+
+    with pytest.raises(SystemExit, match="no configuration"):
+        main(["list", "does-not-exist"])

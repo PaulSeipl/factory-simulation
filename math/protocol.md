@@ -8,6 +8,38 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-13 (56) — Runs off the laptop: home PC and Slurm scripts — uncommitted
+
+- **Decided (user):** plan runs on the home PC (i7-6700K, CachyOS) and, once access is granted, on the IfI Abaki
+  partition. **Decided (Claude, stated in `scripts/README.md`):** 4 parallel runs on the home PC (physical cores,
+  not 8 threads); 15 Slurm array tasks that each take every 15th index; one results folder per machine, merged
+  separately; no change to `src/`.
+- **Done:** `scripts/README.md` (plan for both targets and for getting the results back);
+  `scripts/home-run.sh` (`experiment task` per index via `xargs -P`, wrapped in `systemd-inhibit`);
+  `scripts/home/idle-suspend.{sh,service,timer}` (suspend after 30 min without a run, SSH connection or desktop
+  session); `scripts/slurm-array.sh`; `slurm-logs/` in `.gitignore`. Scripts only syntax-checked (`bash -n`), not
+  run on Linux or Slurm.
+- **Found:** the RBG page limits users to 15 running and 30 submitted jobs, so one array element per run (110)
+  does not fit if array elements count. It asks for a supervisor's confirmation only for higher priority, not for
+  Abaki access itself. CP-SAT's 30 s wall-clock safety net can fire before the deterministic limit on slower or
+  shared CPUs, so a new machine can change results, not only timings.
+- **Open:** CLI from (55) must be committed and pushed before any remote clone; per-machine check that 2–3 seeds
+  reproduce the laptop's rows; `--mem` and the Abaki node type to be set after the first job; Wake-on-LAN sender
+  (router or always-on device) to be checked by the user.
+
+## 2026-11-13 (55) — Command line for the experiments, runs on separate machines — uncommitted
+
+- **Decided (user):** a small command line instead of the long `python -m` call, usable for remote runs. Remote
+  machine still open (IfI Slurm needs an LMU supervisor for the Abaki partition; TUM options and cloud credits to be
+  checked by the user).
+- **Done:** `uv run experiment list | run | task | merge` (`simulation.experiment.main`, script entry in
+  `pyproject.toml`); every run writes its own row file, `merge` builds the CSV per configuration (rows of another
+  configuration hash are not merged); `task --index` or `SLURM_ARRAY_TASK_ID` runs one run; `host` column in the
+  rows. Two tests in `tests/test_experiment.py`; notebook 07 command; `math/07` §5.
+- **Found:** 110 runs in the seven configurations.
+- **Open:** a Slurm batch script and the setup on the remote machine (once one is chosen); skipping runs whose row
+  already exists (resume) not built.
+
 ## 2026-11-13 (54) — Route files referenced instead of copied — uncommitted
 
 - **Decided (user):** a route is referenced instead of written into every file, so it can be switched and updated
