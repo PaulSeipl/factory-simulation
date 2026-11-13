@@ -8,6 +8,22 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-13 (54) — Route files referenced instead of copied — uncommitted
+
+- **Decided (user):** a route is referenced instead of written into every file, so it can be switched and updated
+  in one place. **Decided (Claude, stated to the user):** the reference lives in the generator parameters and the
+  experiment configurations, not in the instance format: an instance is the record of an experiment and must not
+  change when a route file changes.
+- **Done:** `simulation.io.json_loader.resolve_reference` (a string field value is a JSON file path relative to the
+  file being read) and `read_model` passing the folder as validation context; `CarrierGeneratorParams.route`
+  accepts it. Routes moved to `data/routes/dental.json` and `data/routes/dental-workers.json`; the two generator
+  files and the seven experiment configurations reference them (1158 lines removed). `tests/test_experiment.py`
+  loads the generator file with `read_model`. Four tests in `tests/test_carrier_generator.py` (two negative).
+  `math/21` §6 and change log.
+- **Found:** all nine files resolve to byte-identical models (checked against dumps before the change), so the config
+  digests are unchanged. Two route files are needed because worker shares without workers are rejected ([V7]).
+- **Open:** other shared parts of the configurations (machines, durations) are still copied per configuration.
+
 ## 2026-11-13 (53) — Shift repair and plan comparison: performance, results unchanged — `048d94c`, `4a6589b`
 
 - **Decided (parent session, task):** speed up the shift repair without changing any result; candidate "skip the

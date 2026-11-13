@@ -12,10 +12,20 @@ import math
 import random
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, PositiveFloat, PositiveInt, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    NonNegativeInt,
+    PositiveFloat,
+    PositiveInt,
+    field_validator,
+    model_validator,
+)
 
 from simulation.calendar import next_cutoff
 from simulation.due_dates import lead_time_bound
+from simulation.io.json_loader import resolve_reference
 from simulation.model.instance import CARRIER, ORDER, Calendar, CarrierStep, Instance, Order, RunEstimator, WorkerShare
 
 
@@ -48,7 +58,8 @@ class CarrierGeneratorParams(BaseModel):
     name: str | None = None
     n_orders: PositiveInt
     release_range: tuple[NonNegativeInt, NonNegativeInt] = (0, 0)
-    route: tuple[RouteOperation, ...] = Field(min_length=1)  # the route of every order
+    # the route of every order, or the path of a route file (data/routes/), relative to the file being read
+    route: tuple[RouteOperation, ...] = Field(min_length=1)
     machines: dict[str, PositiveInt]  # machine pool (default: the step) -> number of identical machines
     machine_pool: dict[str, str] = {}  # step -> pool it runs on, e.g. two milling steps on the same mills
     # step -> duration range; per part for operations scoped to a part type (s-batch without setup: n * p)
@@ -70,6 +81,11 @@ class CarrierGeneratorParams(BaseModel):
     due_date_tightness: tuple[PositiveFloat, ...] = ()  # theta per order (lead-time bound); () = no due dates
     workers: tuple[str, ...] = ()  # individual workers; shares in the route (math/04_workers.md)
     calendar: Calendar | None = None  # work calendar; due dates then lie on shipping cutoffs
+
+    @field_validator("route", mode="before")
+    @classmethod
+    def route_reference(cls, value, info):
+        return resolve_reference(value, info)
 
     @model_validator(mode="after")
     def check_consistency(self) -> Self:

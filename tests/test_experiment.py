@@ -3,9 +3,12 @@
 import json
 from pathlib import Path
 
+from simulation.carrier_generator import CarrierGeneratorParams
 from simulation.experiment import ExperimentConfig, run_one
+from simulation.io.json_loader import read_model
 
-BASE = json.loads((Path(__file__).parents[1] / "data" / "generator" / "dental-carriers-workers.json").read_text())
+BASE = read_model(Path(__file__).parents[1] / "data" / "generator" / "dental-carriers-workers.json",
+                  CarrierGeneratorParams).model_dump(mode="json")  # the route reference resolved
 
 
 def config(**changes) -> ExperimentConfig:

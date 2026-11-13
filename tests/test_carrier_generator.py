@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -246,3 +247,39 @@ def test_example_parameter_file_with_workers():
     # every order and part operation and every carrier step needs a worker somewhere (no robot steps)
     assert all(op.worker is not None for o in inst.orders for op in o.operations if op.scope != "carrier")
     assert all(cs.worker is not None or cs.setup_attended for cs in inst.carrier_steps.values())
+
+
+DATA = Path(__file__).parents[1] / "data"
+
+
+def test_route_reference_resolves_like_the_inline_route(tmp_path):
+    referenced = read_model(DATA / "generator" / "dental-carriers-workers.json", CarrierGeneratorParams)
+    inline = tmp_path / "inline.json"
+    raw = referenced.model_dump(mode="json")
+    inline.write_text(json.dumps(raw), encoding="utf-8")
+    assert read_model(inline, CarrierGeneratorParams) == referenced
+    assert [op.id for op in referenced.route][:2] == ["design", "mill_blank"]
+
+
+def test_route_reference_in_experiment_config_resolves_relative_to_the_config():
+    from simulation.experiment import ExperimentConfig
+
+    config = read_model(Path(__file__).parents[1] / "experiments" / "arrivals-rate6.json", ExperimentConfig)
+    workers = read_model(DATA / "generator" / "dental-carriers-workers.json", CarrierGeneratorParams)
+    assert config.arrivals.base.route == workers.route
+
+
+def test_route_reference_to_missing_file_rejected(tmp_path):
+    raw = read_model(DATA / "generator" / "dental-carriers-example.json", CarrierGeneratorParams)
+    raw = raw.model_dump(mode="json")
+    path = tmp_path / "params.json"
+    path.write_text(json.dumps(raw | {"route": "routes/missing.json"}), encoding="utf-8")
+    with pytest.raises(ValidationError, match="referenced file .* not found"):
+        read_model(path, CarrierGeneratorParams)
+
+
+def test_route_reference_without_a_file_rejected():
+    raw = read_model(DATA / "generator" / "dental-carriers-example.json", CarrierGeneratorParams)
+    raw = raw.model_dump(mode="json")
+    with pytest.raises(ValidationError, match="needs read_model"):
+        CarrierGeneratorParams.model_validate(raw | {"route": "../routes/dental.json"})
