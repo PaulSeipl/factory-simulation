@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run experiments on the home PC, sleep blocked while they run (see scripts/README.md).
+# Run experiments on the home PC, sleep blocked while they run (see scripts/home-pc.md).
 #   scripts/home-run.sh              # every run from `experiment list`
 #   scripts/home-run.sh 10 11 30     # only these indices (e.g. the ones missing after an interruption)
 # Start it inside tmux so it survives the SSH connection. JOBS defaults to 4, the physical cores of the

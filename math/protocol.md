@@ -14,7 +14,9 @@ the commits and the change logs of the component files and are therefore shorter
   partition. **Decided (Claude, stated in `scripts/README.md`):** 4 parallel runs on the home PC (physical cores,
   not 8 threads); 15 Slurm array tasks that each take every 15th index; one results folder per machine, merged
   separately; no change to `src/`.
-- **Done:** `scripts/README.md` (plan for both targets and for getting the results back);
+- **Done:** `scripts/README.md` (index and shared rules), `scripts/home-pc.md` (step-by-step guide with laptop
+  setup, Tailscale, sshd hardening and security checks), `scripts/wake-on-lan.md` (Wake-on-LAN with tests, router
+  and switch check, alternatives), `scripts/slurm.md` (Abaki guide);
   `scripts/home-run.sh` (`experiment task` per index via `xargs -P`, wrapped in `systemd-inhibit`);
   `scripts/home/idle-suspend.{sh,service,timer}` (suspend after 30 min without a run, SSH connection or desktop
   session); `scripts/slurm-array.sh`; `slurm-logs/` in `.gitignore`. Scripts only syntax-checked (`bash -n`), not

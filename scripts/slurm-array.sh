@@ -1,5 +1,5 @@
 #!/bin/bash
-# Every experiment run on the IfI Abaki partition (see scripts/README.md).
+# Every experiment run on the IfI Abaki partition (see scripts/slurm.md).
 #   mkdir -p slurm-logs && sbatch scripts/slurm-array.sh              # every configuration
 #   sbatch scripts/slurm-array.sh arrivals-rate6 arrivals-rate8      # only these (indices refer to this list)
 # The RBG allows 15 running and 30 submitted jobs per user, so 15 array tasks each take every 15th run
