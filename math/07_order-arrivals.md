@@ -151,7 +151,9 @@ used than its limit, the wall clock stopped it, and the result depends on the ma
 rescheduling into the decision and the plan history), the run row counts $N_C^{\mathrm{wall}}$ and
 `start_wall_limited` ([23](23_metrics.md) (M10)). Results with $N_C^{\mathrm{wall}} > 0$ are not reproducible on
 other machines; the wall limit then has to be raised. In the first run (`arrivals-rate4`, hindsight) a complete
-rescheduling took 22 s on average against the 30 s wall limit, which prompted the check. The git commit of a row is
+rescheduling took 22 s on average against the 30 s wall limit, which prompted the check. The rerun (hindsight,
+seed 1, commit `ca7081a`) gave $N_C^{\mathrm{wall}} = 22$ of $N_C = 189$; the wall limit is therefore 120 s
+(2026-11-16, user), the deterministic limit stays 5.0. The git commit of a row is
 read at the start of the run (before: at its end, so edits during a run marked it `+dirty`).
 
 **Command line** (2026-11-13, user): `uv run experiment list | run | task | merge [names]` (names of files in
@@ -189,6 +191,7 @@ after a configuration change, index out of range, unknown configuration).
 | 2026-11-12 | uncommitted | V1, V2 renamed V20, V21 (catalogue [02](02_instance-validation.md)); V3 became the definition of the visible sub-instance (§2). |
 | 2026-11-12 | uncommitted | Step 2: ARRIVAL event, unplanned operations inert, plan check against the visible instance. |
 | 2026-11-13 | uncommitted | Step 5: experiment runner, plan history, metrics with arrivals. |
+| 2026-11-16 | uncommitted | Wall limit per CP-SAT call 30 s → 120 s ($N_C^{\mathrm{wall}} = 22$ of 189 with 30 s). |
 | 2026-11-16 | uncommitted | Which limit stopped CP-SAT (`wall_limited`); plan metrics in the history; commit read at the run start. |
 | 2026-11-13 | uncommitted | Command line `experiment` (list, run, task, merge); one row file per run; host column. |
 | 2026-11-12 | c72a018 | Step 4: arrival process (§3a) and `arrival_generator`. |

@@ -199,7 +199,9 @@ With the OVERDUE event the means are unchanged on mk01 (overruns are seen throug
 - **OVERDUE (resolved 2026-10-30):** before, an operation running past its planned end was only noticed at the next unrelated event (toy: a3 planned end 8, actual 14; no repair between 10 and 14). Now an OVERDUE event fires at the expected end, then every minute ([13](13_des.md) §3). Open: a re-estimated remaining time instead of the minute steps (fewer repairs, needs a model of the remaining time).
 - **Periodic safety net (todo):** see drift above.
 - **Metrics:** basic set implemented in [23](23_metrics.md) (2026-10-30); still open: tardiness (no due dates), sequence deviation, stability between plan revisions.
-- Repair and rescheduling take no simulated time; computation time is to be recorded (Li et al., 2021, PDF p. 2, stress the response time).
+- Repair and rescheduling take no simulated time; computation time is to be recorded (Li et al., 2021, PDF p. 2, stress the response time). Kept on 2026-11-16 (user,
+  protocol (58)): CP-SAT needs at most 120 s against operations of minutes to hours; to be revisited with bigger
+  instances and the GA.
 - **Robust pro-active scheduling for the QM rework loops (later):** QM steps may send parts back to remilling, possibly several times. The routing itself is then uncertain (operations may occur zero, one or several times), which needs changes in instance format, scenario and DES. Inserting idle time is one rule for robust schedules (Pinedo, 2022, p. 497).
 
 ## 7. Sources

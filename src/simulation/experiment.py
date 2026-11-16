@@ -57,7 +57,7 @@ class ExperimentConfig(BaseModel):
     max_early: NonNegativeInt = 5
     max_late: NonNegativeInt = 5
     buffer: NonNegativeInt = 60  # cutoff slack of the worker objective (math/04 (O7))
-    time_limit: PositiveFloat = 30.0  # per CP-SAT call (wall clock, a safety net)
+    time_limit: PositiveFloat = 120.0  # per CP-SAT call (wall clock, a safety net; 30 s cut 12 % of hindsight calls)
     deterministic_time: PositiveFloat = 5.0  # per CP-SAT call (work-based: decides the result)
     hindsight_time_limit: PositiveFloat = 600.0  # the start plan of the full instance
     hindsight_deterministic_time: PositiveFloat = 120.0

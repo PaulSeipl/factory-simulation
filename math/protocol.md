@@ -8,7 +8,25 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-13 (56) — Runs off the laptop: home PC and Slurm scripts — uncommitted
+## 2026-11-16 (58) — Wall limit per CP-SAT call raised to 120 s — uncommitted
+
+- **Decided (user):** raise `time_limit` from 30 s to 120 s; keep `deterministic_time` 5.0 (lowering it would
+  weaken every plan of every policy).
+- **Done:** default in `ExperimentConfig` (`src/simulation/experiment.py`); `math/07` §5 and change log. The digest
+  covers the defaults, so all rows from before are stale for `merge`.
+- **Found:** rerun hindsight+thresholds, seed 1 of `arrivals-rate4` (commit `ca7081a`, 54 min wall time, 3176 s
+  planner time): $N_C^{\mathrm{wall}} = 22$ of $N_C = 189$, all FEASIBLE; the start plan not wall-limited. The plan
+  history has 78 REPLAN entries for 189 reschedulings, and its 5 wall-limited entries carry identical CP-SAT reports
+  (levels, bound). Both explained, no bug: `_record` skips unchanged plans (189 accepted reschedulings at 77 time
+  points, about 111 returned the plan already sent), and the reports differ in status between entries, so
+  `planner.last` is not stale; the level values repeat because the plan barely changes (makespan 21720, tardiness 0).
+  The row counts calls ($N_C$), the history only plans that changed something.
+- **Decided (user):** planning keeps taking no simulated time (`math/05` §6); revisit with bigger instances and
+  the GA. If modelled: plan valid from $t + \delta$ with $\delta$ from the deterministic time, not the wall clock.
+  Numbering: two entries carried (56); the one on the home PC and Slurm scripts is now (57).
+- **Open:** check $N_C^{\mathrm{wall}} = 0$ in the full run; planning delay with bigger instances and the GA.
+
+## 2026-11-13 (57) — Runs off the laptop: home PC and Slurm scripts — uncommitted
 
 - **Decided (user):** plan runs on the home PC (i7-6700K, CachyOS) and, once access is granted, on the IfI Abaki
   partition. **Decided (Claude, stated in `scripts/README.md`):** 4 parallel runs on the home PC (physical cores,
