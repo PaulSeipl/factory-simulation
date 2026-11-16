@@ -314,4 +314,11 @@ def test_plan_history_records_every_plan_as_changes():
     for h in result.history:
         plan |= {(c["order_id"], c["op_id"]): c for c in h["changed"]}
     assert set(plan) == set(ci.op_keys)
+    # every plan carries its metrics (M10); a CP-SAT plan its report: optimal here, so not stopped by the wall clock
+    replayed = {}
+    for h in result.history:
+        replayed |= {(c["order_id"], c["op_id"]): c for c in h["changed"]}
+        assert h["metrics"]["makespan"] == max(c["end"] for c in replayed.values())
+    assert arrival["planner"]["status"] == "OPTIMAL" and not arrival["planner"]["wall_limited"]
+    assert "planner" not in first
     assert execute(ci, start_plan(at), policy=policy, visible=at).history == []  # off by default

@@ -69,6 +69,7 @@ class ExperimentConfig(BaseModel):
 
 def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) -> dict:
     """One episode; returns its CSV row and writes its plan history."""
+    commit = _commit()  # at the start: the code this run imported (edits during a long run do not count)
     pc = config.policies[policy_name]
     inst = generate_arrival_instance(config.arrivals.model_copy(update={"seed": seed}))
     ci, at = compile_instance(inst), compile_visible(inst)
@@ -92,10 +93,10 @@ def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) ->
     plans = out / config.name / "plans"
     plans.mkdir(parents=True, exist_ok=True)
     write_jsonl(result.history, plans / f"{policy_name}-{seed}.jsonl")
-    return {"config": config.name, "config_hash": config.digest(), "commit": _commit(), "host": socket.gethostname(),
+    return {"config": config.name, "config_hash": config.digest(), "commit": commit, "host": socket.gethostname(),
             "policy": policy_name, "seed": seed, "orders": len(inst.orders), "operations": ci.n_ops,
-            "start_status": start.status, "start_levels": " ".join(map(str, start.levels)),
-            "start_bound": start.bound, "wall_time": round(time.perf_counter() - t0, 1),
+            "start_status": start.status, "start_levels": " ".join(map(str, start.levels)), "start_bound": start.bound,
+            "start_wall_limited": start.wall_limited, "wall_time": round(time.perf_counter() - t0, 1),
             "bottleneck_load": bottleneck_load(result.schedule)} | run_metrics(ci, start.schedule, result)
 
 

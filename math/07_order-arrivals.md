@@ -137,12 +137,22 @@ per configuration in `experiments/results/`, plan histories in `experiments/resu
 CP-SAT: worker objective with cutoff slack, one thread, fixed seed, deterministic limit (`cpsat_planner(...,
 deterministic_time=)`), so runs are reproducible. `execute(..., keep_history=True)` records the start plan and every
 plan the factory receives as a change set (time, cause, changed assignments, breaks), the basis for an animation of
-the plan over time later. Metrics (M7), (M8) in [23](23_metrics.md). Configurations: load levels 4, 6, 8 orders per
+the plan over time later. Metrics (M8), (M9) in [23](23_metrics.md). Configurations: load levels 4, 6, 8 orders per
 working day and 8 with doubled machines and workers; 6 undisturbed (the gap to hindsight is pure information); daily
 against weekly nesting (due 6 cutoffs after the acceptance). Policies: rule at arrivals, CP-SAT at arrivals,
 CP-SAT with thresholds and period, hindsight with the same thresholds. Notebook `notebooks/07_arrivals.ipynb` reads
 the results. Tests `tests/test_experiment.py` (row and history, reproducibility), `tests/test_arrivals.py` (history,
 metrics with arrivals).
+
+**Which limit stopped CP-SAT** (2026-11-16): reproducibility rests on the deterministic limit, but every call also
+has a wall-clock limit as a safety net. If a level ends unproven (FEASIBLE or UNKNOWN) with less deterministic time
+used than its limit, the wall clock stopped it, and the result depends on the machine and its load.
+`CpSatResult.wall_limited` records it; the CP-SAT planner reports it per call (`planner.last`, read by the
+rescheduling into the decision and the plan history), the run row counts $N_C^{\mathrm{wall}}$ and
+`start_wall_limited` ([23](23_metrics.md) (M10)). Results with $N_C^{\mathrm{wall}} > 0$ are not reproducible on
+other machines; the wall limit then has to be raised. In the first run (`arrivals-rate4`, hindsight) a complete
+rescheduling took 22 s on average against the 30 s wall limit, which prompted the check. The git commit of a row is
+read at the start of the run (before: at its end, so edits during a run marked it `+dirty`).
 
 **Command line** (2026-11-13, user): `uv run experiment list | run | task | merge [names]` (names of files in
 `experiments/` or paths, no name: all). Every run has an index (configurations sorted by name, then policies, then
@@ -179,6 +189,7 @@ after a configuration change, index out of range, unknown configuration).
 | 2026-11-12 | uncommitted | V1, V2 renamed V20, V21 (catalogue [02](02_instance-validation.md)); V3 became the definition of the visible sub-instance (§2). |
 | 2026-11-12 | uncommitted | Step 2: ARRIVAL event, unplanned operations inert, plan check against the visible instance. |
 | 2026-11-13 | uncommitted | Step 5: experiment runner, plan history, metrics with arrivals. |
+| 2026-11-16 | uncommitted | Which limit stopped CP-SAT (`wall_limited`); plan metrics in the history; commit read at the run start. |
 | 2026-11-13 | uncommitted | Command line `experiment` (list, run, task, merge); one row file per run; host column. |
 | 2026-11-12 | c72a018 | Step 4: arrival process (§3a) and `arrival_generator`. |
 | 2026-11-12 | uncommitted | Step 3: arrival trigger in `execute` / `adapt_plan`, budget over old operations, `inserted`; hand-computed mini instance. |

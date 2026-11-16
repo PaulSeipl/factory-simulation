@@ -21,6 +21,7 @@ from operator import attrgetter
 from typing import NamedTuple
 
 from simulation.check.feasibility import check_schedule
+from simulation.metrics import plan_metrics
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment, Break, Plan
 from simulation.objectives import TOTAL_TARDINESS, Objective, overtime
@@ -95,7 +96,7 @@ def execute(
     anchor, wake, known = Anchor(sim.current_plan(), 0, sim.current_breaks()), None, at(0)
     history, sent = [], {}
     if keep_history:
-        _record(history, sent, sim, decisions)
+        _record(ci, history, sent, sim, decisions)
     while not sim.done:
         sim.process_events()
         while True:  # every start is an event too: the tool sees it at once (math/13 section 3, user 2026-11-11)
@@ -104,7 +105,7 @@ def execute(
                 anchor = adapt_plan(ci_t, sim, policy, decisions, anchor, arrived=ci_t is not known)
                 known = ci_t
                 if keep_history:
-                    _record(history, sent, sim, decisions)
+                    _record(ci, history, sent, sim, decisions)
                 # the safety net needs a time point even if the factory has no event then
                 if policy.period is not None and sim.has_unstarted and wake != anchor.t + policy.period:
                     wake = anchor.t + policy.period
@@ -116,7 +117,7 @@ def execute(
     return ExecutionResult(sim.realized(), sim.log, decisions, sim.realized_breaks(), history)
 
 
-def _record(history: list[dict], sent: dict, sim: Simulation, decisions: list[dict]) -> None:
+def _record(ci: CompiledInstance, history: list[dict], sent: dict, sim: Simulation, decisions: list[dict]) -> None:
     """Append the assignments and breaks that changed since the last recorded plan (all of them the first time);
     nothing if the plan is unchanged. The cause is the last decision at this time point (REPAIR or REPLAN)."""
     plan = {(a.order_id, a.op_id): a.model_dump(include={"machine", "start", "end", "workers"})
@@ -129,7 +130,8 @@ def _record(history: list[dict], sent: dict, sim: Simulation, decisions: list[di
     history.append({"t": sim.state.t, "type": cause["type"] if cause else "START",
                     "triggers": cause.get("triggers", []) if cause else [],
                     "changed": [{"order_id": k[0], "op_id": k[1], **v} for k, v in changed.items()],
-                    "breaks": breaks})
+                    "breaks": breaks, "metrics": plan_metrics(ci, sim.current_plan())}
+                   | ({"planner": cause["planner"]} if cause and "planner" in cause else {}))
     sent.update(changed)
     sent["breaks"] = breaks
 
@@ -240,6 +242,7 @@ def _reschedule(
     regardless of the change budget (an arrival: the repaired plan lacks the new orders)."""
     t0 = time.perf_counter()
     proposed, breaks = policy.planner(ci, snap, repaired)
+    info = getattr(policy.planner, "last", None)  # e.g. CP-SAT: status, levels, bound, wall_limited
     planner_time = time.perf_counter() - t0  # wall clock seconds; varies between runs
     if violations := check_schedule(ci, proposed, snap, breaks):
         raise PlanNotExecutable("planner returned an infeasible plan:\n"
@@ -255,5 +258,5 @@ def _reschedule(
                       "changed_assignments": changed,
                       "inserted": sum((a.order_id, a.op_id) not in machine_before for a in free),
                       "makespan_before": max(a.end for a in repaired), "makespan_after": max(a.end for a in proposed),
-                      "planner_time": planner_time})
+                      "planner_time": planner_time} | ({"planner": info} if info else {}))
     return Plan(proposed, breaks) if accepted else None

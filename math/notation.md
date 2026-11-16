@@ -179,6 +179,7 @@ Extensions (checked in Zotero, 2026-11-09). [Be] = Berti et al. (2021, PDF p. 5)
 | $\bar F$ | mean flow time of the orders | [23](23_metrics.md) |
 | $D_S$, $N_M$ | mean absolute start deviation (deviation $D$ as in Wu et al., 1993); number of machine changes against the start plan (a count, family $N$) | [23](23_metrics.md) |
 | $N_R$, $N_C$, $N_A$ | numbers of repairs, complete reschedulings, accepted complete reschedulings in a run | [23](23_metrics.md) |
+| $\bar C_k$, $\mathcal{K}_\pi$, $N_C^{\mathrm{wall}}$ | planned completion of order $k$, $\max_{o \in O_k \cap \pi} \bar C_o$; orders with operations in plan $\pi$; complete reschedulings stopped by the wall clock | [23](23_metrics.md) |
 | $\bar F^{\mathrm{acc}}$, $N_C^{\mathrm{arr}}$ | mean lead time from the acceptance; complete reschedulings triggered by an arrival | [23](23_metrics.md) |
 | $p^{\mathrm{avg}}_o$ | average processing time of $o$ over $M_o$ | [06](06_due-dates.md) |
 | $\Lambda_k$ | longest path through order $k$ with weights $p^{\mathrm{avg}}_o$ (shortest lead time without waiting) | [06](06_due-dates.md) |

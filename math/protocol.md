@@ -29,6 +29,28 @@ the commits and the change logs of the component files and are therefore shorter
   reproduce the laptop's rows; `--mem` and the Abaki node type to be set after the first job; Wake-on-LAN sender
   (router or always-on device) to be checked by the user.
 
+## 2026-11-16 (56) — Which limit stopped CP-SAT; plan metrics in the history — uncommitted
+
+- **Decided (user):** check the wall-clock limit before the full run; metrics per plan of the history (user wish
+  from step 5). **Decided (Claude):** the CP-SAT report reaches the rescheduling as `planner.last` (an attribute of
+  the planner function) instead of a third field of `Plan`, because every caller unpacks `Plan` into two values.
+- **Done:** `CpSatResult.wall_limited` (`planners/cpsat.py`: unproven level with deterministic time below its limit,
+  or no deterministic limit); `cpsat_planner` reports status, levels, bound, `wall_limited`; `_reschedule` stores
+  it in the decision as `planner`, `_record` in the history entry, together with `metrics` (`metrics.plan_metrics`,
+  (M10)); `run_metrics` counts `wall_limited_reschedulings`; experiment row `start_wall_limited`; the commit is read
+  at the start of `run_one`. Tests: `plan_metrics` by hand, partial plan (`tests/test_metrics.py`); work limit vs
+  wall clock on the 40-order example (`tests/test_cpsat.py`); history metrics and report
+  (`tests/test_arrivals.py`); row columns (`tests/test_experiment.py`). `math/23` (M10), `math/07` §5, `notation.md`
+  ($\bar C_k$, $\mathcal{K}_\pi$, $N_C^{\mathrm{wall}}$).
+- **Found:** in `arrivals-rate4` (commit `0bd8faf`) hindsight reschedulings averaged 22 s against the 30 s wall
+  limit, so some may have been stopped by the clock; not decidable from those rows (rerun needed).
+  The rows marked `+dirty` ran clean `0bd8faf` code: the flag was read at the end of the run.
+- **Found (labels):** `math/23` used M7 twice, for the worker metrics (2026-11-06) and for the lead time
+  (entry (52)); lead time and bottleneck load renumbered to (M8), (M9), plan metrics (M10). Entry (52) keeps the
+  old labels.
+- **Open:** rerun `arrivals-rate4` and check $N_C^{\mathrm{wall}}$; if $> 0$, raise `time_limit` (at least for
+  hindsight) or lower `deterministic_time`.
+
 ## 2026-11-13 (55) — Command line for the experiments, runs on separate machines — uncommitted
 
 - **Decided (user):** a small command line instead of the long `python -m` call, usable for remote runs. Remote

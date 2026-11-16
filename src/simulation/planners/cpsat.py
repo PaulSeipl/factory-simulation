@@ -50,6 +50,9 @@ class CpSatResult:
     wall_time: float  # seconds
     breaks: tuple[Break, ...] = ()  # with workers and a calendar: one per worker and working day of the horizon
     levels: tuple[int, ...] = ()  # the solver's value per level (one entry for a single objective)
+    # a level ended unproven before its deterministic limit: the wall clock stopped it, so the result can depend on
+    # the machine and its load (math/07 §5); always True for an unproven level without a deterministic limit
+    wall_limited: bool = False
 
 
 def solve(
@@ -273,7 +276,7 @@ def solve(
     levels = objective.levels or (objective,)
     if not objective.levels and objective.spread(ci) >= 2**53:  # solver values are doubles: exact only below 2^53
         raise ValueError(f"objective {objective.name}: spread {objective.spread(ci)} too large for exact values")
-    values, bounds, statuses, wall = [], [], [], 0.0
+    values, bounds, statuses, wall, wall_limited = [], [], [], 0.0, False
     for i, level in enumerate(levels):
         expr = level.cpsat(model, ci, starts, ends, horizon, calendar_vars)
         model.minimize(expr)
@@ -286,9 +289,11 @@ def solve(
             status = solver.solve(model)
             wall += solver.wall_time
             solver.parameters.cp_model_presolve = True
+        if status in (cp_model.FEASIBLE, cp_model.UNKNOWN):  # stopped by a limit, not by a proof
+            wall_limited |= deterministic_time is None or solver.response_proto.deterministic_time < deterministic_time
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             if i == 0:
-                return CpSatResult(solver.status_name(status), [], None, None, wall)
+                return CpSatResult(solver.status_name(status), [], None, None, wall, wall_limited=wall_limited)
             # shortcut: the hinted solution of the previous level should be found at once; raise the limit otherwise
             raise RuntimeError(f"level {level.name}: no solution within the time limit ({solver.status_name(status)})")
         statuses.append(status)
@@ -341,7 +346,7 @@ def solve(
         bound = sum(w * v for w, v in zip(weights[:k], values[:k], strict=True)) + weights[k] * bounds[k]
     else:
         value, bound = round(solver.objective_value), round(solver.best_objective_bound)
-    return CpSatResult(name, schedule, value, bound, wall, breaks, tuple(values))
+    return CpSatResult(name, schedule, value, bound, wall, breaks, tuple(values), wall_limited)
 
 
 def _calendar(model, ci: CompiledInstance, snapshot: Snapshot | None, horizon: int, per_worker, frozen_time):
@@ -429,6 +434,9 @@ def cpsat_planner(
             # the planner interface has no current breaks to fall back on
             raise RuntimeError(f"CP-SAT found no plan within {time_limit} s ({result.status}); raise the time limit")
         # shortcut: without a solution within the time limit the current plan is kept; raise the limit if this occurs
+        # the report of the last call, read by the rescheduling right after it (math/07 §5)
+        planner.last = {"status": result.status, "levels": list(result.levels), "bound": result.bound,
+                        "wall_limited": result.wall_limited}
         return Plan(result.schedule or list(current), result.breaks)
 
     return planner

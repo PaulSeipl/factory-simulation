@@ -73,3 +73,15 @@ def test_due_date_metrics_only_with_due_dates():
     m = run_metrics(ci, PLAN, execute(ci, PLAN, A3_LONG, ReschedulingPolicy()))
     assert (m["total_tardiness"], m["tardy_orders"], m["max_lateness"]) == (9, 2, 5)
     assert "total_tardiness" not in run_metrics(TOY, PLAN, execute(TOY, PLAN, A3_LONG, ReschedulingPolicy()))
+
+
+def test_plan_metrics_by_hand():
+    from dataclasses import replace
+
+    from simulation.metrics import plan_metrics
+
+    # order ends of PLAN: A 8, B 11, C 10; due dates A 10, B 7, C 10: tardiness 0 + 4 + 0
+    ci = replace(TOY, due_date=(10, 7, 10))
+    assert plan_metrics(ci, PLAN) == {"makespan": 11, "total_tardiness": 4}
+    # a plan without B and C (e.g. not arrived yet): only A counts
+    assert plan_metrics(ci, [a for a in PLAN if a.order_id == "A"]) == {"makespan": 8, "total_tardiness": 0}

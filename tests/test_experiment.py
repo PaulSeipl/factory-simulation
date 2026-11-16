@@ -23,6 +23,7 @@ def test_one_run_writes_its_row_and_plan_history(tmp_path):
     row = run_one(config(), "cpsat", 1, tmp_path)
     assert row["policy"] == "cpsat" and row["config_hash"] == config().digest()
     assert row["arrival_reschedulings"] >= 1 and "tardy_days" in row and "overtime" in row
+    assert row["start_wall_limited"] in (True, False) and 0 <= row["wall_limited_reschedulings"] <= row["reschedulings"]
     history = [json.loads(line) for line in (tmp_path / "tiny" / "plans" / "cpsat-1.jsonl").read_text().splitlines()]
     assert history[0]["type"] == "START" and any("arrival" in h["triggers"] for h in history)
 

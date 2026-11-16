@@ -45,11 +45,13 @@ $$N_M = \big\lvert \{ o \in O : \hat m(o) \neq m^0(o) \} \big\rvert$$
 
 **With order arrivals** ([07](07_order-arrivals.md), 2026-11-13): (M3) and (M4) sum only over the operations of the start plan (orders that arrive later are not in it; the denominator of $D_S$ is their number). Since $r_k = A_k$, (M2) measures from the arrival. Two more, for instances with arrivals:
 
-(M7) Mean lead time from the acceptance (what the customer sees; includes the wait for the nesting batch):
+(M8) Mean lead time from the acceptance (what the customer sees; includes the wait for the nesting batch):
 $$\bar F^{\mathrm{acc}} = \frac{1}{|\mathcal{K}|} \sum_{k \in \mathcal{K}} \big(\hat C_k - A^{\mathrm{acc}}_k\big)$$
 and $N_C^{\mathrm{arr}} \le N_C$, the complete reschedulings triggered by an arrival (`mean_lead_time`, `arrival_reschedulings`).
 
-(M8) Bottleneck load (experiment runner): the largest share of the realized makespan that one machine is busy, $\max_m \sum_{o : \hat m(o) = m} (\hat C_o - \hat S_o) / \hat C_{\max}$, around the clock (machines may run at night); a rough load indicator for comparing load levels, not a utilization within the shifts.
+(M9) Bottleneck load (experiment runner): the largest share of the realized makespan that one machine is busy, $\max_m \sum_{o : \hat m(o) = m} (\hat C_o - \hat S_o) / \hat C_{\max}$, around the clock (machines may run at night); a rough load indicator for comparing load levels, not a utilization within the shifts.
+
+(M10) Plan metrics (plan history, 2026-11-16, user): for every plan $\pi$ the factory receives (start plan, repairs, reschedulings), with $\bar C_k = \max_{o \in O_k \cap \pi} \bar C_o$ over the orders with operations in $\pi$ ($\mathcal{K}_\pi$; orders not yet arrived do not count): planned makespan $\max_{o \in \pi} \bar C_o$, total tardiness $\sum_{k \in \mathcal{K}_\pi} \max(0, \bar C_k - d_k)$, and with a calendar the missed cutoffs (as `tardy_days`) and the overtime (as in the M7 worker metrics, on $\pi$). Plans from CP-SAT also carry its report: status, value per level, bound, and whether the wall clock stopped it (below). In the run row: $N_C^{\mathrm{wall}} \le N_C$, the complete reschedulings stopped by the wall clock (`wall_limited_reschedulings`), and `start_wall_limited` for the start plan.
 
 ## 4. Objective function
 
@@ -101,6 +103,7 @@ CP-SAT, which minimizes the makespan only, has the lowest makespan but a higher 
 | Date | Commit | Change |
 |---|---|---|
 | 2026-11-10 | uncommitted | M1: `active_makespan` (activity clock, (O6) of [04](04_workers.md)) for instances with a calendar. |
+| 2026-11-16 | uncommitted | (M10) plan metrics; lead time and bottleneck load renumbered (M8), (M9): M7 already named the worker metrics per plan of the history; CP-SAT report per rescheduling; $N_C^{\mathrm{wall}}$. |
 | 2026-11-13 | uncommitted | With arrivals: (M3), (M4) over the start-plan operations; (M7) lead time from the acceptance, arrival reschedulings; (M8) bottleneck load. |
 | 2026-11-09 | 7274636 | Maximum overtime written $\overline{\mathrm{ot}}$ (missed in the rename). |
 | 2026-11-09 | ef6f798 | Symbols renamed (protocol 2026-11-09 (24)): worker $z$, day $\nu$ in M7; machine changes $D_M$ → $N_M$ (a count, like $N_R$, $N_C$, $N_A$; $D$ stays for deviations). |

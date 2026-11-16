@@ -116,7 +116,7 @@ def test_optimum_from_a_snapshot():
     # Hence 12 is optimal (math/12_cp-sat.md, section 7).
     ci = compiled(TOYS[1])
     result = solve(ci, time_limit=10, workers=1, snapshot=TOY_SNAPSHOT)
-    assert result.status == "OPTIMAL" and result.objective == result.bound == 12
+    assert result.status == "OPTIMAL" and result.objective == result.bound == 12 and not result.wall_limited
     assert check_schedule(ci, result.schedule, TOY_SNAPSHOT) == []
 
 
@@ -136,3 +136,17 @@ def test_change_budget_limits_new_machine_assignments(budget):
     assert changed <= budget
     assert check_schedule(ci, result.schedule, snap) == []
     assert result.objective <= max(a.end for a in reference)  # the reference is a feasible solution
+
+
+def test_wall_limited_tells_which_limit_stopped_the_solver():
+    from simulation.carrier_generator import CarrierGeneratorParams, generate_carrier_instance
+    from simulation.io.json_loader import read_model
+    from simulation.model.compiled import compile_instance
+    from simulation.objectives import MAKESPAN
+
+    path = Path(__file__).parents[1] / "data" / "generator" / "dental-carriers-example.json"
+    big = compile_instance(generate_carrier_instance(read_model(path, CarrierGeneratorParams)))
+    by_work = solve(big, MAKESPAN, time_limit=600, workers=1, deterministic_time=0.05)
+    assert by_work.status != "OPTIMAL" and not by_work.wall_limited  # stopped by the work limit: reproducible
+    by_clock = solve(big, MAKESPAN, time_limit=0.5, workers=1)
+    assert by_clock.status != "OPTIMAL" and by_clock.wall_limited

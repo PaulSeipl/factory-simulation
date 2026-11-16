@@ -9,7 +9,7 @@ from simulation.calendar import day_index, day_start, days_late, minute_of_day
 from simulation.check.feasibility import worker_intervals
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment
-from simulation.objectives import ACTIVE_MAKESPAN
+from simulation.objectives import ACTIVE_MAKESPAN, overtime
 
 if TYPE_CHECKING:
     from simulation.control.rescheduling import ExecutionResult
@@ -39,6 +39,8 @@ def run_metrics(ci: CompiledInstance, plan: Sequence[Assignment], result: Execut
         "accepted_reschedulings": sum(d["accepted"] for d in replans),
         "planner_time": sum(d["planner_time"] for d in replans),
     }
+    if any("planner" in d for d in replans):  # CP-SAT reports which limit stopped it
+        metrics["wall_limited_reschedulings"] = sum(d["planner"]["wall_limited"] for d in replans if "planner" in d)
     if any(ci.arrival):  # order arrivals (math/07): lead time from the acceptance, reschedulings at arrivals
         accepted = dict(zip(ci.order_ids, ci.accepted, strict=True))
         metrics |= {"mean_lead_time": mean(end - accepted[k] for k, end in order_end.items()),
@@ -60,6 +62,20 @@ def run_metrics(ci: CompiledInstance, plan: Sequence[Assignment], result: Execut
     if ci.worker_ids:  # worker metrics (math/04_workers.md, math/23_metrics.md)
         metrics |= _worker_metrics(ci, result)
     return metrics
+
+
+def plan_metrics(ci: CompiledInstance, plan: Sequence[Assignment]) -> dict[str, int]:
+    """Metrics of a plan, not of a realized run (math/23_metrics.md (M10)): for every plan of the plan history.
+    Orders without operations in the plan (not arrived yet) do not count."""
+    ends: dict[int, int] = {}
+    for a in plan:
+        for k in ci.op_orders[ci.op_index[a.order_id, a.op_id]]:
+            ends[k] = max(ends.get(k, 0), a.end)
+    late = [(ci.due_date[k], e) for k, e in ends.items() if ci.due_date[k] is not None]
+    out = {"makespan": max((a.end for a in plan), default=0), "total_tardiness": sum(max(e - d, 0) for d, e in late)}
+    if cal := ci.calendar:
+        out |= {"tardy_days": sum(days_late(cal, d, e) for d, e in late), "overtime": overtime(ci, plan)}
+    return out
 
 
 def _worker_metrics(ci: CompiledInstance, result: ExecutionResult) -> dict[str, int]:
