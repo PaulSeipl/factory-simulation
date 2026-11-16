@@ -21,6 +21,7 @@ Formal model of the scheduling problem; basis for the modeling chapter of the th
 | [23_metrics.md](23_metrics.md) | Metrics of an execution run: realized makespan, mean flow time, start deviation and machine changes against the start plan, number of repairs and reschedulings, planner time; CSV output. |
 | [31_llm-in-scheduling.md](31_llm-in-scheduling.md) | Literature note: LLMs in scheduling (assessment of the field, Shiau et al. 2026), own assessment, options A/B/C; decision A (no LLM for now). |
 | [32_target-data-model.md](32_target-data-model.md) | Comparison with the target data model of the Adaptive Scheduler (diagrams): correspondence, decisions and todos (attended time, plate sets, capacity interface to nesting, s-batches, operations per part, workload balance). |
+| [33_order-release-interface.md](33_order-release-interface.md) | Scope note: arrival forecast and capacity reserve as parameters of order release (nesting), capacity signal from the plan, toy model of the daily cycle, workload-control sources; not implemented. |
 | [references.md](references.md) | All cited sources. |
 | [protocol.md](protocol.md) | Working protocol: per pass the decisions, work, findings and open points, with references; newest first. |
 

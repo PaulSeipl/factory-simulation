@@ -8,6 +8,28 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-16 (59) — Forecast and capacity reserve: interface to order release — uncommitted
+
+- **Decided (user):** the arrival forecast and the reserve of the advisor's vision are documented as an external
+  input of the release level (nesting), with their goal, in `math/` and in the modeling chapter; the planning tool
+  does not form carriers (beyond scope and time budget). Influence that keeps the model: the planning tool reports
+  the capacity signal; choosing the carriers of a print run or holding a package back is outlook. Plate sets
+  ignored for now (enough available).
+- **Done:** `math/33_order-release-interface.md` (new: placement, capacity signal (N1), toy model (N2), (N3),
+  sources, scope); symbols in `notation.md`; five sources in `references.md`; index in `README.md`; pointer in
+  `math/32` §2. No code, no tests.
+- **Found:** in the toy model greedy, mill-gated nesting multiplies a deviation by $-\psi^{\mathrm{II}} /
+  \psi^{\mathrm{I}}$ per day, so it is unstable when secondary milling outweighs primary milling (the case at the
+  company, user); a reserve from the forecast equals a fixed quota in the stationary case (own derivation, no
+  source). The current experiments cannot show the advisor's pattern: nesting ignores the plan
+  (`math/07` §3a). Library (Zotero, checked in the text): Land & Gaalman 1996 (`ZNV6S3HF`), Stevenson et al. 2005
+  (`KGNSGYS8`), Van der Zee 2003 (`CWYKJI6K`), Oh et al. 2020 (`V72H58FM`), Pinto et al. 2024 (`UWF679PX`).
+- **Open:** Thürer et al. (2021, workload control for AM post-processing, cited by Pinto et al.) is not in the
+  library; Kingsman 2000 (`5ENPAG8F`) not read; printed pages of Stevenson and Pinto; proceedings name of Van der
+  Zee in Zotero contradicts its DOI. Questions for the advisor in `math/33` §6. Quota experiment not decided
+  (needs routes close to the real process). Thesis: `../seipl27/Text/kapitel2.tex` describes nesting; check it
+  against `math/33` and add the interface subsection to the modeling chapter (not written).
+
 ## 2026-11-16 (58) — Wall limit per CP-SAT call raised to 120 s — uncommitted
 
 - **Decided (user):** raise `time_limit` from 30 s to 120 s; keep `deterministic_time` 5.0 (lowering it would

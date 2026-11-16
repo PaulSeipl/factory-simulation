@@ -60,6 +60,9 @@ Note: $\mathcal{K}$ instead of the common $J$ ("jobs"), because "Job" denotes a 
 | $\Gamma^{\mathrm{nest}}$ | set of times | nesting times: given working weekdays at a fixed minute | `nesting_days`, `nesting_minute` | [07](07_order-arrivals.md) |
 | $n^{\mathrm{due}}$ | $\mathbb{Z}_{>0}$ | due-date offset: the $n^{\mathrm{due}}$-th cutoff after the acceptance | `due_working_days` | [07](07_order-arrivals.md) |
 | $n^{\mathrm{bl}}$ | $\mathbb{Z}_{>0}$, $\le n^{\mathrm{due}}$ | backlog due dates: a cutoff drawn uniformly among the $n^{\mathrm{bl}}$-th to $n^{\mathrm{due}}$-th after 0; default 3 | `backlog_earliest_cutoff` | [07](07_order-arrivals.md) |
+| $\mathrm{cap}_{m,\nu}$, $\mathrm{rem}_{m,\nu}(t)$, $\mathrm{res}_{m,\nu}$ | minutes | capacity of resource $m$ on day $\nu$; what the current plan at $t$ leaves of it; reserve for orders expected but not bound (external input). Upright, one name each (not $C$: completion; not $Q$: carrier capacity; not $\operatorname{free}$: an earliest time) | none (scope note) | [33](33_order-release-interface.md) |
+| $N^{\mathrm{nest}}_\nu$, $N^{*}$ | $\mathbb{R}_{\ge 0}$ | orders bound by nesting on day $\nu$ (a count, family $N$) and its balance point (toy model) | none | [33](33_order-release-interface.md) |
+| $\psi^{\mathrm{I}}$, $\psi^{\mathrm{II}}$ | minutes | mill time of one order on day 1 (primary parts) and day 2 (secondary parts, QM, rework) of its cycle (toy model; not $p$: a processing time of one operation) | none | [33](33_order-release-interface.md) |
 
 ## Calendar
 

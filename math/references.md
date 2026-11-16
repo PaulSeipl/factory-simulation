@@ -80,6 +80,21 @@
 - Shiau, J.-Y., Chen, P.-Y., & Fan, C.-Y. (2026). A stability-aware event-triggered rescheduling framework with bounded LLM judgment for production scheduling. Preprint, Research Square. https://doi.org/10.21203/rs.3.rs-11277628/v1 (Zotero `F5VQRD7Z`; not peer-reviewed)
   Used for: frozen horizon (machine and start kept; affected operations released), anti-thrashing ([05](05_rescheduling-frozen-part.md) §6); five stability measures incl. Kendall concordance of machine sequences ([23](23_metrics.md) §6).
 
+- Land, M., & Gaalman, G. (1996). Workload control concepts in job shops: A critical assessment. *International Journal of Production Economics*, 46–47, 535–548. https://doi.org/10.1016/S0925-5273(96)00088-6 (Zotero `ZNV6S3HF`)
+  Used for: pool of unreleased jobs, workload norms and stationary queues (p. 535); release rules with limited balancing can worsen lead times (p. 538) ([33](33_order-release-interface.md)).
+
+- Oh, Y., Witherell, P., Lu, Y., & Sprock, T. (2020). Nesting and scheduling problems for additive manufacturing: A taxonomy and review. *Additive Manufacturing*, 36, 101492. https://doi.org/10.1016/j.addma.2020.101492 (Zotero `V72H58FM`)
+  Used for: few studies treat nesting and scheduling simultaneously (PDF p. 2) ([33](33_order-release-interface.md)).
+
+- Pinto, M., Silva, C., Thürer, M., & Moniz, S. (2024). Nesting and scheduling optimization of additive manufacturing systems: Mapping the territory. *Computers & Operations Research*, 165, 106592. https://doi.org/10.1016/j.cor.2024.106592 (Zotero `UWF679PX`)
+  Used for: nesting and scheduling decisions traditionally separate or loosely integrated (PDF p. 2); pointer to Thürer et al. (2021), workload control for the AM post-processing shop (PDF p. 5; that paper not read) ([33](33_order-release-interface.md)).
+
+- Stevenson, M., Hendry, L. C., & Kingsman, B. G. (2005). A review of production planning and control: The applicability of key concepts to the make-to-order industry. *International Journal of Production Research*, 43(5), 869–898. https://doi.org/10.1080/0020754042000298520 (Zotero `KGNSGYS8`)
+  Used for: pre-shop pool in make-to-order; Kanet's objection that the pool only relocates waiting (PDF pp. 10, 13; printed pages not verified **[uncertain]**) ([33](33_order-release-interface.md)).
+
+- Van der Zee, D.-J. (2003). Look-ahead strategies for controlling batch operations in industry: An overview. Conference paper, pp. 1480–1487. https://doi.org/10.1109/WSC.2003.1261592 (Zotero `CWYKJI6K`) **[uncertain: Zotero names the proceedings "International Conference on Machine Learning and Cybernetics", the DOI points to the Winter Simulation Conference]**
+  Used for: batch decisions based on forecast data on a few near-future arrivals (p. 1480) ([33](33_order-release-interface.md)).
+
 - Vieira, G. E., Herrmann, J. W., & Lin, E. (2003). Rescheduling manufacturing systems: A framework of strategies, policies, and methods. *Journal of Scheduling*, 6(1), 39–62. https://doi.org/10.1023/A:1022235519958 (Zotero `H76SDH6L`)
   Used for: rescheduling policies periodic/event-driven/hybrid (pp. 51–52 **[uncertain: page]**), nervousness and "permanent state of rescheduling" (p. 52), right-shift, regeneration, partial rescheduling (pp. 54–55). Cited in [05](05_rescheduling-frozen-part.md).
 
