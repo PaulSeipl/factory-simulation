@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from simulation.calendar import day_index, is_working_day, minute_of_day, next_cutoff
-from simulation.carrier_generator import CarrierGeneratorParams, generate_carrier_instance
+from simulation.carrier_generator import CarrierGeneratorParams, PerCarrierStep, generate_carrier_instance
 from simulation.check.feasibility import check_schedule
 from simulation.io.json_loader import read_model
 from simulation.model.compiled import compile_instance
@@ -402,6 +402,31 @@ def test_fidentis_mill_minutes_by_hand():
             mill[step] = mill.get(step, 0) + ci.options[o][0][1]
     assert mill == {"mill_blank": 273, "mill_flipped": 255, "mill_carrier": 140, "rework": 600}
     assert mill["mill_blank"] + mill["mill_flipped"] == 528 and mill["mill_carrier"] + mill["rework"] == 740
+
+
+def test_fidentis_worker_carrier_steps_by_hand():
+    # one order of 4 telescopes, one plate and one blank (user 2026-11-17): base once per carrier as the setup of a
+    # per-carrier run, then per unit. qm 15 + 4 * 15; recheck the same, twice; saw 15 + 15 per secondary part;
+    # gegenbetten 5 + 4 * 5 attended + 15 unattended (the removal); separation 10 + 4 * 10; clean, blast one plate
+    base = read_model(ROOT / "data/generator/fidentis.json", CarrierGeneratorParams)
+    inst = generate_carrier_instance(base.model_copy(update={
+        "n_orders": 1, "count_range": (4, 4), "count_lognormal": None}))
+    ci = compile_instance(inst)
+    hand = {}
+    for o, (_, op_id) in enumerate(ci.op_keys):
+        if ci.options[o] and ci.machine_ids[ci.options[o][0][0]].startswith("hand"):
+            step = next(s for s in ("clean", "blast", "qm", "recheck", "saw", "gegenbetten", "separate")
+                        if s in op_id)
+            hand[step] = hand.get(step, 0) + ci.options[o][0][1]
+    assert hand == {"clean": 25, "blast": 10, "qm": 75, "recheck": 150, "saw": 30, "gegenbetten": 40,
+                    "separate": 50}
+    gb = inst.carrier_steps["gegenbetten"]
+    assert gb.setup_attended and not gb.removal_attended  # the 15 of curing need no worker
+
+
+def test_per_carrier_part_time_must_be_positive():
+    with pytest.raises(ValidationError, match=r"part_base \+ unit_time must be > 0"):
+        PerCarrierStep(unit_time=0)
 
 
 def test_fidentis_parameter_file_is_solvable_and_replays_unchanged():

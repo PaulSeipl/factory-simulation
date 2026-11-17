@@ -45,12 +45,29 @@ class RouteOperation(BaseModel):
 
 class PerCarrierStep(BaseModel):
     """A carrier step in which every carrier is its own run (CarrierStep.runs = "per_carrier"); the main operation
-    takes the sum of the part times (estimator 0 + 1 * sum: s-batch), a part's time is its size times unit_time."""
+    takes the sum of the part times (estimator 0 + 1 * sum: s-batch), a part's time is part_base plus its size times
+    unit_time. A time once per carrier goes into setup (or removal, if unattended), not into the main operation: the
+    estimator clamps the main operation to the sum of the part times (math/03_carriers.md)."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
     setup: NonNegativeInt = 0
     removal: NonNegativeInt = 0
-    unit_time: PositiveInt  # per size unit (dental: per telescope on a plate, per primary part on a blank)
+    unit_time: NonNegativeInt  # per size unit (dental: per telescope on a plate, per primary part on a blank)
+    part_base: NonNegativeInt = 0  # per part on the carrier, independent of its size (e.g. sawing per secondary part)
+
+    @model_validator(mode="after")
+    def check_part_time(self) -> Self:
+        if self.part_base + self.unit_time == 0:
+            raise ValueError("per_carrier: part_base + unit_time must be > 0 (a part time is positive)")
+        return self
+
+    @model_serializer(mode="wrap")
+    def _omit_part_base(self, handler):
+        # added 2026-11-17: left out at its default, so configuration hashes from before stay valid (as below)
+        data = handler(self)
+        if self.part_base == 0:
+            data.pop("part_base", None)
+        return data
 
 
 class CarrierGeneratorParams(BaseModel):
@@ -194,8 +211,8 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
         for op in params.route if op.scope == CARRIER
     }
     kind = {op.step: op.carries or params.carried_type for op in params.route if op.scope == CARRIER}
-    unit = {t: {s: pc.unit_time for s, pc in params.per_carrier.items() if kind[s] == t}
-            for t in (params.carried_type, params.counted_type)}  # part type -> per-carrier step -> time per unit
+    per_part = {t: {s: pc for s, pc in params.per_carrier.items() if kind[s] == t}
+                for t in (params.carried_type, params.counted_type)}  # part type -> per-carrier step -> times
 
     orders: list[dict] = []
     for i in range(1, params.n_orders + 1):
@@ -206,10 +223,10 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
             n = min(max(math.floor(rng.lognormvariate(math.log(median), sigma) + 0.5), params.count_range[0]),
                     params.count_range[1])
         times = {params.run_step: params.unit_base + n * params.unit_time} if params.unit_time else {}
-        times |= {s: n * u for s, u in unit[params.carried_type].items()}
+        times |= {s: pc.part_base + n * pc.unit_time for s, pc in per_part[params.carried_type].items()}
+        counted = {s: pc.part_base + pc.unit_time for s, pc in per_part[params.counted_type].items()}
         parts = [{"id": "c", "type": params.carried_type, "times": times},
-                 *({"id": f"n{j}", "type": params.counted_type, "times": dict(unit[params.counted_type])}
-                   for j in range(1, n + 1))]
+                 *({"id": f"n{j}", "type": params.counted_type, "times": dict(counted)} for j in range(1, n + 1))]
         count = {params.carried_type: 1, params.counted_type: n}
         ops = []
         for op in params.route:

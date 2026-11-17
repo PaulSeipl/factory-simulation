@@ -8,6 +8,38 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-17 (62) — s-batch design; Fidentis carrier-bound times
+
+- **Decided (user):** s-batches move on together (batch availability); no setup carried across a break or the
+  night, so one batch is one whole worker share; no own capacity except cleaning and blasting (4 plates); the
+  maxBatch values of the MES are hopes, real batches are smaller. Two kinds of "base + per unit" steps: **free
+  s-batches** (planner picks members: data prep primary, primary polishing and finishing, support removal, grind,
+  steam, polish, inspection, documentation, packaging, cleaning, blasting) and **carrier-bound** steps (members
+  fixed by the persistent carrier: QM, recheck, sawing, Gegenbetten, separation). QM is REWORK_CHECKOUT
+  ($15 + 15$ per telescope), alternating with REWORK; recheck is the same step. Times: cleaning $15 + 10$, blasting
+  $5 + 5$ per plate; Gegenbetten $5 + 5n$ attended, then 15 unattended; separation $10 + 10n$; sawing 15 + 15 per
+  secondary part. **Decided (Claude, stated):** recommend explicit serial slots per step in CP-SAT (option (b1));
+  the base of a carrier-bound step as the setup of its per-carrier run (the estimator clamps a fixed part away);
+  cleaning and blasting with the full base per plate until s-batches exist (as `base_durations`).
+- **Done:** spec `docs/superpowers/specs/2026-11-17-s-batches-design.md` (options (a) family setups, (b) slots,
+  (c) rule only; sources checked in Zotero). `PerCarrierStep.part_base` (left out of the serialized form at 0, so
+  the configuration hashes stay unchanged) and the check part time > 0 (`src/simulation/carrier_generator.py`);
+  `data/routes/fidentis.json` (setup attended for QM, recheck, saw, Gegenbetten, separation),
+  `data/generator/fidentis.json`; tests `test_fidentis_worker_carrier_steps_by_hand` (one order of 4 telescopes:
+  clean 25, blast 10, QM 75, recheck 150, saw 30, Gegenbetten 40, separation 50) and
+  `test_per_carrier_part_time_must_be_positive`; `math/21` §4a table, §5, §6, change log.
+- **Found:** Potts & Kovalyov 2000 (`26Z9YF55`, pp. 228–230, 238) and Allahverdi et al. 2008 (`WVMP38QA`,
+  pp. 987–988) define family setups, batch versus job availability and anticipatory setups; Huertas & Van
+  Hentenryck 2025 (`V2UY34XA`) give CP models for s-batches with CP Optimizer globals that CP-SAT lacks; CP-SAT
+  models transition times only with `add_circuit` (OR-Tools docs), which does not scale over all shares of a
+  worker. The amortized carrier times were optimistic (e.g. QM 16 instead of $15 + 15$ per telescope, so 75 against
+  64 at 4 telescopes); the hand test fixes the new values. The MES rule (per-unit time > 0 and maxBatch > 1) also
+  marks cleaning, QM and the order steps; the user settled them as listed above.
+- **Open:** Gegenbetten prefix growing with the parts and carrier steps without machine (both format changes;
+  until then the curing is the unattended removal on the stand-in machine); setup and main of a carrier-bound step
+  are two shares (another worker and a gap allowed, shortcut); implementing s-batches (spec §7); spec §9 Q5–Q8;
+  `references.md` entries for `WVMP38QA` and `V2UY34XA` with the implementation; terminology "s-batch" with it.
+
 ## 2026-11-17 (61) — Release interface, step A: release rule and quota — uncommitted
 
 - **Decided (user):** start the release interface. **Decided (Claude, stated):** step A first (open loop, in the

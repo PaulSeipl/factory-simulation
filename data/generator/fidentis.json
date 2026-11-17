@@ -15,8 +15,8 @@
     "polish_pri", "finish_pri", "inspect", "document", "pack"
   ],
   "durations": {
-    "data_prep_sec": [120, 120], "data_prep_sec_mill": [20, 20], "print": [330, 330], "clean": [14, 14],
-    "oven": [220, 220], "blast": [6, 6], "mill_carrier": [120, 120], "qm": [17, 17], "rework": [280, 280],
+    "data_prep_sec": [120, 120], "data_prep_sec_mill": [20, 20], "print": [330, 330], "clean": [25, 25],
+    "oven": [220, 220], "blast": [10, 10], "mill_carrier": [120, 120], "qm": [17, 17], "rework": [280, 280],
     "recheck": [17, 17], "saw": [16, 16], "support_removal": [15, 15], "grind": [45, 45], "steam": [5, 5],
     "polish_sec": [20, 20], "data_prep_pri": [15, 15], "mill_blank": [248, 248], "gegenbetten": [36, 36],
     "mill_flipped": [240, 240], "separate": [44, 44], "polish_pri": [20, 20], "finish_pri": [10, 10],
@@ -42,14 +42,14 @@
   "batch_capacity": {"oven": 2},
   "per_carrier": {
     "mill_carrier": {"setup": 15, "removal": 5, "unit_time": 30},
-    "qm": {"unit_time": 16},
+    "qm": {"setup": 15, "unit_time": 15},
     "rework": {"setup": 20, "unit_time": 70},
-    "recheck": {"unit_time": 16},
-    "saw": {"unit_time": 4},
+    "recheck": {"setup": 15, "unit_time": 15},
+    "saw": {"setup": 15, "part_base": 15, "unit_time": 0},
     "mill_blank": {"setup": 15, "removal": 10, "unit_time": 62},
-    "gegenbetten": {"unit_time": 9},
+    "gegenbetten": {"setup": 5, "removal": 15, "unit_time": 5},
     "mill_flipped": {"setup": 15, "unit_time": 60},
-    "separate": {"unit_time": 11}
+    "separate": {"setup": 10, "unit_time": 10}
   },
   "blank_capacity": 20,
   "workers": ["A", "B"],
