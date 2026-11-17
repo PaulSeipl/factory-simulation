@@ -42,14 +42,14 @@
   "batch_capacity": {"oven": 2},
   "per_carrier": {
     "mill_carrier": {"setup": 15, "removal": 5, "unit_time": 30},
-    "qm": {"setup": 15, "unit_time": 15},
+    "qm": {"base": 15, "unit_time": 15},
     "rework": {"setup": 20, "unit_time": 70},
-    "recheck": {"setup": 15, "unit_time": 15},
-    "saw": {"setup": 15, "part_base": 15, "unit_time": 0},
+    "recheck": {"base": 15, "unit_time": 15},
+    "saw": {"base": 15, "part_base": 15, "unit_time": 0},
     "mill_blank": {"setup": 15, "removal": 10, "unit_time": 62},
-    "gegenbetten": {"setup": 5, "removal": 15, "unit_time": 5},
+    "gegenbetten": {"base": 5, "removal": 15, "unit_time": 5},
     "mill_flipped": {"setup": 15, "unit_time": 60},
-    "separate": {"setup": 10, "unit_time": 10}
+    "separate": {"base": 10, "unit_time": 10}
   },
   "blank_capacity": 20,
   "workers": ["A", "B"],

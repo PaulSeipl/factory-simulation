@@ -10,6 +10,7 @@ from pydantic import (
     Field,
     NonNegativeInt,
     PositiveInt,
+    model_serializer,
     model_validator,
 )
 
@@ -84,6 +85,16 @@ class RunEstimator(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     fixed: NonNegativeInt = 0  # minutes per run, independent of its content
     share: float = Field(ge=0, le=1)  # share of the summed part times that the run takes in addition
+    # minutes once per run added after the clamp, e.g. a worker's setup inside the main operation (2026-11-17)
+    base: NonNegativeInt = 0
+
+    @model_serializer(mode="wrap")
+    def _omit_base(self, handler):
+        # left out at its default, so instance files and configuration hashes from before stay unchanged
+        data = handler(self)
+        if self.base == 0:
+            data.pop("base", None)
+        return data
 
 
 class CarrierStep(BaseModel):
@@ -159,7 +170,7 @@ class Calendar(BaseModel):
 
 class Instance(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal["0.7"]
+    schema_version: Literal["0.8"]
     name: str
     time_unit: Literal["s", "min", "h"] = "min"
     machines: tuple[str, ...]
@@ -420,13 +431,14 @@ def _chain(order: Order, kind: str | None) -> list[Operation]:
     return chain
 
 
-def estimate_run_duration(part_times: Sequence[int], fixed: int, share: float) -> int:
+def estimate_run_duration(part_times: Sequence[int], fixed: int, share: float, base: int = 0) -> int:
     """Duration of a run from the times of its parts processed alone (math/03_carriers.md, step 4).
 
     Neither a p-batch (max) nor an s-batch (sum): fixed + share * sum, rounded half up and clamped to
-    [max, sum]. The form and its parameters are assumptions until validated with Fidentis data.
+    [max, sum], plus base once per run (not clamped). The form and its parameters are assumptions until validated
+    with Fidentis data.
     """
-    return min(sum(part_times), max(max(part_times), fixed + math.floor(share * sum(part_times) + 0.5)))
+    return base + min(sum(part_times), max(max(part_times), fixed + math.floor(share * sum(part_times) + 0.5)))
 
 
 def run_duration(inst: Instance, run: Run) -> int | None:
@@ -441,7 +453,7 @@ def _estimate(inst: Instance, step: str, parts: Sequence[tuple[str, str]]) -> in
     if (est := inst.carrier_steps[step].estimator) is None:
         return None
     times = {(o.id, p.id): p.times for o in inst.orders for p in o.parts}
-    return estimate_run_duration([times[part][step] for part in parts], est.fixed, est.share)
+    return estimate_run_duration([times[part][step] for part in parts], est.fixed, est.share, est.base)
 
 
 class Node(NamedTuple):

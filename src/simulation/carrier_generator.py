@@ -46,14 +46,14 @@ class RouteOperation(BaseModel):
 class PerCarrierStep(BaseModel):
     """A carrier step in which every carrier is its own run (CarrierStep.runs = "per_carrier"); the main operation
     takes the sum of the part times (estimator 0 + 1 * sum: s-batch), a part's time is part_base plus its size times
-    unit_time. A time once per carrier goes into setup (or removal, if unattended), not into the main operation: the
-    estimator clamps the main operation to the sum of the part times (math/03_carriers.md)."""
+    unit_time, plus base once per carrier (a worker's setup inside the main operation: one share, no gap)."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
     setup: NonNegativeInt = 0
     removal: NonNegativeInt = 0
     unit_time: NonNegativeInt  # per size unit (dental: per telescope on a plate, per primary part on a blank)
     part_base: NonNegativeInt = 0  # per part on the carrier, independent of its size (e.g. sawing per secondary part)
+    base: NonNegativeInt = 0  # once per carrier, inside the main operation (e.g. QM 15 + 15 per telescope)
 
     @model_validator(mode="after")
     def check_part_time(self) -> Self:
@@ -62,11 +62,12 @@ class PerCarrierStep(BaseModel):
         return self
 
     @model_serializer(mode="wrap")
-    def _omit_part_base(self, handler):
-        # added 2026-11-17: left out at its default, so configuration hashes from before stay valid (as below)
+    def _omit_later_defaults(self, handler):
+        # added 2026-11-17: left out at their default, so configuration hashes from before stay valid (as below)
         data = handler(self)
-        if self.part_base == 0:
-            data.pop("part_base", None)
+        for name in ("part_base", "base"):
+            if getattr(self, name) == 0:
+                data.pop(name, None)
         return data
 
 
@@ -202,7 +203,7 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
             return {"runs": "given", "setup": params.setup, "removal": params.removal, "estimator": params.estimator}
         if (pc := params.per_carrier.get(step)) is not None:
             return {"runs": "per_carrier", "setup": pc.setup, "removal": pc.removal,
-                    "estimator": RunEstimator(fixed=0, share=1)}
+                    "estimator": RunEstimator(fixed=0, share=1, base=pc.base)}
         return {"batch_capacity": params.batch_capacity.get(step)}
 
     carrier_steps = {
@@ -255,7 +256,7 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
     carriers, runs = nest(orders, params)
 
     return Instance.model_validate({
-        "schema_version": "0.7",
+        "schema_version": "0.8",
         "name": params.name or params.default_name(),
         "machines": [m for ms in machines.values() for m in ms],
         "orders": [{k: v for k, v in o.items() if k != "size"} for o in orders],

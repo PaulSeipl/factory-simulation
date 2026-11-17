@@ -36,7 +36,7 @@ unit" steps:
    `blast` (5 + 5 per plate, at most 4 plates). So a capacity $c_s$ (in plates) is needed after all, for `clean`
    and `blast`; the other free steps have none.
 2. **Carrier-bound** (members fixed by the persistent carrier, no choice; base once per carrier; **done
-   2026-11-17**, protocol (62): base as the attended setup of the per-carrier run, `part_base` for sawing,
+   2026-11-17**, protocols (62), (63): base $p^{\mathrm{su}}_s$ inside the main operation of the per-carrier run (one share), `part_base` for sawing,
    Gegenbetten curing as the unattended removal; `qm` and `recheck` are both REWORK_CHECKOUT): `gegenbetten`
    (prefix $5 + 5n$ attended for $n$ parts on the blank, then 15 unattended; 2 parts: 30), `separate`
    ($10 + 10n$), `saw` (15 + 15 per secondary part on the plate), `qm` and `recheck` ($15 + 15$ per telescope on
@@ -331,7 +331,7 @@ checked again before adding them.
 |---|---|---|
 | $s(o)$ | step of operation $o$ | extends the carrier step index $s$ to all steps; like $k(o)$, $m(o)$ |
 | $c_s$ | batch capacity of step $s$, in units (carriers count 1) | existing symbol, same quantity, now also for order and part steps |
-| $p^{\mathrm{su}}_s$ | setup time once per s-batch of step $s$ | a duration, family $p$ like $p^{\mathrm{br}}$; not $s$ (step) |
+| $p^{\mathrm{su}}_s$ | setup time once per s-batch of step $s$ (**in `notation.md` since protocol (63)** as the base of a run) | a duration, family $p$ like $p^{\mathrm{br}}$; not $s$ (step) |
 | $p^{\mathrm{unit}}_s$ | time per unit of step $s$ | family $p$ |
 | $n_o$ | units of operation $o$ (parts it covers) | count family $n$ like $n_k$ |
 | $C^{\mathrm{slot}}_j$ | end of slot $j$ | completion family, like $S^{\mathrm{slot}}_j$ |

@@ -90,7 +90,7 @@ form at their default).
 2026-11-16 and 2026-11-17. Each MES step becomes one operation. Since 2026-11-17 (user) no step amortizes its
 setup over a batch ($\mathrm{base} \cdot u / B + \mathrm{per\_unit} \cdot u$, the MES capacity model): a
 carrier-bound step (members fixed by the carrier: QM, recheck, sawing, Gegenbetten, separation) pays its base once
-per carrier as the setup of a per-carrier run, then the per-unit time; cleaning and blasting pay the full base per
+per carrier inside the main operation of a per-carrier run (base $p^{\mathrm{su}}_s$, [03](03_carriers.md)), then the per-unit time; cleaning and blasting pay the full base per
 plate; order and part operations the full setup once per order, $\mathrm{base} + \mathrm{per\_unit} \cdot u$ (user 2026-11-17: the
 amortized share assumes batches across orders that nothing in the model forms; pessimistic until s-batches exist,
 §6), rounded:
@@ -103,15 +103,15 @@ amortized share assumes batches across orders that nothing in the model forms; p
 | PART_CLEANING, SAND_BLASTING | `clean`, `blast` (plate) | stand-in pool, worker | 15 + 10, 5 + 5 per plate |
 | HEAT_TREATMENT | `oven` (plate, p-batch of 2) | oven; worker prefix and suffix 20 | 220 |
 | MILL_PREP_SECONDARY, MILL_JOB_SECONDARY, SECONDARY_PLATE_REMOVAL | `mill_carrier` per plate | mill; setup, removal attended | 15 + 30 per telescope + 5 |
-| REWORK_CHECKOUT | `qm`, `recheck1`, `recheck2` (plate) | stand-in pool, worker; setup attended | 15 + 15 per telescope |
+| REWORK_CHECKOUT | `qm`, `recheck1`, `recheck2` (plate) | stand-in pool, worker | 15 + 15 per telescope |
 | REWORK | `rework1`, `rework2` (plate) | mill; setup attended | 20 + 70 per telescope |
-| SAWING | `saw` (plate, separating) | stand-in pool, worker; setup attended | 15 + 15 per secondary part |
+| SAWING | `saw` (plate, separating) | stand-in pool, worker | 15 + 15 per secondary part |
 | SUPPORT_REMOVAL … POLISH | per secondary part | worker | 30, 55, 15, 30 |
 | DATA_PREP_PRIMARY | per primary part | worker | 15 + 15 per part |
 | MILL_PREP_PRIMARY, MILL_JOB_PRIMARY, REMOVE_MOUNT | `mill_blank` per blank (forming) | mill; setup, removal attended | 15 + 62 per part + 10 |
-| GEGENBETTEN | `gegenbetten` (blank) | stand-in pool; setup and main attended, curing as unattended removal | 5 + 5 per part + 15 |
+| GEGENBETTEN | `gegenbetten` (blank) | stand-in pool, worker; curing as unattended removal | 5 + 5 per part + 15 |
 | PREP_MILL_FLIPPED | `mill_flipped` per blank | mill; setup attended | 15 + 60 per part |
-| PART_REMOVAL_FROM_BLANK, PRIMARY_POLISHING, FINISHING_PRIMARY | `separate` (blank), per primary part | stand-in pool, setup attended / worker | 10 + 10 per part; 10 + 20, 10 + 10 per part |
+| PART_REMOVAL_FROM_BLANK, PRIMARY_POLISHING, FINISHING_PRIMARY | `separate` (blank), per primary part | stand-in pool / worker | 10 + 10 per part; 10 + 20, 10 + 10 per part |
 | INSPECTION, DOCUMENTATION, PACKAGING_SHIPPING | order | worker | 20 each |
 
 Print: part time $150 + 45\,n_k$, estimator $p^0 = 66$, $\lambda = 0.8$, which reproduces the MES rule
@@ -159,11 +159,10 @@ Carriers: `simulation.carrier_generator.CarrierGeneratorParams` (route as `Route
   of the parameter file, not validated in general: the dental example has a bench pool of 2 for 4 workers); the curing of
   Gegenbetten (15 per blank) is the unattended removal of its per-carrier run, so the stand-in machine stays
   blocked while no worker is needed (harmless while `hand` has one machine per worker; a carrier step without
-  machine would remove it, format change, open). The base once per carrier of the carrier-bound steps is the
-  setup of a per-carrier run (attended, its own operation), not a fixed part of the main operation: the run
-  estimator clamps the main operation to the sum of the part times ([03](03_carriers.md)). **Shortcut:** setup
-  and main are two shares, so another worker may take the main part, and a gap between them is allowed (C9 blocks
-  only the stand-in machine). Powder removal is the removal of the print run (the printer stays
+  machine would remove it, format change, open). The base once per carrier of the carrier-bound steps is the base
+  $p^{\mathrm{su}}_s$ of the per-carrier run (`PerCarrierStep.base`), inside the main operation: one share, one
+  worker, no gap (2026-11-17; the first version of the same day used a separate setup operation, which let another
+  worker continue after a gap, user: not realistic). Powder removal is the removal of the print run (the printer stays
   blocked until a worker empties it). Print setup 95 for $90 + 5$ per plate, fixed at one plate (the setup of a step in runs is one number per step,
   `CarrierStep.setup`; with daily nesting at about one order per day a print has one plate; at most 15 too low
   for four plates). Removal of the
@@ -215,6 +214,7 @@ Own design. Benchmark generators from the literature (e.g. the generation of the
 | 2026-11-12 | uncommitted | `nest` extracted; arrival generator (§4b). |
 | 2026-11-12 | uncommitted | Workers and calendar in the carrier generator (`worker`, `attended` in the route; `workers`, `calendar` in the parameters); due dates on cutoffs; example `dental-carriers-workers.json`. |
 | 2026-11-13 | uncommitted | Route files: `route` may be a path (`data/routes/`), referenced by the generator parameter files and the experiment configurations; resolved content unchanged. |
+| 2026-11-17 | see protocol (63) | `PerCarrierStep.base` (base inside the main operation); Fidentis carrier-bound steps without a separate setup operation. |
 | 2026-11-17 | see protocol (62) | `PerCarrierStep.part_base`; Fidentis carrier-bound steps (QM, recheck, sawing, Gegenbetten, separation) with the base once per carrier as run setup, cleaning and blasting with the full base per plate (user). |
 | 2026-11-17 | uncommitted | Option `base_durations`; Fidentis order and part operations with the full setup per order. |
 | 2026-11-16 | uncommitted | Options `count_lognormal`, `run_capacity`, `unit_base`, `no_machine` (unset: instances and configuration hashes unchanged); Fidentis route and parameter file from the MES seed times with the user's corrections. |

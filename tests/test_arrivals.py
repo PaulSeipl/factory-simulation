@@ -259,7 +259,7 @@ def test_hand_computed_arrival():
     # a1 (M1, 4) known at 0; b1 (M1: 2, M2: 5) arrives at 2. At 2, a1 runs on M1 until 4; b1 on M1 ends at 6, on M2
     # at 7: the optimum puts b1 on M1 at [4, 6), makespan 6, equal to the hindsight optimum (nothing lost by not
     # knowing b1 earlier here)
-    inst = Instance.model_validate({"schema_version": "0.7", "name": "hand-arrival", "machines": ["M1", "M2"],
+    inst = Instance.model_validate({"schema_version": "0.8", "name": "hand-arrival", "machines": ["M1", "M2"],
                                     "orders": [
         {"id": "A", "operations": [{"id": "a1", "step": "s", "options": {"M1": 4}}]},
         {"id": "B", "arrival": 2, "release": 2,
@@ -276,7 +276,7 @@ def test_hand_computed_arrival():
 def test_metrics_of_a_run_with_arrivals():
     # the hand instance with B accepted at 1: A ends 4 (released 0), B ends 6 (released 2); flow times 4, 4, lead
     # times from the acceptance 4, 5; the start plan holds only a1, which keeps its start and machine
-    inst = Instance.model_validate({"schema_version": "0.7", "name": "hand-arrival", "machines": ["M1", "M2"],
+    inst = Instance.model_validate({"schema_version": "0.8", "name": "hand-arrival", "machines": ["M1", "M2"],
                                     "orders": [
         {"id": "A", "operations": [{"id": "a1", "step": "s", "options": {"M1": 4}}]},
         {"id": "B", "accepted": 1, "arrival": 2, "release": 2,

@@ -307,6 +307,7 @@ def test_unset_options_leave_instances_unchanged(path):
     import hashlib
 
     inst = generate_carrier_instance(read_model(ROOT / path, CarrierGeneratorParams))
+    inst = inst.model_copy(update={"schema_version": "0.7"})  # the digests are from schema 0.7; content unchanged
     assert hashlib.sha256(inst.model_dump_json().encode()).hexdigest()[:16] == DIGESTS_BEFORE[path]
 
 
@@ -405,23 +406,26 @@ def test_fidentis_mill_minutes_by_hand():
 
 
 def test_fidentis_worker_carrier_steps_by_hand():
-    # one order of 4 telescopes, one plate and one blank (user 2026-11-17): base once per carrier as the setup of a
-    # per-carrier run, then per unit. qm 15 + 4 * 15; recheck the same, twice; saw 15 + 15 per secondary part;
+    # one order of 4 telescopes, one plate and one blank (user 2026-11-17): base once per carrier inside the main
+    # operation of a per-carrier run (one worker share, no separate setup), then per unit. qm 15 + 4 * 15; recheck the same, twice; saw 15 + 15 per secondary part;
     # gegenbetten 5 + 4 * 5 attended + 15 unattended (the removal); separation 10 + 4 * 10; clean, blast one plate
     base = read_model(ROOT / "data/generator/fidentis.json", CarrierGeneratorParams)
     inst = generate_carrier_instance(base.model_copy(update={
         "n_orders": 1, "count_range": (4, 4), "count_lognormal": None}))
     ci = compile_instance(inst)
-    hand = {}
+    hand, count = {}, {}
     for o, (_, op_id) in enumerate(ci.op_keys):
         if ci.options[o] and ci.machine_ids[ci.options[o][0][0]].startswith("hand"):
             step = next(s for s in ("clean", "blast", "qm", "recheck", "saw", "gegenbetten", "separate")
                         if s in op_id)
             hand[step] = hand.get(step, 0) + ci.options[o][0][1]
+            count[step] = count.get(step, 0) + 1
     assert hand == {"clean": 25, "blast": 10, "qm": 75, "recheck": 150, "saw": 30, "gegenbetten": 40,
                     "separate": 50}
+    # one operation per carrier and round (no setup operation); Gegenbetten adds its unattended curing (removal)
+    assert count == {"clean": 1, "blast": 1, "qm": 1, "recheck": 2, "saw": 1, "gegenbetten": 2, "separate": 1}
     gb = inst.carrier_steps["gegenbetten"]
-    assert gb.setup_attended and not gb.removal_attended  # the 15 of curing need no worker
+    assert gb.setup == 0 and gb.removal == 15 and not gb.removal_attended  # the 15 of curing need no worker
 
 
 def test_per_carrier_part_time_must_be_positive():

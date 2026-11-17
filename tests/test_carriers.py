@@ -11,7 +11,7 @@ from simulation.control.rescheduling import ReschedulingPolicy, execute
 from simulation.due_dates import assign_due_dates, lead_time_bound
 from simulation.metrics import run_metrics
 from simulation.model.compiled import CompiledInstance, compile_instance
-from simulation.model.instance import Instance, estimate_run_duration
+from simulation.model.instance import Instance, RunEstimator, estimate_run_duration
 from simulation.model.schedule import Assignment
 from simulation.objectives import MAKESPAN
 from simulation.planners.cpsat import cpsat_planner, solve
@@ -373,6 +373,19 @@ def test_cpsat_continues_a_partly_started_run_on_its_machine():
 ])
 def test_estimate_run_duration_by_hand(times, fixed, share, expected):
     assert estimate_run_duration(times, fixed, share) == expected
+
+
+def test_run_base_is_added_after_the_clamp():
+    # QM of a plate with 4 telescopes (user 2026-11-17): 15 once plus 15 per telescope; a fixed part would be
+    # clamped to the sum (60), the base is not
+    assert estimate_run_duration([60], 15, 1.0) == 60
+    assert estimate_run_duration([60], 0, 1.0, base=15) == 75
+    assert RunEstimator(share=1).model_dump() == {"fixed": 0, "share": 1}  # base omitted at 0 (old files unchanged)
+
+
+def test_negative_run_base_rejected():
+    with pytest.raises(ValidationError, match="greater than or equal to 0"):
+        RunEstimator(share=1, base=-1)
 
 
 def with_part_times(**run_durations):

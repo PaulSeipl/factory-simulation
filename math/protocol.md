@@ -8,6 +8,25 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-17 (63) — Base once per run inside the main operation
+
+- **Decided (user):** the first version of (62) put the base of the carrier-bound steps into a separate setup
+  operation; another worker could then continue after a gap ("not realistic"). The base goes into the main
+  operation: one share, one worker. **Decided (Claude, stated):** a base $p^{\mathrm{su}}_s$ added after the clamp
+  of the run estimator (the fixed part $p^0$ is clamped away at $\lambda = 1$); the symbol proposed for the s-batch
+  setup is the same quantity (time once per batch or run), so it is introduced here.
+- **Done:** `RunEstimator.base` and `estimate_run_duration(..., base)` (`src/simulation/model/instance.py`),
+  omitted from the serialized form at 0; schema 0.8 (`schemas/instance-0.8.json`, toy instances, generators,
+  tests); `PerCarrierStep.base` (generator); `data/routes/fidentis.json` without the attended setups,
+  `data/generator/fidentis.json` with `base`; tests `test_run_base_is_added_after_the_clamp`,
+  `test_negative_run_base_rejected`, the Fidentis hand test now also counts one operation per carrier and round;
+  the instance digest test compares with schema 0.7 put back (content unchanged). `math/03` step 4 formula,
+  implementation, change log; `math/notation.md` $p^{\mathrm{su}}_s$; `math/21` §4a, §6, change log.
+- **Found:** same totals as (62) by hand (QM 75, recheck 150, saw 30, Gegenbetten 40, separation 50 for one order
+  of 4 telescopes), one setup operation fewer per carrier and round (six for one plate and one blank).
+- **Open:** Gegenbetten curing still as the unattended removal on the stand-in machine; prefix growing with the
+  parts and carrier steps without machine (format changes, next).
+
 ## 2026-11-17 (62) — s-batch design; Fidentis carrier-bound times
 
 - **Decided (user):** s-batches move on together (batch availability); no setup carried across a break or the
@@ -37,7 +56,7 @@ the commits and the change logs of the component files and are therefore shorter
   marks cleaning, QM and the order steps; the user settled them as listed above.
 - **Open:** Gegenbetten prefix growing with the parts and carrier steps without machine (both format changes;
   until then the curing is the unattended removal on the stand-in machine); setup and main of a carrier-bound step
-  are two shares (another worker and a gap allowed, shortcut); implementing s-batches (spec §7); spec §9 Q5–Q8;
+  are two shares (another worker and a gap allowed, shortcut; fixed in (63)); implementing s-batches (spec §7); spec §9 Q5–Q8;
   `references.md` entries for `WVMP38QA` and `V2UY34XA` with the implementation; terminology "s-batch" with it.
 
 ## 2026-11-17 (61) — Release interface, step A: release rule and quota — uncommitted

@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.7",
+  "schema_version": "0.8",
   "name": "toy-carriers",
   "time_unit": "min",
   "machines": ["D", "M", "P", "P2", "O", "Q", "S", "F"],
