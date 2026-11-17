@@ -11,7 +11,7 @@ from simulation.io.json_loader import read_model
 from simulation.model.compiled import compile_instance
 from simulation.objectives import MAKESPAN
 from simulation.planners.cpsat import solve
-from simulation.planners.dispatching import dispatch, ect, spt
+from simulation.planners.dispatching import dispatch, dispatch_plan, ect, spt
 from simulation.sim.des import replay
 
 # dental-like route: design, milling of the primary parts, carrier from print to saw with one QM per carrier
@@ -283,3 +283,137 @@ def test_route_reference_without_a_file_rejected():
     raw = raw.model_dump(mode="json")
     with pytest.raises(ValidationError, match="needs read_model"):
         CarrierGeneratorParams.model_validate(raw | {"route": "../routes/dental.json"})
+
+
+ROOT = Path(__file__).parents[1]
+
+# --- options added for the Fidentis case (2026-11-16, math/21_instance-generator.md §4a) ---
+
+# instance digests of every parameter file before the options existed: unset options change nothing
+DIGESTS_BEFORE = {
+    "data/generator/dental-carriers-example.json": "c90eaeb9f0b4aee9",
+    "data/generator/dental-carriers-workers.json": "78f387eacc615135",
+}
+# configuration hashes of the experiments running when the options were added (rows carry them, math/07 §5)
+CONFIG_HASHES_BEFORE = {
+    "arrivals-rate4": "583b92a7a3cd", "arrivals-rate6-undisturbed": "239f7d5d296e", "arrivals-rate6": "2287d12d6b96",
+    "arrivals-rate8-double": "f1c4c1f3be5f", "arrivals-rate8": "eaf43e4b3216", "nesting-daily": "37627a445be3",
+    "nesting-weekly": "7139374f68ee",
+}
+
+
+@pytest.mark.parametrize("path", sorted(DIGESTS_BEFORE))
+def test_unset_options_leave_instances_unchanged(path):
+    import hashlib
+
+    inst = generate_carrier_instance(read_model(ROOT / path, CarrierGeneratorParams))
+    assert hashlib.sha256(inst.model_dump_json().encode()).hexdigest()[:16] == DIGESTS_BEFORE[path]
+
+
+@pytest.mark.parametrize("name", sorted(CONFIG_HASHES_BEFORE))
+def test_unset_options_leave_experiment_hashes_unchanged(name):
+    from simulation.experiment import ExperimentConfig
+
+    assert read_model(ROOT / "experiments" / f"{name}.json", ExperimentConfig).digest() == CONFIG_HASHES_BEFORE[name]
+
+
+def test_run_capacity_closes_runs_by_size_by_hand():
+    # 6 orders of size 4, carrier capacity 8: carriers O1+O2, O3+O4, O5+O6 (8 each); runs of at most 4 carriers
+    # but 20 size units: two carriers (16) per run, a third would give 24
+    inst = generate_carrier_instance(params(n_orders=6, release_range=(0, 0), count_range=(4, 4),
+                                            carrier_capacity=8, run_capacity=20))
+    assert [r.carriers for r in inst.runs] == [("C1", "C2"), ("C3",)]
+    inst = generate_carrier_instance(params(n_orders=6, release_range=(0, 0), count_range=(4, 4),
+                                            carrier_capacity=8, run_capacity=24))
+    assert [r.carriers for r in inst.runs] == [("C1", "C2", "C3")]
+
+
+def test_unit_base_adds_to_the_run_step_part_time():
+    inst = generate_carrier_instance(params(unit_base=150))
+    for o in inst.orders:
+        n = sum(p.type == "primary" for p in o.parts)
+        assert next(p for p in o.parts if p.type == "secondary").times == {"print": 150 + 8 * n}
+
+
+def test_lognormal_count_by_seed_statistics():
+    # median 4, sigma 0.5, clipped to [1, 12]: median of the draws 4, all within the range, not all equal
+    sizes = [sum(p.type == "primary" for p in o.parts) for o in generate_carrier_instance(
+        params(n_orders=400, count_range=(1, 12), count_lognormal=(4, 0.5))).orders]
+    assert sorted(sizes)[200] == 4 and min(sizes) >= 1 and max(sizes) <= 12 and len(set(sizes)) > 4
+    # clipping: sigma large, upper bound 5
+    sizes = [sum(p.type == "primary" for p in o.parts) for o in generate_carrier_instance(
+        params(n_orders=200, count_range=(1, 5), count_lognormal=(4, 2.0))).orders]
+    assert max(sizes) == 5 and min(sizes) == 1
+
+
+def test_no_machine_steps_get_a_duration_and_stay_solvable():
+    # an operation without machine needs a worker share ([V6]): design and finish whole, by workers A and B
+    route = [op | {"worker": {"whole": True}} if op["id"] in ("design", "finish") else op for op in ROUTE]
+    ci_params = params(n_orders=5, route=route, workers=("A", "B"), no_machine=("design", "finish"),
+                       machines={k: v for k, v in BASE["machines"].items() if k not in ("design", "finish")})
+    inst = generate_carrier_instance(ci_params)
+    for o in inst.orders:
+        ops = {op.id: op for op in o.operations}
+        assert ops["design"].options is None and 10 <= ops["design"].duration <= 20
+        assert ops["finish"].options is None and ops["mill"].options is not None
+    ci = compile_instance(inst)
+    for plan in (dispatch(ci, spt, ect), solve(ci, time_limit=10, workers=1).schedule):
+        assert check_schedule(ci, plan) == []
+
+
+def test_base_durations_add_once_per_operation():
+    inst = generate_carrier_instance(params(base_durations={"mill": 7, "finish": 3}))
+    for o in inst.orders:
+        n = sum(p.type == "primary" for p in o.parts)
+        ops = {op.id: op for op in o.operations}
+        assert all((d - 7) % n == 0 and 5 * n <= d - 7 <= 10 * n for d in ops["mill"].options.values())
+        assert all(13 <= d <= 23 for d in ops["finish"].options.values())
+
+
+@pytest.mark.parametrize(("changes", "message"), [
+    ({"base_durations": {"oven": 5}}, r"base_durations for carrier steps \['oven'\]"),
+    ({"base_durations": {"polish": 5}}, r"base_durations for steps \['polish'\] not in the route"),
+    ({"no_machine": ("oven",)}, r"no_machine for carrier steps \['oven'\]"),
+    ({"no_machine": ("polish",)}, r"no_machine for steps \['polish'\] not in the route"),
+    ({"no_machine": ("design",)}, r"no_machine steps \['design'\] also have machines"),
+    ({"run_capacity": 10}, r"run_capacity 10 below carrier_capacity 12"),
+    ({"count_lognormal": (9, 0.5)}, r"count_lognormal median 9.0 outside count_range \[1, 7\]"),
+    ({"count_lognormal": (4, 0)}, r"greater than 0"),
+    ({"unit_base": 5, "unit_time": None, "estimator": None}, r"unit_base needs unit_time"),
+])
+def test_invalid_fidentis_options_rejected(changes, message):
+    with pytest.raises(ValidationError, match=message):
+        params(**changes)
+
+
+def test_fidentis_mill_minutes_by_hand():
+    # one order of 4 telescopes (math/21 §4a, MES seed times with the corrections of 2026-11-16): primary
+    # 15 + 4 * 62 + 10 (blank, pass 1) + 15 + 4 * 60 (pass 2) = 528; secondary 15 + 4 * 30 + 5 (plate) +
+    # 2 rework rounds of 20 + 4 * 70 = 740
+    base = read_model(ROOT / "data/generator/fidentis.json", CarrierGeneratorParams)
+    # the stand-in pool for worker-only carrier steps must never bind before the workers (math/21 §6)
+    assert base.machines["hand"] >= len(base.workers)
+    ci = compile_instance(generate_carrier_instance(base.model_copy(update={
+        "n_orders": 1, "count_range": (4, 4), "count_lognormal": None})))
+    mill = {}
+    for o, (_, op_id) in enumerate(ci.op_keys):
+        if ci.options[o] and ci.machine_ids[ci.options[o][0][0]] == "mill1":
+            step = next(s for s in ("mill_blank", "mill_flipped", "mill_carrier", "rework") if s in op_id)
+            mill[step] = mill.get(step, 0) + ci.options[o][0][1]
+    assert mill == {"mill_blank": 273, "mill_flipped": 255, "mill_carrier": 140, "rework": 600}
+    assert mill["mill_blank"] + mill["mill_flipped"] == 528 and mill["mill_carrier"] + mill["rework"] == 740
+
+
+def test_fidentis_parameter_file_is_solvable_and_replays_unchanged():
+    ci = compile_instance(generate_carrier_instance(read_model(ROOT / "data/generator/fidentis.json",
+                                                               CarrierGeneratorParams)))
+    plan = dispatch_plan(ci, spt, ect)
+    assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
+    result = solve(ci, MAKESPAN, time_limit=20, workers=1)
+    assert result.schedule and not check_schedule(ci, result.schedule, breaks=result.breaks)
+
+    def plain(schedule):
+        return sorted((a.model_copy(update={"share_lengths": ()}) for a in schedule),
+                      key=lambda a: (a.order_id, a.op_id))
+
+    assert plain(replay(ci, result.schedule, breaks=result.breaks).schedule) == plain(result.schedule)

@@ -62,7 +62,10 @@ Used to generate experiment instances; no source in the library for any of the t
 - **Arrival:** at the first nesting batch at or after the acceptance,
   $$A_k = \min\{\gamma \in \Gamma^{\mathrm{nest}} : \gamma \ge A^{\mathrm{acc}}_k\}, \qquad r_k = A_k$$
   with $\Gamma^{\mathrm{nest}}$ the nesting times (given working weekdays at a fixed minute: daily, or e.g. weekly as
-  the advisor proposes for higher volume). Orders with the same $A_k$ form one package and are nested together
+  the advisor proposes for higher volume). This holds when nesting binds every accepted order (the default); with
+  a release quota (2026-11-17) the arrival is the first nesting time at which the release rule binds the order,
+  $A_k \ge \min\{\gamma \in \Gamma^{\mathrm{nest}} : \gamma \ge A^{\mathrm{acc}}_k\}$, and never after $d_k$
+  ([33](33_order-release-interface.md) (N4)). Orders with the same $A_k$ form one package and are nested together
   (next fit in due-date order, [21](21_instance-generator.md) §4a). Acceptances inside the window may arrive after
   it (a weekly batch after its end).
 - **Due dates:** either the $n^{\mathrm{due}}$-th shipping cutoff strictly after the acceptance (company rule, about 4
@@ -194,5 +197,6 @@ after a configuration change, index out of range, unknown configuration).
 | 2026-11-16 | uncommitted | Wall limit per CP-SAT call 30 s → 120 s ($N_C^{\mathrm{wall}} = 22$ of 189 with 30 s). |
 | 2026-11-16 | uncommitted | Which limit stopped CP-SAT (`wall_limited`); plan metrics in the history; commit read at the run start. |
 | 2026-11-13 | uncommitted | Command line `experiment` (list, run, task, merge); one row file per run; host column. |
+| 2026-11-17 | uncommitted | §3a: with a release quota the arrival is the first nesting time the rule binds the order ([33](33_order-release-interface.md) (N4)). |
 | 2026-11-12 | c72a018 | Step 4: arrival process (§3a) and `arrival_generator`. |
 | 2026-11-12 | uncommitted | Step 3: arrival trigger in `execute` / `adapt_plan`, budget over old operations, `inserted`; hand-computed mini instance. |

@@ -8,6 +8,84 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-17 (61) — Release interface, step A: release rule and quota — uncommitted
+
+- **Decided (user):** start the release interface. **Decided (Claude, stated):** step A first (open loop, in the
+  arrival generator), the rule as a pure function so step B (closed loop, budget from the plan) reuses it; budget in
+  telescopes per nesting batch and weekday (the mill and print load scale with telescopes; the user's advisor speaks
+  of a "default amount of orders", so the unit is put back to the user); strict priority (no overtaking); timing
+  override $d_k \le \gamma'$ so no order arrives after its due date (V10); an order larger than the budget is bound
+  alone; backlog stays bound at 0; quota only with `due_working_days`.
+- **Done:** `src/simulation/release.py` (`PoolOrder`, `release`); `ArrivalParams.quota` and
+  `_release_by_quota`, `_nesting_stream` (`src/simulation/arrival_generator.py`); `tests/test_release.py` (25,
+  see `math/33` §5); `math/33` (N4), §5, status, change log; `math/07` §3a (general arrival rule), change log;
+  symbols $Q^{\mathrm{nest}}_w$, $\mathcal{P}(t)$ in `notation.md`; `math/21` §6: blanks err in both directions
+  (user asked whether per-order milling would be more pessimistic: with amortized setups it is optimistic, with a
+  full setup per order the most pessimistic).
+- **Found:** without quota all seven experiment instances and configuration hashes are unchanged. Fidentis case
+  (seed 3, 1.2 orders per working day, 5 days, quota 6 telescopes): the quota binds strongly near capacity, the last
+  order waits from day 4 to day 14 and is released by the timing override (forced), so a quota near the mean load
+  turns into a long pool time. Not an experiment result (one seed, no metrics compared).
+- **Decided (user, same day):** smaller later orders may overtake one that does not fit; the quota is in orders,
+  counted as default orders of 4 telescopes (`quota_size`); quota values come from Fidentis and from the
+  experiments. **Done:** `release.release` (forced orders first, then first fit in nesting order, starvation
+  guard), `ArrivalParams.quota` (default orders, float) and `quota_size`, tests (26), `math/33` (N4) and §5,
+  `notation.md` ($n^{\mathrm{def}}$). Related tests (release, arrivals, generator) green.
+- **Decided (user, third round):** an order larger than the budget is bound, taking the whole budget, as soon as it
+  alone has the earliest due date (not "waits for smaller ones"); order and part operations pay the full setup per
+  order instead of the amortized share; s-batches across orders are needed and must be formed by the planner
+  (formulation open). **Done:** `release.release` (large-order rule), `CarrierGeneratorParams.base_durations`
+  (unset: instances and hashes unchanged), `data/generator/fidentis.json` (setup per order for 10 steps), tests
+  (`test_release.py`, `test_carrier_generator.py`: 94 green), `math/33` (N4), `math/21` §4a, §6, change log,
+  `math/32` §2 (s-batches).
+- **Open:** s-batches across orders (design, then the full Definition of Done); arrival rates for the Fidentis route; step B (budget from the plan: NESTING event in
+  `execute`, growing instance in the DES, scenario factors keyed by operation, spec Q3).
+
+## 2026-11-16 (60) — Fidentis route from the MES; generator options — uncommitted
+
+- **Decided (user):** build the Fidentis case before the release interface, from the MES route
+  (`seed_routes.py`) and the seed times (`services/kpi/capacity.py`, `SEED_STEPS`), with corrections: each of
+  the two primary mill passes takes 60 per part (the seed still has 120 each), QM does not occupy the mill, COM
+  is no machine (only "a worker"), the secondary mill job is not split (per telescope is fine); rework as an
+  expected share of 2 for now, stochastic rounds later; telescopes per order log-normal, default 4; plate 16 and
+  print 40 telescopes, at most 4 plates, all adjustable; 2 workers, 1 printer, 1 mill, 1 oven; the MES machine
+  hours only say that a worker starts a machine, which then runs unattended (matches the model). The print of
+  40 telescopes (about 45 h) is possible, e.g. on a weekend, but not wanted now; hence daily nesting.
+- **Done:** `CarrierGeneratorParams` options `count_lognormal`, `run_capacity`, `unit_base`, `no_machine`
+  (`src/simulation/carrier_generator.py`; at their default left out of the serialized form);
+  `data/routes/fidentis.json`, `data/generator/fidentis.json`; `math/21` §4a (mapping table), §6, change log;
+  symbols $n^{\mathrm{med}}$, $\xi$, $Q^{\mathrm{run}}$ in `notation.md`. Tests in `tests/test_carrier_generator.py`
+  (+12): instances of both parameter files and three experiment hashes unchanged (digests from before the change),
+  run capacity by hand, part time with base, log-normal median and clipping, machine-less steps solvable, seven
+  negative tests, Fidentis mill minutes by hand (one order of 4 telescopes: primary 528, secondary 740), Fidentis
+  file solved by rule and CP-SAT, checked and replayed unchanged. Full suite green.
+- **Found:** without the serializer the new defaults changed every experiment configuration hash, so rows of the
+  running experiments would have been reported stale by `merge`; fixed and tested. With 2 rework passes the
+  secondary lane needs more mill time than the primary one (740 against 528 for 4 telescopes): the precondition
+  $\psi^{\mathrm{II}} > \psi^{\mathrm{I}}$ of the toy model of `math/33` (N2) holds, conditional on the assumed
+  rework share (1 pass: 440 against 528); the toy model's split into a day-1 and a day-2 load does not fit an order
+  needing more than a day of milling. One mill bounds the case at about one order per working day (10 orders:
+  CP-SAT makespan 17.4 days, feasible, not optimal). One order alone (CP-SAT, optimal): 2 and 4 telescopes 3
+  working days, 8 telescopes 5, against the company's 4 working days from acceptance to shipping (minus the wait for
+  the daily nesting). Smoke episode (rate 0.7 per working day, 5 days, backlog 1, $\sigma = 0.2$, seeds 1, 2; rule
+  and CP-SAT at arrivals, not saved): runs through without errors; with the due rule of 4 working days every order
+  late (seed 2: 4 of 4, 17–20 missed shipping days). A whole share must fit one part of the shift (max 270 min):
+  QM per plate set to 16 per telescope (16.5).
+- **Second round (user, same day):** the company case ships **10 working days** after acceptance (the 4 was the
+  old default); order size **2 to 8** telescopes; 510 worker minutes per day (08:00–17:30, break 60) is right;
+  primary polishing is an s-batch over parts; the rework share stays a parameter to work out with the advisor in
+  the experiments; blanks are composed by a worker at milling time from parts of several orders (does not match
+  the model). User asked about the print discount (it is the estimator share $\lambda = 0.8$) and why the print
+  setup is fixed; suggested a normal distribution for the size. **Decided (Claude, stated):** log-normal kept with
+  $\xi = 0.35$ in $[2, 8]$ (skewed range), print setup 95 (one plate). **Done:** `data/generator/fidentis.json`
+  (count range, $\xi$, setup), `math/21` §4a, §6. **Found:** smoke episode again with 10 working days (backlog
+  cutoffs from the 5th): 0 tardy orders, mean lead time from acceptance 6.4–9.6 calendar days.
+- **Decided (user):** blanks stay per package (more realistic than per-order milling without blanks); fixed print
+  setup acceptable for now, noted as a todo in `math/03` §6 (setup and removal depending on the plates of a run).
+- **Open:** confirm the own choices in `math/21` §6 (two rework rounds, stand-in pool `hand`, powder removal as run
+  removal); arrival rates for this route; then the release interface
+  (`docs/superpowers/specs/2026-11-16-order-release-design.md`).
+
 ## 2026-11-16 (59) — Forecast and capacity reserve: interface to order release — uncommitted
 
 - **Decided (user):** the arrival forecast and the reserve of the advisor's vision are documented as an external

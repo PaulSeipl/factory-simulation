@@ -19,6 +19,7 @@ from pydantic import (
     NonNegativeInt,
     PositiveFloat,
     PositiveInt,
+    model_serializer,
     model_validator,
 )
 
@@ -26,6 +27,7 @@ from simulation.calendar import DAY, cutoffs, day_index, day_start, is_working_d
 from simulation.carrier_generator import CarrierGeneratorParams, generate_carrier_instance, nest
 from simulation.due_dates import lead_time_bound
 from simulation.model.instance import Instance
+from simulation.release import PoolOrder, release
 
 WEEKDAYS = range(7)
 
@@ -47,6 +49,11 @@ class ArrivalParams(BaseModel):
     # backlog due dates: k-th cutoff after 0, k uniform from here to due_working_days; not the first cutoff (4 h after
     # t = 0), which a backlog order starting from scratch cannot meet (user 2026-11-12: from the third)
     backlog_earliest_cutoff: PositiveInt = 3
+    # release quota (math/33, step A): nesting weekday -> orders bound per nesting batch, counted in default orders of
+    # quota_size telescopes (an order of 8 counts as two of 4); None: every accepted order is bound at the next batch.
+    # The backlog stays bound at t = 0.
+    quota: dict[int, PositiveFloat] | None = None
+    quota_size: PositiveInt = 4  # telescopes of a default order (user 2026-11-17)
 
     @model_validator(mode="after")
     def check_consistency(self) -> Self:
@@ -67,10 +74,28 @@ class ArrivalParams(BaseModel):
             raise ValueError(f"due_working_days {self.due_working_days} too short for the nesting cycle: an order "
                              f"accepted at {late[0]} arrives at {late[1]} with no shipping day left before its due "
                              "date")
+        if self.quota is not None:
+            if self.due_working_days is None:
+                raise ValueError("quota needs due_working_days: due dates from the arrival (due_tightness) would "
+                                 "depend on the release they decide")
+            if extra := sorted(set(self.quota) - set(self.nesting_days)):
+                raise ValueError(f"quota for weekdays {extra} without nesting")
+            if missing := sorted(set(self.nesting_days) - set(self.quota)):
+                raise ValueError(f"no quota for nesting weekdays {missing}")
         if self.due_working_days is not None and self.backlog_earliest_cutoff > self.due_working_days:
             raise ValueError(f"backlog_earliest_cutoff {self.backlog_earliest_cutoff} after due_working_days "
                              f"{self.due_working_days}")
         return self
+
+    @model_serializer(mode="wrap")
+    def _omit_later_defaults(self, handler):
+        # left out at its default (added 2026-11-17), so the configuration hashes of earlier experiments stay valid
+        data = handler(self)
+        if self.quota is None:
+            data.pop("quota", None)
+        if self.quota_size == 4:
+            data.pop("quota_size", None)
+        return data
 
     def default_name(self) -> str:
         return f"gen-arrivals-s{self.seed}"
@@ -143,6 +168,8 @@ def generate_arrival_instance(params: ArrivalParams) -> Instance:
                                                                 params.due_working_days))
         else:
             raw["due_date"] = nth_cutoff(cal, acc, params.due_working_days)
+    if params.quota is not None:
+        _release_by_quota(params, data["orders"], counted)
     carriers, runs = [], []
     for p, arr in enumerate(sorted({o["arrival"] for o in data["orders"]}), start=1):
         batch = [o | {"size": counted[o["id"]]} for o in data["orders"] if o["arrival"] == arr]
@@ -151,3 +178,33 @@ def generate_arrival_instance(params: ArrivalParams) -> Instance:
         runs += r
     data |= {"name": params.name or params.default_name(), "carriers": carriers, "runs": runs}
     return Instance.model_validate(data)
+
+
+def _release_by_quota(params: ArrivalParams, orders: list[dict], size: dict[str, int]) -> None:
+    """Arrival = release of each accepted order by the quota rule (math/33): at every nesting time the pool (accepted,
+    not yet bound) is released by `release.release` with the quota of the weekday in default orders; the backlog stays
+    bound at t = 0. Every nesting time binds at least one order of a non-empty pool, so the loop ends."""
+    cal = params.base.calendar
+    waiting = [PoolOrder(o["id"], o["accepted"], o["due_date"], i) for i, o in enumerate(orders)
+               if i >= params.backlog]
+    times = _nesting_stream(params)
+    t = next(times)
+    while waiting:
+        after = next(times)
+        if pool := [o for o in waiting if o.accepted <= t]:
+            budget = params.quota[day_index(cal, t) % 7] * params.quota_size  # in telescopes
+            bound = set(release(pool, budget, lambda o: size[o.id], after))
+            for o in orders:
+                if o["id"] in bound:
+                    o["arrival"] = o["release"] = t
+            waiting = [o for o in waiting if o.id not in bound]
+        t = after
+
+
+def _nesting_stream(params: ArrivalParams):
+    """The nesting times after 0, without end."""
+    cal, d = params.base.calendar, day_index(params.base.calendar, 0)
+    while True:
+        if d % 7 in params.nesting_days and (t := day_start(cal, d) + params.nesting_minute) > 0:
+            yield t
+        d += 1

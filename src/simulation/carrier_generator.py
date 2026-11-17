@@ -20,6 +20,7 @@ from pydantic import (
     PositiveFloat,
     PositiveInt,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -67,12 +68,19 @@ class CarrierGeneratorParams(BaseModel):
     carried_type: str = "secondary"  # one part of this type per order, on a carrier
     counted_type: str = "primary"  # its count is the size of the carried part (dental: telescopes)
     count_range: tuple[PositiveInt, PositiveInt] = (1, 7)  # uniform; (1, 7) has median 4
+    # instead of uniform: log-normal with this median and sigma of ln n, rounded and clipped to count_range
+    count_lognormal: tuple[PositiveFloat, PositiveFloat] | None = None
     carrier_capacity: PositiveInt = 12  # size units per carrier
     carriers_per_run: PositiveInt = 4
+    run_capacity: PositiveInt | None = None  # size units per run (dental: telescopes per print); None: no limit
     run_step: str = "print"  # carrier step executed in runs
     setup: NonNegativeInt = 0  # per run
     removal: NonNegativeInt = 0
     unit_time: PositiveInt | None = None  # run-step time per size unit of a carried part, for the estimator
+    unit_base: NonNegativeInt = 0  # run-step time per carried part on top of its size times unit_time
+    no_machine: tuple[str, ...] = ()  # order or part steps without a machine (worker only or rest): a duration
+    # order or part step -> time once per operation on top of the per-part time (setup per order: base + n * p)
+    base_durations: dict[str, NonNegativeInt] = {}
     estimator: RunEstimator | None = None
     # carrier step -> carriers per machine run decided by the planner (p-batch)
     batch_capacity: dict[str, Annotated[int, Field(ge=2)]] = {}
@@ -99,8 +107,28 @@ class CarrierGeneratorParams(BaseModel):
                 raise ValueError(f"attended {list(op.attended)} on {op.id}: only for carrier operations")
         if unknown := sorted(set(self.machine_pool) - steps):
             raise ValueError(f"machine_pool for steps {unknown} not in the route")
-        if missing := sorted(s for s in steps if self.machine_pool.get(s, s) not in self.machines):
+        if unknown := sorted(set(self.base_durations) - steps):
+            raise ValueError(f"base_durations for steps {unknown} not in the route")
+        if carrier := sorted({op.step for op in self.route if op.scope == CARRIER} & set(self.base_durations)):
+            raise ValueError(f"base_durations for carrier steps {carrier}: use per_carrier setup")
+        if unknown := sorted(set(self.no_machine) - steps):
+            raise ValueError(f"no_machine for steps {unknown} not in the route")
+        if carrier := sorted({op.step for op in self.route if op.scope == CARRIER} & set(self.no_machine)):
+            raise ValueError(f"no_machine for carrier steps {carrier}: a carrier step needs machines")
+        if both := sorted(s for s in self.no_machine if s in self.machine_pool or s in self.machines):
+            raise ValueError(f"no_machine steps {both} also have machines")
+        if missing := sorted(s for s in steps - set(self.no_machine)
+                             if self.machine_pool.get(s, s) not in self.machines):
             raise ValueError(f"no machines for steps {missing}")
+        lo, hi = self.count_range
+        if self.count_lognormal is not None and not lo <= self.count_lognormal[0] <= hi:
+            raise ValueError(f"count_lognormal median {self.count_lognormal[0]} outside count_range "
+                             f"{list(self.count_range)}")
+        if self.run_capacity is not None and self.run_capacity < self.carrier_capacity:
+            raise ValueError(f"run_capacity {self.run_capacity} below carrier_capacity {self.carrier_capacity}: a full "
+                             "carrier would fit no run")
+        if self.unit_base and self.unit_time is None:
+            raise ValueError("unit_base needs unit_time (run-step time per size unit)")
         if missing := sorted(steps - set(self.durations)):
             raise ValueError(f"no durations for steps {missing}")
         if self.count_range[1] > self.carrier_capacity:
@@ -124,14 +152,29 @@ class CarrierGeneratorParams(BaseModel):
             raise ValueError(f"run step {self.run_step!r} must not carry {self.counted_type!r} (runs hold plates)")
         return self
 
+    @model_serializer(mode="wrap")
+    def _omit_later_defaults(self, handler):
+        # parameters added on 2026-11-16 are left out at their default, so the configuration hashes of experiments
+        # from before (math/07 §5) stay valid
+        data = handler(self)
+        for name, default in _LATER_DEFAULTS.items():
+            if getattr(self, name) == default:
+                data.pop(name, None)
+        return data
+
     def default_name(self) -> str:
         return f"gen-carriers-k{self.n_orders}-s{self.seed}"
+
+
+_LATER_DEFAULTS = {"count_lognormal": None, "run_capacity": None, "unit_base": 0, "no_machine": (),
+                   "base_durations": {}}
 
 
 def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
     rng = random.Random(params.seed)
     machines = {s: [f"{s}{i}" for i in range(1, n + 1)] for s, n in params.machines.items()}
-    pool = {op.step: machines[params.machine_pool.get(op.step, op.step)] for op in params.route}
+    pool = {op.step: machines[params.machine_pool.get(op.step, op.step)] for op in params.route
+            if op.step not in params.no_machine}
 
     def step_kwargs(op: RouteOperation) -> dict:
         return _run_kwargs(op.step) | ({"worker": op.worker} if op.worker else {}) | {
@@ -156,8 +199,13 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
 
     orders: list[dict] = []
     for i in range(1, params.n_orders + 1):
-        n = rng.randint(*params.count_range)
-        times = {params.run_step: n * params.unit_time} if params.unit_time else {}
+        if params.count_lognormal is None:
+            n = rng.randint(*params.count_range)
+        else:
+            median, sigma = params.count_lognormal
+            n = min(max(math.floor(rng.lognormvariate(math.log(median), sigma) + 0.5), params.count_range[0]),
+                    params.count_range[1])
+        times = {params.run_step: params.unit_base + n * params.unit_time} if params.unit_time else {}
         times |= {s: n * u for s, u in unit[params.carried_type].items()}
         parts = [{"id": "c", "type": params.carried_type, "times": times},
                  *({"id": f"n{j}", "type": params.counted_type, "times": dict(unit[params.counted_type])}
@@ -169,8 +217,12 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
             if op.scope == CARRIER:
                 raw.pop("worker", None)  # on the carrier step
             else:
-                d = rng.randint(*params.durations[op.step]) * count.get(op.scope, 1)
-                raw["options"] = dict.fromkeys(pool[op.step], d)
+                d = params.base_durations.get(op.step, 0) + rng.randint(*params.durations[op.step]) * count.get(
+                    op.scope, 1)
+                if op.step in params.no_machine:
+                    raw["duration"] = d
+                else:
+                    raw["options"] = dict.fromkeys(pool[op.step], d)
             ops.append(raw)
         orders.append({"id": f"O{i}", "release": rng.randint(*params.release_range), "parts": parts,
                        "operations": ops, "size": n})
@@ -214,9 +266,19 @@ def nest(orders: list[dict], params: CarrierGeneratorParams, prefix: str = "") -
             load = 0
         carriers[-1]["parts"].append([o["id"], "c"])
         load += o["size"]
-    runs = [{"id": f"{prefix}R{j // params.carriers_per_run + 1}", "step": params.run_step,
-             "carriers": [c["id"] for c in carriers[j:j + params.carriers_per_run]]}
-            for j in range(0, len(carriers), params.carriers_per_run)]
+    size = {o["id"]: o["size"] for o in nesting}
+    groups: list[list[dict]] = []
+    run_load = 0
+    for c in carriers:  # consecutive carriers, at most carriers_per_run and run_capacity size units per run
+        c_load = sum(size[k] for k, _ in c["parts"])
+        if (not groups or len(groups[-1]) == params.carriers_per_run
+                or (params.run_capacity is not None and run_load + c_load > params.run_capacity)):
+            groups.append([])
+            run_load = 0
+        groups[-1].append(c)
+        run_load += c_load
+    runs = [{"id": f"{prefix}R{j}", "step": params.run_step, "carriers": [c["id"] for c in g]}
+            for j, g in enumerate(groups, start=1)]
     blanks: list[dict] = []
     if params.blank_capacity is not None:
         for o in nesting:

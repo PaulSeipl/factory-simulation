@@ -1,8 +1,8 @@
 # 33 Interface to order release (nesting, forecast, reserve)
 
 Scope note (2026-11-16). Records where the arrival forecast and the capacity reserve of the advisor's vision belong
-in the model, what the literature in the library says about it, and what is in and out of scope. **Nothing of this
-is implemented.** It refines the entries "Interface to nesting by capacities" and "Arrival forecast" of
+in the model, what the literature in the library says about it, and what is in and out of scope. **Implemented:
+step A, the open-loop quota (N4), §5 (2026-11-17); the capacity signal from the plan (step B) is not.** It refines the entries "Interface to nesting by capacities" and "Arrival forecast" of
 [32](32_target-data-model.md) §2.
 
 ## 1. Prose description
@@ -78,13 +78,48 @@ with $\mathrm{res} = \psi^{\mathrm{I}} \mu$ on the mill of the next day.
 The toy model shows the mechanism, not the size of the effect: one mill, two days, no workers, no rework rounds,
 no disturbances.
 
+(N4) Release rule (step A, 2026-11-17, own). At a nesting time $\gamma$ with the next nesting time $\gamma'$, the
+pool $\mathcal{P}(\gamma)$ (accepted at or before $\gamma$, not yet bound) is taken in nesting order (due date, then
+acceptance, then index) and an order $k$ is bound if
+
+- **timing:** $d_k \le \gamma'$ (it cannot wait: at $\gamma'$ it would arrive at or after its due date), or
+- **balancing:** the load bound so far (forced orders first) plus $n_k$ stays within the budget
+  $Q^{\mathrm{nest}}_w \cdot n^{\mathrm{def}}$ telescopes: $Q^{\mathrm{nest}}_w$ default orders on the weekday $w$
+  of $\gamma$, a default order having $n^{\mathrm{def}} = 4$ telescopes (user 2026-11-17: the quota is in orders,
+  counted as default orders, so an order of 8 telescopes counts as two), or
+- **large order:** $n_k$ exceeds the whole budget and $k$ alone has the earliest due date of the orders not forced;
+  it is bound and takes the whole budget (no balancing after it; user 2026-11-17), or
+- **starvation:** nothing else is bound and $k$ is the first order of the pool, so a non-empty pool never waits.
+
+An order that does not fit is skipped and a smaller later one may take its place (user 2026-11-17); a large order
+lets orders with the same due date go first and is bound once it is alone at the front. The tension between timing and balancing is the one Land &
+Gaalman (1996, `ZNV6S3HF`, p. 535) name for the release function. The budget is external (Fidentis, e.g. the free
+capacity minus the reserve (N1), here a fixed number per weekday, set by Fidentis or by the experiment, user); the
+load unit is a parameter of the function (telescopes in step A, mill minutes in step B).
+
 ## 4. Objective function
 
 Not affected.
 
 ## 5. Implementation in code
 
-None. State of the code against this note:
+**Step A (2026-11-17), open loop:** `simulation.release` (`PoolOrder`, `release(pool, budget, load, next_nesting)`:
+(N4), pure, the load per order passed in, so step B can call it with mill minutes from the plan);
+`ArrivalParams.quota` (nesting weekday → default orders per batch, `quota_size` telescopes each, default 4;
+None: bind all; both left out of the serialized form at their default so
+the configuration hashes stay valid; needs `due_working_days`, since due dates from the arrival would depend on the
+release); `arrival_generator._release_by_quota` sets arrival = release per order after the due dates; the backlog
+stays bound at $t = 0$. Arrivals stay exogenous (equal for all policies), so hindsight still works. The release
+rule is no plan constraint: checker and CP-SAT are unchanged; the DES and the planners see only later arrivals.
+Tests `tests/test_release.py` (26): the rule by hand (due-date order within the budget, no budget, a smaller later
+order overtakes one that does not fit, an order larger than the budget is bound alone at the front and waits
+behind a tie or an earlier order, timing override at $d_k = \gamma'$ and not at $\gamma' + 1$, no later
+nesting binds all); without quota the instances of all seven experiment configurations are unchanged (digests from
+before); for 5 seeds with quota 2 (orders of 4): acceptance and due dates unchanged, arrival not earlier than
+without quota and not after the due date, every order beyond the second of a batch could not wait, backlog at 0;
+a huge quota equals binding all; five negative tests; a Fidentis episode with quota 1.5 runs through `run_one`.
+
+State of the code against the rest of this note:
 
 - Nesting is emulated in the arrival generator before the run ([07](07_order-arrivals.md) §3a,
   [21](21_instance-generator.md) §4a): every accepted order is bound at the first nesting time, without a look at
@@ -138,3 +173,5 @@ Checked in Zotero (collection MA), 2026-11-16; full references in [references.md
 | Date | Commit | Change |
 |---|---|---|
 | 2026-11-16 | uncommitted | Created: placement of forecast and reserve, capacity signal (N1), toy model (N2), (N3), sources, scope. |
+| 2026-11-17 | uncommitted | Step A: release rule (N4) with timing and balancing, quota per weekday in the arrival generator. |
+| 2026-11-17 | uncommitted | (N4): overtaking allowed, quota in default orders of 4 telescopes, a large order takes the whole budget when alone at the front (user). |

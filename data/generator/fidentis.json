@@ -1,0 +1,57 @@
+{
+  "seed": 1,
+  "name": "fidentis",
+  "n_orders": 10,
+  "release_range": [0, 0],
+  "route": "../routes/fidentis.json",
+  "machines": {"print": 1, "mill": 1, "oven": 1, "hand": 2},
+  "machine_pool": {
+    "mill_carrier": "mill", "rework": "mill", "mill_blank": "mill", "mill_flipped": "mill",
+    "clean": "hand", "blast": "hand", "qm": "hand", "recheck": "hand", "saw": "hand", "gegenbetten": "hand",
+    "separate": "hand"
+  },
+  "no_machine": [
+    "data_prep_sec", "data_prep_sec_mill", "support_removal", "grind", "steam", "polish_sec", "data_prep_pri",
+    "polish_pri", "finish_pri", "inspect", "document", "pack"
+  ],
+  "durations": {
+    "data_prep_sec": [120, 120], "data_prep_sec_mill": [20, 20], "print": [330, 330], "clean": [14, 14],
+    "oven": [220, 220], "blast": [6, 6], "mill_carrier": [120, 120], "qm": [17, 17], "rework": [280, 280],
+    "recheck": [17, 17], "saw": [16, 16], "support_removal": [15, 15], "grind": [45, 45], "steam": [5, 5],
+    "polish_sec": [20, 20], "data_prep_pri": [15, 15], "mill_blank": [248, 248], "gegenbetten": [36, 36],
+    "mill_flipped": [240, 240], "separate": [44, 44], "polish_pri": [20, 20], "finish_pri": [10, 10],
+    "inspect": [10, 10], "document": [10, 10], "pack": [10, 10]
+  },
+  "base_durations": {
+    "support_removal": 15, "grind": 10, "steam": 10, "polish_sec": 10, "data_prep_pri": 15, "polish_pri": 10,
+    "finish_pri": 10, "inspect": 10, "document": 10, "pack": 10
+  },
+  "carried_type": "secondary",
+  "counted_type": "primary",
+  "count_range": [2, 8],
+  "count_lognormal": [4, 0.35],
+  "carrier_capacity": 16,
+  "carriers_per_run": 4,
+  "run_capacity": 40,
+  "run_step": "print",
+  "setup": 95,
+  "removal": 25,
+  "unit_time": 45,
+  "unit_base": 150,
+  "estimator": {"fixed": 66, "share": 0.8},
+  "batch_capacity": {"oven": 2},
+  "per_carrier": {
+    "mill_carrier": {"setup": 15, "removal": 5, "unit_time": 30},
+    "qm": {"unit_time": 16},
+    "rework": {"setup": 20, "unit_time": 70},
+    "recheck": {"unit_time": 16},
+    "saw": {"unit_time": 4},
+    "mill_blank": {"setup": 15, "removal": 10, "unit_time": 62},
+    "gegenbetten": {"unit_time": 9},
+    "mill_flipped": {"setup": 15, "unit_time": 60},
+    "separate": {"unit_time": 11}
+  },
+  "blank_capacity": 20,
+  "workers": ["A", "B"],
+  "calendar": {}
+}

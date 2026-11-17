@@ -73,6 +73,58 @@ Due dates (if a tightness set is given) are drawn before nesting from the lead-t
 
 **Workers and calendar** (2026-11-12, user): the route template carries the worker share of each step ([04](04_workers.md)): `worker` (whole, prefix, suffix, qualified) on an order or part operation stays on the operation, on a carrier operation it goes to the carrier step (one share of the main operation, for a batch step one per machine run); `attended` (setup, removal) marks the setup and removal operations of a step in runs as needing a worker. The parameters take `workers` and a `calendar`. Before, the generator had no workers, so no operation was tied to shifts: in a check (6 orders of the dental example with the default calendar, CP-SAT makespan) 35 of 66 operations started outside 08:00–17:30, and the factory had roughly 3.5 times the capacity of a real week. Without these parameters the output is unchanged (checked against dumps of four parameter sets).
 
+**Options for the Fidentis case** (2026-11-16, user): `count_lognormal` $(n^{\mathrm{med}}, \xi)$: $n_k = $ round of $e^{X}$,
+$X \sim N(\ln n^{\mathrm{med}}, \xi^2)$, clipped to `count_range` (median $n^{\mathrm{med}}$; the mean is larger,
+$n^{\mathrm{med}} e^{\xi^2/2}$ before rounding and clipping, 4.5 for $n^{\mathrm{med}} = 4$, $\xi = 0.5$; not $m$:
+the machine, not $\sigma$: the scenarios); `run_capacity` $Q^{\mathrm{run}}$: size units per run
+(telescopes per print), consecutive carriers form a run while at most $Q_R$ carriers and $Q^{\mathrm{run}}$ size
+units; `base_durations`: time once per order or part operation on top of $n \cdot p$ (a setup per order;
+2026-11-17); `unit_base`: run-step part time $p_\pi = $ `unit_base` $+ n_k \cdot$ `unit_time`; `no_machine`: order and
+part steps without a machine (a `duration`; they need a worker share, [V6]). Unset, they change nothing: the
+instances of all parameter files and experiment configurations and the configuration hashes of the running
+experiments are unchanged (tests with the digests from before; the new parameters are left out of the serialized
+form at their default).
+
+**Fidentis case** (`data/routes/fidentis.json`, `data/generator/fidentis.json`): route and times from the MES
+(`seed_routes.py`, the seed table `SEED_STEPS` of `services/kpi/capacity.py`), with the user's corrections of
+2026-11-16. Each MES step becomes one operation; carrier operations take the share the capacity model charges for
+its unit, $\mathrm{base} \cdot u / B + \mathrm{per\_unit} \cdot u$ (setup amortized over the batch $B$), order and
+part operations the full setup once per order, $\mathrm{base} + \mathrm{per\_unit} \cdot u$ (user 2026-11-17: the
+amortized share assumes batches across orders that nothing in the model forms; pessimistic until s-batches exist,
+§6), rounded:
+
+| MES step(s) | Operation | Resource | Time |
+|---|---|---|---|
+| DATA_PREP_SECONDARY | `data_prep_sec` (order) | none; worker prefix 45 | 120 |
+| DATA_PREP_SEC_MILL | `data_prep_sec_mill` (order) | worker | 20 |
+| AM_PREP, AM_PRINT, PART_POWDER_REMOVAL | `print` run: setup, main, removal | printer; setup and removal attended | 100; estimator below; 25 |
+| PART_CLEANING, SAND_BLASTING | `clean`, `blast` (plate) | stand-in pool, worker | 14, 6 |
+| HEAT_TREATMENT | `oven` (plate, p-batch of 2) | oven; worker prefix and suffix 20 | 220 |
+| MILL_PREP_SECONDARY, MILL_JOB_SECONDARY, SECONDARY_PLATE_REMOVAL | `mill_carrier` per plate | mill; setup, removal attended | 15 + 30 per telescope + 5 |
+| REWORK_CHECKOUT | `qm`, `recheck1`, `recheck2` (plate) | stand-in pool, worker | 16 per telescope |
+| REWORK | `rework1`, `rework2` (plate) | mill; setup attended | 20 + 70 per telescope |
+| SAWING | `saw` (plate, separating) | stand-in pool, worker | 4 per telescope |
+| SUPPORT_REMOVAL … POLISH | per secondary part | worker | 30, 55, 15, 30 |
+| DATA_PREP_PRIMARY | per primary part | worker | 15 + 15 per part |
+| MILL_PREP_PRIMARY, MILL_JOB_PRIMARY, REMOVE_MOUNT | `mill_blank` per blank (forming) | mill; setup, removal attended | 15 + 62 per part + 10 |
+| GEGENBETTEN | `gegenbetten` (blank) | stand-in pool, worker | 9 per part |
+| PREP_MILL_FLIPPED | `mill_flipped` per blank | mill; setup attended | 15 + 60 per part |
+| PART_REMOVAL_FROM_BLANK, PRIMARY_POLISHING, FINISHING_PRIMARY | `separate` (blank), per primary part | stand-in pool / worker | 11 per part; 10 + 20, 10 + 10 per part |
+| INSPECTION, DOCUMENTATION, PACKAGING_SHIPPING | order | worker | 20 each |
+
+Print: part time $150 + 45\,n_k$, estimator $p^0 = 66$, $\lambda = 0.8$, which reproduces the MES rule
+$(150 + 45 n)(1 + 0.8(B - 1))$ for $B$ parts of $n = 4$ telescopes ($p^0 = 0.2 \cdot 330$). Precedence as in the
+MES: QM needs the milled plate and the polished primary parts (cross-lane dependency), finishing of the primary
+parts needs the last recheck, inspection needs both lanes. Parameters: plate 16 telescopes, print at most 4 plates
+and 40 telescopes, blank 20 primary parts, $n_k$ log-normal with median 4 and $\xi = 0.35$ in $[2, 8]$ (user: 2 to 8; $\xi$ own, §6),
+2 workers, 1 printer, 1 mill, 1 oven, default calendar. Hand values for one order of 4 telescopes: mill time of the
+primary lane $273 + 255 = 528$, of the secondary lane $140 + 2 \cdot 300 = 740$.
+
+Corrections against the seed table (user 2026-11-16): the primary milling was split into two passes without
+adjusting the times, so each pass takes 60 per part (seed: 120 each); QM does not occupy the mill; COM is no
+machine, only "a worker on a part, carrier or order"; the secondary mill job is not split (120 per secondary part,
+here 30 per telescope).
+
 ## 4b. Instances with order arrivals
 
 `simulation.arrival_generator` wraps the carrier generator for arrival experiments ([07](07_order-arrivals.md) §3a): it samples acceptances (Poisson per weekday, uniform in the shift) and arrivals (next nesting batch), calls `generate_carrier_instance` once for all orders (so all packages share the same carrier steps and drawn durations), then sets acceptance, arrival = release and due date per order and nests every batch separately with the same `nest` helper (IDs prefixed `P<batch>`). The base parameters must have a calendar, `release_range` (0, 0) and no `due_date_tightness` (both come from the arrivals). `nest` was extracted from `generate_carrier_instance` (2026-11-12); the output of the carrier generator is unchanged (dumps of four parameter sets before and after).
@@ -94,6 +146,48 @@ Carriers: `simulation.carrier_generator.CarrierGeneratorParams` (route as `Route
 - Branches are chains; nested splits are only possible via templates.
 - Loads are not generated beyond the carrier rules; workers enter through the route template (all workers identical except `qualified`).
 - The example route still contains design, which in the real process precedes nesting; finishing the dental route is a separate todo (user, 2026-11-12).
+- **Fidentis case, own modeling choices** (to confirm with the user): rework as two full rounds (`rework1`,
+  `recheck1`, `rework2`, `recheck2`), an expected 2 rework passes per telescope (no symbol: $\rho$ is the run mode) (user: "definitely more
+  than 1, go with 2"); partial rework shows only in the expectation; stochastic rounds are the intended later
+  version (user). The attended 10 per telescope of a rework round is folded into its unattended main part (worker
+  time about 20 per telescope too low). Worker-only carrier steps (cleaning, blasting, QM, recheck, sawing,
+  gegenbetten, separation) run on a stand-in pool `hand` of 2 machines, one per worker, with a whole share each,
+  so the pool never binds before the workers (a carrier step needs a machine, `CarrierStep.options`); **raise
+  `hand` together with `workers`**, otherwise it becomes a bottleneck Fidentis does not have (asserted in the test
+  of the parameter file, not validated in general: the dental example has a bench pool of 2 for 4 workers); the curing of
+  gegenbetten (3 per part) counts as attended. Powder removal is the removal of the print run (the printer stays
+  blocked until a worker empties it). Print setup 95 for $90 + 5$ per plate, fixed at one plate (the setup of a step in runs is one number per step,
+  `CarrierStep.setup`; with daily nesting at about one order per day a print has one plate; at most 15 too low
+  for four plates). Removal of the
+  mount without its 2 per part (folded into the 62 of `mill_blank`). Sawing and the secondary mill job scale per
+  telescope, exact only at 4 telescopes per secondary part.
+- **Order size** (user 2026-11-16: 2 to 8 telescopes, default 4; no data for the spread; "probably a normal
+  distribution"): log-normal kept (own choice): the range is skewed around the default (2 below, 4 above), which a
+  symmetric normal clipped to $[2, 8]$ would not reproduce; $\xi = 0.35$ puts about 95 % of the unclipped mass
+  in $[2, 8]$ ($\ln 8 - \ln 4 \approx 2 \cdot 0.35$). 1000 draws: 2: 9 %, 3: 28 %, 4: 27 %, 5: 20 %, 6: 9 %,
+  7: 4 %, 8: 3 %, mean 4.18. Adjustable; to be replaced when Fidentis data exist.
+- **Shift limit:** a whole share must fit one part of the shift (08:00–12:00 or 13:00–17:30, no preemption at the
+  break; 510 worker minutes per day is right, user), so a manual operation is at most 270 minutes: QM per plate
+  $16 \cdot 16 = 256$ (16.5 rounded down to fit), polishing of the primary parts of one order $21 \cdot 8 = 168$.
+  Polishing is an s-batch over parts in the MES (one to many parts per run, user); here one operation per order and
+  part type covers all its parts (operations per part are a todo, [32](32_target-data-model.md) §2).
+- **Blanks do not match practice** (user 2026-11-16): a worker composes a blank at milling time from primary parts
+  of several orders, depending on the remaining blanks, their height and the parts; here a blank is formed at
+  nesting and never spans packages (V21), so daily packages of one or two orders get blanks of 4–16 of 20 parts
+  and a full setup each. **Kept (user 2026-11-16: "more realistic")** against the alternative of per-order primary
+  milling without blanks (setup amortized as in `capacity.py`). Errors in both directions: package blanks pay more
+  setups than reality (pessimistic, about 40 mill minutes per blank against about 1268 per order), but no order
+  waits for others to fill a blank (optimistic). Per-order milling with amortized setup would be optimistic in
+  both, with a full setup per order the most pessimistic.
+- **s-batches across orders (user 2026-11-17: needed, e.g. for the primary data preparation; the planner must form
+  them; how is open):** in the MES many worker steps run as batches over parts of several orders with one setup
+  (`max_batch`, [32](32_target-data-model.md) §2). Until they exist the order and part operations of the Fidentis
+  case pay the full setup per order (`base_durations`), the pessimistic side; the former amortized times (setup
+  $/ B$ per part) were optimistic, since no operation waited for a batch to fill.
+- **Volume:** one mill at about 1268 minutes for an order of 4 telescopes alone (setups not shared) bounds the case
+  at about one order per working day; arrival rates of experiments with this route must follow from it, not from
+  the 4–8 per day of the configurations of 2026-11-13. Due rule of the company case: 10 working days after the
+  acceptance (user; `due_working_days` of the experiment, not of the generator).
 - The parameter file stores the generator parameters, not the generator version; a change of the generator code changes the instance for the same parameters. The tests pin the current behavior only indirectly.
 
 ## 7. Sources
@@ -112,3 +206,5 @@ Own design. Benchmark generators from the literature (e.g. the generation of the
 | 2026-11-12 | uncommitted | `nest` extracted; arrival generator (§4b). |
 | 2026-11-12 | uncommitted | Workers and calendar in the carrier generator (`worker`, `attended` in the route; `workers`, `calendar` in the parameters); due dates on cutoffs; example `dental-carriers-workers.json`. |
 | 2026-11-13 | uncommitted | Route files: `route` may be a path (`data/routes/`), referenced by the generator parameter files and the experiment configurations; resolved content unchanged. |
+| 2026-11-17 | uncommitted | Option `base_durations`; Fidentis order and part operations with the full setup per order. |
+| 2026-11-16 | uncommitted | Options `count_lognormal`, `run_capacity`, `unit_base`, `no_machine` (unset: instances and configuration hashes unchanged); Fidentis route and parameter file from the MES seed times with the user's corrections. |
