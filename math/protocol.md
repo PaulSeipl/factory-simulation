@@ -20,7 +20,7 @@ the commits and the change logs of the component files and are therefore shorter
   tests); `PerCarrierStep.base` (generator); `data/routes/fidentis.json` without the attended setups,
   `data/generator/fidentis.json` with `base`; tests `test_run_base_is_added_after_the_clamp`,
   `test_negative_run_base_rejected`, the Fidentis hand test now also counts one operation per carrier and round;
-  the instance digest test compares with schema 0.7 put back (content unchanged). `math/03` step 4 formula,
+  the instance digest tests (generator, release) compare with schema 0.7 put back (content unchanged); 1590 tests pass. `math/03` step 4 formula,
   implementation, change log; `math/notation.md` $p^{\mathrm{su}}_s$; `math/21` §4a, §6, change log.
 - **Found:** same totals as (62) by hand (QM 75, recheck 150, saw 30, Gegenbetten 40, separation 50 for one order
   of 4 telescopes), one setup operation fewer per carrier and round (six for one plate and one blank).

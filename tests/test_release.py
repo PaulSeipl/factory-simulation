@@ -75,7 +75,8 @@ INSTANCE_DIGESTS = {
 @pytest.mark.parametrize("name", sorted(INSTANCE_DIGESTS))
 def test_without_quota_instances_are_unchanged(name):
     c = read_model(ROOT / "experiments" / f"{name}.json", ExperimentConfig)
-    digest = hashlib.sha256(generate_arrival_instance(c.arrivals).model_dump_json().encode()).hexdigest()[:16]
+    inst = generate_arrival_instance(c.arrivals).model_copy(update={"schema_version": "0.7"})  # digests from 0.7
+    digest = hashlib.sha256(inst.model_dump_json().encode()).hexdigest()[:16]
     assert digest == INSTANCE_DIGESTS[name]
 
 
