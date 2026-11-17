@@ -96,7 +96,7 @@ class CarrierGeneratorParams(BaseModel):
     removal: NonNegativeInt = 0
     unit_time: PositiveInt | None = None  # run-step time per size unit of a carried part, for the estimator
     unit_base: NonNegativeInt = 0  # run-step time per carried part on top of its size times unit_time
-    no_machine: tuple[str, ...] = ()  # order or part steps without a machine (worker only or rest): a duration
+    no_machine: tuple[str, ...] = ()  # steps without a machine (worker only or rest): a duration
     # order or part step -> time once per operation on top of the per-part time (setup per order: base + n * p)
     base_durations: dict[str, NonNegativeInt] = {}
     estimator: RunEstimator | None = None
@@ -131,8 +131,8 @@ class CarrierGeneratorParams(BaseModel):
             raise ValueError(f"base_durations for carrier steps {carrier}: use per_carrier setup")
         if unknown := sorted(set(self.no_machine) - steps):
             raise ValueError(f"no_machine for steps {unknown} not in the route")
-        if carrier := sorted({op.step for op in self.route if op.scope == CARRIER} & set(self.no_machine)):
-            raise ValueError(f"no_machine for carrier steps {carrier}: a carrier step needs machines")
+        if blocked := sorted(({self.run_step} | set(self.batch_capacity)) & set(self.no_machine)):
+            raise ValueError(f"no_machine for {blocked}: the run step and batch steps need machines")
         if both := sorted(s for s in self.no_machine if s in self.machine_pool or s in self.machines):
             raise ValueError(f"no_machine steps {both} also have machines")
         if missing := sorted(s for s in steps - set(self.no_machine)
@@ -206,10 +206,10 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
                     "estimator": RunEstimator(fixed=0, share=1, base=pc.base)}
         return {"batch_capacity": params.batch_capacity.get(step)}
 
-    carrier_steps = {
-        op.step: CarrierStep(options=dict.fromkeys(pool[op.step], rng.randint(*params.durations[op.step])),
-                             **step_kwargs(op))
-        for op in params.route if op.scope == CARRIER
+    carrier_steps = {  # d: the constant per machine (or without a machine) of the step
+        op.step: CarrierStep(**({"duration": d} if op.step in params.no_machine else
+                                {"options": dict.fromkeys(pool[op.step], d)}), **step_kwargs(op))
+        for op in params.route if op.scope == CARRIER for d in (rng.randint(*params.durations[op.step]),)
     }
     kind = {op.step: op.carries or params.carried_type for op in params.route if op.scope == CARRIER}
     per_part = {t: {s: pc for s, pc in params.per_carrier.items() if kind[s] == t}

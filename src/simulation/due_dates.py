@@ -37,7 +37,8 @@ def lead_time_bound(order: Order, carrier_steps: Mapping[str, CarrierStep] | Non
             finish[j] = start + op.duration
         elif op.options is None:
             step = carrier_steps[op.step]
-            finish[j] = start + sum(step.options.values()) / len(step.options) + step.setup + step.removal
+            constant = sum(step.options.values()) / len(step.options) if step.options else step.duration
+            finish[j] = start + constant + step.setup + step.removal
         else:
             finish[j] = start + sum(op.options.values()) / len(op.options)
     return max(finish.values())

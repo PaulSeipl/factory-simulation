@@ -374,7 +374,7 @@ def test_base_durations_add_once_per_operation():
 @pytest.mark.parametrize(("changes", "message"), [
     ({"base_durations": {"oven": 5}}, r"base_durations for carrier steps \['oven'\]"),
     ({"base_durations": {"polish": 5}}, r"base_durations for steps \['polish'\] not in the route"),
-    ({"no_machine": ("oven",)}, r"no_machine for carrier steps \['oven'\]"),
+    ({"no_machine": ("print",)}, r"no_machine for \['print'\]: the run step and batch steps need machines"),
     ({"no_machine": ("polish",)}, r"no_machine for steps \['polish'\] not in the route"),
     ({"no_machine": ("design",)}, r"no_machine steps \['design'\] also have machines"),
     ({"run_capacity": 10}, r"run_capacity 10 below carrier_capacity 12"),
@@ -392,8 +392,6 @@ def test_fidentis_mill_minutes_by_hand():
     # 15 + 4 * 62 + 10 (blank, pass 1) + 15 + 4 * 60 (pass 2) = 528; secondary 15 + 4 * 30 + 5 (plate) +
     # 2 rework rounds of 20 + 4 * 70 = 740
     base = read_model(ROOT / "data/generator/fidentis.json", CarrierGeneratorParams)
-    # the stand-in pool for worker-only carrier steps must never bind before the workers (math/21 §6)
-    assert base.machines["hand"] >= len(base.workers)
     ci = compile_instance(generate_carrier_instance(base.model_copy(update={
         "n_orders": 1, "count_range": (4, 4), "count_lognormal": None})))
     mill = {}
@@ -407,25 +405,27 @@ def test_fidentis_mill_minutes_by_hand():
 
 def test_fidentis_worker_carrier_steps_by_hand():
     # one order of 4 telescopes, one plate and one blank (user 2026-11-17): base once per carrier inside the main
-    # operation of a per-carrier run (one worker share, no separate setup), then per unit. qm 15 + 4 * 15; recheck the same, twice; saw 15 + 15 per secondary part;
-    # gegenbetten 5 + 4 * 5 attended + 15 unattended (the removal); separation 10 + 4 * 10; clean, blast one plate
+    # operation of a per-carrier run (one worker share, no separate setup), then per unit. qm 15 + 4 * 15; recheck
+    # the same, twice; saw 15 + 15 per secondary part;
+    # gegenbetten 20 + 4 * 5 (base 5 + curing 15, one whole share until the rest share); separation 10 + 4 * 10; clean,
+    # blast one plate
     base = read_model(ROOT / "data/generator/fidentis.json", CarrierGeneratorParams)
     inst = generate_carrier_instance(base.model_copy(update={
         "n_orders": 1, "count_range": (4, 4), "count_lognormal": None}))
     ci = compile_instance(inst)
-    hand, count = {}, {}
-    for o, (_, op_id) in enumerate(ci.op_keys):
-        if ci.options[o] and ci.machine_ids[ci.options[o][0][0]].startswith("hand"):
+    hand, count = {}, {}  # worker-only carrier steps: no machine since 2026-11-17 (no stand-in pool)
+    orders = {x.id for x in inst.orders}
+    for o, (owner, op_id) in enumerate(ci.op_keys):
+        if not ci.options[o] and owner not in orders:
             step = next(s for s in ("clean", "blast", "qm", "recheck", "saw", "gegenbetten", "separate")
                         if s in op_id)
-            hand[step] = hand.get(step, 0) + ci.options[o][0][1]
+            hand[step] = hand.get(step, 0) + ci.fixed_duration[o]
             count[step] = count.get(step, 0) + 1
     assert hand == {"clean": 25, "blast": 10, "qm": 75, "recheck": 150, "saw": 30, "gegenbetten": 40,
                     "separate": 50}
-    # one operation per carrier and round (no setup operation); Gegenbetten adds its unattended curing (removal)
-    assert count == {"clean": 1, "blast": 1, "qm": 1, "recheck": 2, "saw": 1, "gegenbetten": 2, "separate": 1}
-    gb = inst.carrier_steps["gegenbetten"]
-    assert gb.setup == 0 and gb.removal == 15 and not gb.removal_attended  # the 15 of curing need no worker
+    # one operation per carrier and round, no machine, no setup or removal operation
+    assert count == {"clean": 1, "blast": 1, "qm": 1, "recheck": 2, "saw": 1, "gegenbetten": 1, "separate": 1}
+    assert all(not inst.carrier_steps[s].options for s in count)
 
 
 def test_per_carrier_part_time_must_be_positive():

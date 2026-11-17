@@ -4,15 +4,14 @@
   "n_orders": 10,
   "release_range": [0, 0],
   "route": "../routes/fidentis.json",
-  "machines": {"print": 1, "mill": 1, "oven": 1, "hand": 2},
+  "machines": {"print": 1, "mill": 1, "oven": 1},
   "machine_pool": {
-    "mill_carrier": "mill", "rework": "mill", "mill_blank": "mill", "mill_flipped": "mill",
-    "clean": "hand", "blast": "hand", "qm": "hand", "recheck": "hand", "saw": "hand", "gegenbetten": "hand",
-    "separate": "hand"
+    "mill_carrier": "mill", "rework": "mill", "mill_blank": "mill", "mill_flipped": "mill"
   },
   "no_machine": [
     "data_prep_sec", "data_prep_sec_mill", "support_removal", "grind", "steam", "polish_sec", "data_prep_pri",
-    "polish_pri", "finish_pri", "inspect", "document", "pack"
+    "polish_pri", "finish_pri", "inspect", "document", "pack",
+    "clean", "blast", "qm", "recheck", "saw", "gegenbetten", "separate"
   ],
   "durations": {
     "data_prep_sec": [120, 120], "data_prep_sec_mill": [20, 20], "print": [330, 330], "clean": [25, 25],
@@ -47,7 +46,7 @@
     "recheck": {"base": 15, "unit_time": 15},
     "saw": {"base": 15, "part_base": 15, "unit_time": 0},
     "mill_blank": {"setup": 15, "removal": 10, "unit_time": 62},
-    "gegenbetten": {"base": 5, "removal": 15, "unit_time": 5},
+    "gegenbetten": {"base": 20, "unit_time": 5},
     "mill_flipped": {"setup": 15, "unit_time": 60},
     "separate": {"base": 10, "unit_time": 10}
   },

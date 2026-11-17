@@ -100,18 +100,18 @@ amortized share assumes batches across orders that nothing in the model forms; p
 | DATA_PREP_SECONDARY | `data_prep_sec` (order) | none; worker prefix 45 | 120 |
 | DATA_PREP_SEC_MILL | `data_prep_sec_mill` (order) | worker | 20 |
 | AM_PREP, AM_PRINT, PART_POWDER_REMOVAL | `print` run: setup, main, removal | printer; setup and removal attended | 100; estimator below; 25 |
-| PART_CLEANING, SAND_BLASTING | `clean`, `blast` (plate) | stand-in pool, worker | 15 + 10, 5 + 5 per plate |
+| PART_CLEANING, SAND_BLASTING | `clean`, `blast` (plate) | worker, no machine | 15 + 10, 5 + 5 per plate |
 | HEAT_TREATMENT | `oven` (plate, p-batch of 2) | oven; worker prefix and suffix 20 | 220 |
 | MILL_PREP_SECONDARY, MILL_JOB_SECONDARY, SECONDARY_PLATE_REMOVAL | `mill_carrier` per plate | mill; setup, removal attended | 15 + 30 per telescope + 5 |
-| REWORK_CHECKOUT | `qm`, `recheck1`, `recheck2` (plate) | stand-in pool, worker | 15 + 15 per telescope |
+| REWORK_CHECKOUT | `qm`, `recheck1`, `recheck2` (plate) | worker, no machine | 15 + 15 per telescope |
 | REWORK | `rework1`, `rework2` (plate) | mill; setup attended | 20 + 70 per telescope |
-| SAWING | `saw` (plate, separating) | stand-in pool, worker | 15 + 15 per secondary part |
+| SAWING | `saw` (plate, separating) | worker, no machine | 15 + 15 per secondary part |
 | SUPPORT_REMOVAL … POLISH | per secondary part | worker | 30, 55, 15, 30 |
 | DATA_PREP_PRIMARY | per primary part | worker | 15 + 15 per part |
 | MILL_PREP_PRIMARY, MILL_JOB_PRIMARY, REMOVE_MOUNT | `mill_blank` per blank (forming) | mill; setup, removal attended | 15 + 62 per part + 10 |
-| GEGENBETTEN | `gegenbetten` (blank) | stand-in pool, worker; curing as unattended removal | 5 + 5 per part + 15 |
+| GEGENBETTEN | `gegenbetten` (blank) | worker, no machine (curing inside the share, see §6) | 5 + 5 per part + 15 |
 | PREP_MILL_FLIPPED | `mill_flipped` per blank | mill; setup attended | 15 + 60 per part |
-| PART_REMOVAL_FROM_BLANK, PRIMARY_POLISHING, FINISHING_PRIMARY | `separate` (blank), per primary part | stand-in pool / worker | 10 + 10 per part; 10 + 20, 10 + 10 per part |
+| PART_REMOVAL_FROM_BLANK, PRIMARY_POLISHING, FINISHING_PRIMARY | `separate` (blank), per primary part | worker, no machine | 10 + 10 per part; 10 + 20, 10 + 10 per part |
 | INSPECTION, DOCUMENTATION, PACKAGING_SHIPPING | order | worker | 20 each |
 
 Print: part time $150 + 45\,n_k$, estimator $p^0 = 66$, $\lambda = 0.8$, which reproduces the MES rule
@@ -153,13 +153,12 @@ Carriers: `simulation.carrier_generator.CarrierGeneratorParams` (route as `Route
   than 1, go with 2"); partial rework shows only in the expectation; stochastic rounds are the intended later
   version (user). The attended 10 per telescope of a rework round is folded into its unattended main part (worker
   time about 20 per telescope too low). Worker-only carrier steps (cleaning, blasting, QM, recheck, sawing,
-  gegenbetten, separation) run on a stand-in pool `hand` of 2 machines, one per worker, with a whole share each,
-  so the pool never binds before the workers (a carrier step needs a machine, `CarrierStep.options`); **raise
-  `hand` together with `workers`**, otherwise it becomes a bottleneck Fidentis does not have (asserted in the test
-  of the parameter file, not validated in general: the dental example has a bench pool of 2 for 4 workers); the curing of
-  Gegenbetten (15 per blank) is the unattended removal of its per-carrier run, so the stand-in machine stays
-  blocked while no worker is needed (harmless while `hand` has one machine per worker; a carrier step without
-  machine would remove it, format change, open). The base once per carrier of the carrier-bound steps is the base
+  Gegenbetten, separation) have **no machine** since 2026-11-17 (`CarrierStep.duration`, generator `no_machine`
+  also for carrier steps; [03](03_carriers.md)), with a whole share each; before, they ran on a stand-in pool
+  `hand` of one machine per worker, which had to grow with the workers and, with the curing of Gegenbetten as an
+  unattended removal, blocked a stand-in machine while no worker was needed (the dental example keeps its `bench`
+  pool of 2 for 4 workers, its instances are pinned). Gegenbetten: one whole share of $20 + 5n$ (base 5 plus the
+  15 of curing), so the worker is charged 15 too much per blank until the share with an unattended rest. The base once per carrier of the carrier-bound steps is the base
   $p^{\mathrm{su}}_s$ of the per-carrier run (`PerCarrierStep.base`), inside the main operation: one share, one
   worker, no gap (2026-11-17; the first version of the same day used a separate setup operation, which let another
   worker continue after a gap, user: not realistic). Powder removal is the removal of the print run (the printer stays
@@ -214,6 +213,7 @@ Own design. Benchmark generators from the literature (e.g. the generation of the
 | 2026-11-12 | uncommitted | `nest` extracted; arrival generator (§4b). |
 | 2026-11-12 | uncommitted | Workers and calendar in the carrier generator (`worker`, `attended` in the route; `workers`, `calendar` in the parameters); due dates on cutoffs; example `dental-carriers-workers.json`. |
 | 2026-11-13 | uncommitted | Route files: `route` may be a path (`data/routes/`), referenced by the generator parameter files and the experiment configurations; resolved content unchanged. |
+| 2026-11-17 | see protocol (64) | Fidentis worker-only carrier steps without a machine (`hand` removed); `no_machine` also for carrier steps (not the run step or batch steps). |
 | 2026-11-17 | see protocol (63) | `PerCarrierStep.base` (base inside the main operation); Fidentis carrier-bound steps without a separate setup operation. |
 | 2026-11-17 | see protocol (62) | `PerCarrierStep.part_base`; Fidentis carrier-bound steps (QM, recheck, sawing, Gegenbetten, separation) with the base once per carrier as run setup, cleaning and blasting with the full base per plate (user). |
 | 2026-11-17 | uncommitted | Option `base_durations`; Fidentis order and part operations with the full setup per order. |

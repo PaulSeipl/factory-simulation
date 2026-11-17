@@ -104,10 +104,13 @@ class CarrierStep(BaseModel):
     carrier is its own run, e.g. milling the parts of one carrier; math/03_carriers.md).
     The main operation of a run takes, in this order: the duration reported by nesting (Run.duration), the
     estimate from the parts of the run (if an estimator is given), the constant per machine in options.
+    Without a machine (worker-only step, rest): `duration` instead of options, the constant in its place
+    (2026-11-17, math/03_carriers.md); no given runs, no batch, no setup or removal (no machine to block).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
-    options: dict[str, PositiveInt] = Field(min_length=1)
+    options: dict[str, PositiveInt] = {}
+    duration: PositiveInt | None = None  # step without a machine; exclusive with options
     runs: Literal["none", "given", "per_carrier"] = "none"
     setup: NonNegativeInt = 0
     removal: NonNegativeInt = 0
@@ -118,6 +121,19 @@ class CarrierStep(BaseModel):
     worker: WorkerShare | None = None  # of the main operation; for a batch step one share per machine run
     setup_attended: bool = False  # setup / removal operations of the runs need a worker for their whole duration
     removal_attended: bool = False
+
+    @property
+    def constant(self) -> int:
+        """Shortest constant duration: over the machines, or the duration without a machine."""
+        return min(self.options.values()) if self.options else self.duration
+
+    @model_serializer(mode="wrap")
+    def _omit_duration(self, handler):
+        # left out when unset, so instance files from before stay unchanged
+        data = handler(self)
+        if self.duration is None:
+            data.pop("duration", None)
+        return data
 
 
 class Carrier(BaseModel):
@@ -195,7 +211,15 @@ class Instance(BaseModel):
         for step, cs in self.carrier_steps.items():
             if unknown := sorted(set(cs.options) - machines):
                 raise ValueError(f"[V0] carrier step {step}: unknown machines {unknown}")
-            self._check_share(f"carrier step {step}", cs.worker, min(cs.options.values()))
+            if bool(cs.options) == (cs.duration is not None):
+                raise ValueError(f"[V3] carrier step {step}: options or duration, exactly one")
+            if not cs.options:
+                if cs.runs == "given" or cs.batch_capacity is not None or cs.setup or cs.removal:
+                    raise ValueError(f"[V22] carrier step {step}: without a machine no given runs, batch, setup or "
+                                     "removal (nothing to block)")
+                if cs.worker is None:
+                    raise ValueError(f"[V6] carrier step {step}: a step without machine needs a worker share")
+            self._check_share(f"carrier step {step}", cs.worker, cs.constant)
             if cs.setup_attended and not cs.setup:
                 raise ValueError(f"[V7] carrier step {step}: setup_attended without setup")
             if cs.removal_attended and not cs.removal:
@@ -244,7 +268,7 @@ class Instance(BaseModel):
                                          "carrier_steps)")
                     if op.duration is not None:
                         raise ValueError(f"[V3] {where}: carrier operation with duration (durations come from "
-                                         "carrier_steps; machine-less carrier steps are not supported)")
+                                         "carrier_steps, also for steps without a machine)")
                     if op.worker is not None:
                         raise ValueError(f"[V3] {where}: carrier operation with a worker share (set it on the carrier "
                                          "step)")
@@ -509,6 +533,10 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
 
     def add_run(keys: list[tuple[str, str]], step: CarrierStep, main: int | None, entry: list, orders: list,
                 main_key: tuple[str, str]) -> None:
+        if not step.options:  # without a machine: one plain operation (V22: no setup, removal), no machine group
+            nodes[main_key] = Node({}, list(dict.fromkeys(entry)), list(dict.fromkeys(orders)), None,
+                                   _shares(step.worker), step.duration if main is None else main)
+            return
         for i, key in enumerate(keys):
             if key != main_key:
                 options = dict.fromkeys(step.options, step.setup if i == 0 else step.removal)
@@ -551,7 +579,8 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
                 add_run(keys_of(c.id, op.step, op.id, f"{op.id}/"), step, _estimate(inst, op.step, c.parts), ps,
                         members[c.id], (c.id, op.id))
             else:
-                nodes[c.id, op.id] = Node(dict(step.options), ps, members[c.id], None, _shares(step.worker))
+                nodes[c.id, op.id] = Node(dict(step.options), ps, members[c.id], None, _shares(step.worker),
+                                          step.duration)
     for r in inst.runs:
         entry, orders = runs[r.id]
         add_run(run_keys(r), inst.carrier_steps[r.step], run_duration(inst, r), entry, orders, (r.id, r.step))

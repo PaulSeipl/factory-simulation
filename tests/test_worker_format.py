@@ -141,9 +141,34 @@ def step_share_longer_than_step(d):
     d["carrier_steps"] = {"oven": {"options": {"P": 90}, "worker": {"prefix": 50, "suffix": 50}}}
 
 
+def carrier_step_with_options_and_duration(d):
+    d["carrier_steps"] = {"qm": {"options": {"P": 20}, "duration": 20, "worker": {"whole": True}}}
+
+
+def carrier_step_without_options_or_duration(d):
+    d["carrier_steps"] = {"qm": {"worker": {"whole": True}}}
+
+
+def machine_less_batch_step(d):
+    d["carrier_steps"] = {"qm": {"duration": 20, "batch_capacity": 2, "worker": {"whole": True}}}
+
+
+def machine_less_step_with_setup(d):
+    d["carrier_steps"] = {"qm": {"duration": 20, "runs": "per_carrier", "setup": 5, "worker": {"whole": True}}}
+
+
+def machine_less_carrier_step_without_worker(d):
+    d["carrier_steps"] = {"qm": {"duration": 20}}
+
+
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
+        (carrier_step_with_options_and_duration, r"carrier step qm: options or duration, exactly one"),
+        (carrier_step_without_options_or_duration, r"carrier step qm: options or duration, exactly one"),
+        (machine_less_batch_step, r"carrier step qm: without a machine no given runs, batch, setup or removal"),
+        (machine_less_step_with_setup, r"carrier step qm: without a machine no given runs, batch, setup or removal"),
+        (machine_less_carrier_step_without_worker, r"carrier step qm: a step without machine needs a worker share"),
         (shares_longer_than_operation, r"order k, op print: prefix \+ suffix 70 longer than the operation \(60\)"),
         (share_longer_than_duration, r"order k, op gb: prefix \+ suffix 91 longer than the operation \(90\)"),
         (unknown_qualified_worker, r"order k, op gb: unknown workers \['Z'\]"),
