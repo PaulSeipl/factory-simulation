@@ -1,14 +1,46 @@
 # s-batches across orders (one setup per batch): design
 
-Date: 2026-11-17. Status: **proposal, not agreed**. Nothing is implemented. The formal model goes to `math/` once
+Date: 2026-11-17. Status: **proposal; form (b1) agreed by the user 2026-11-17 (§0), details open**. Nothing is implemented. The formal model goes to `math/` once
 the user has decided (§9). Requested by the session working on the Fidentis case. The user said on 2026-11-17 that
 s-batches across orders are really needed (e.g. primary data preparation), that the planner must form them itself,
 and that the formulation is open.
 
-**Base of this spec.** The Fidentis case (`data/routes/fidentis.json`, `base_durations`, the MES table in
-[21](../../../math/21_instance-generator.md) §4a, the shift limit in §6) and the 03 todo "setup depending on the load
-of the run" exist only as **uncommitted edits in the main checkout** (state 2026-11-17). This worktree is at
-`d81e079`, which does not contain them. Everything else refers to committed `math/` files.
+**Base of this spec.** The Fidentis case (`data/routes/fidentis.json`, `data/generator/fidentis.json`,
+`base_durations`, the MES table in [21](../../../math/21_instance-generator.md) §4a, the shift limit in §6) as of
+commit `c3c7387`. MES values: `SEED_STEPS` in the MES backend `services/kpi/capacity.py` (read 2026-11-17).
+
+## 0. Decisions (user, 2026-11-17, answers to §9)
+
+- **Q1 availability:** the batch moves on together. That means **(b1) batch availability**.
+- **Q2 setup across a break or the night:** no. So one batch = one whole worker share. This settles the form.
+- **Q3 maxBatch 20:** smaller in reality; 20 is a future hope of Fidentis.
+- **Capacity:** s-batch steps have no capacity limit of their own. The worker share (shift part, C13) limits the
+  batch. So $c_s = \infty$ for s-batch steps. The constraint $\sum y\, n_o \le c_s u_j$ and the validation
+  $n_o \le c_s$ are dropped. Only the validation "setup plus the largest single member fits one shift part" stays.
+- **s-batch steps** (rule of the user: attended or unattended per-unit time > 0 *and* MES maxBatch > 1): sand
+  blasting, data prep primary, Gegenbetten, part removal from blank, primary polishing, finishing primary, sawing,
+  support removal, grind clean, steam clean, polish. Route ids: `blast`, `data_prep_pri`, `gegenbetten`, `separate`,
+  `polish_pri`, `finish_pri`, `saw`, `support_removal`, `grind`, `steam`, `polish_sec`.
+- **Gain within one order** (user): the primary parts of one order are batched anyway, which saves e.g. 45 minutes
+  for data prep of 4 parts ($3 \cdot 15$). **The model already has that.** An order or part operation covers all
+  parts of that type of the order and pays its base once (`base_durations`: $15 + 15 n$). What s-batches add is the
+  saving **across orders**: one base per batch instead of one per order. For the order and part steps on the list
+  that is $15 + 10 + 10 + 15 + 10 + 10 + 10 = 80$ minutes per extra order in a batch at every step.
+
+**Corrections to the text below.**
+- `Operation.step` and `RouteOperation.step` **already exist** (`model/instance.py`; the route file sets them).
+  What is missing is the step per operation in `CompiledInstance` (03 §6 todo).
+- **Carrier steps are amortized today, not full.** Blast, sawing, Gegenbetten and separation take the MES share
+  $\mathrm{base}\cdot u/B + \mathrm{per\_unit}\cdot u$ (e.g. blast $5/4 + 5 \approx 6$ per plate). That is
+  optimistic: it assumes batches that nothing forms. The order and part steps pay the full base per order, which
+  is pessimistic. With s-batches both get the exact per-batch base. The carrier steps therefore get **longer**
+  as singletons (blast 10 instead of 6 per plate) and shorter only when batched.
+- **Steps that match the user's rule but are not on the list** (MES seed values): PART_CLEANING (15 + 10 per
+  plate, maxBatch 4), REWORK_CHECKOUT, i.e. QM and recheck (15 + 15 per telescope, 10), REWORK (20 + 10 attended
+  per telescope, 10), INSPECTION, DOCUMENTATION, PACKAGING_SHIPPING (10 + 10 per order, 10), REMOVE_MOUNT
+  (10 + 2 per part, 20), PART_POWDER_REMOVAL (15 + 5 per plate, 4). Powder removal and mount removal are the
+  removals of the print and blank runs. Rework is a per-carrier run on the mill. Open: are cleaning, QM, recheck
+  and the three order steps deliberately left out (§9 Q9)?
 
 ## 1. Problem
 
@@ -303,6 +335,21 @@ Not used: $F$ (03 slot family, flow time $\bar F$), $f$ (objective), $s$ for set
    decoder do not. Acceptable as a difference between rule and optimizer?
 8. **Nesting volume.** At about one order per nesting day, cross-order batches are rare. Is the expected volume in
    the experiments higher (backlog scenarios)? Otherwise the feature changes little in the results.
+9. **Unlisted rule matches** (§0): should PART_CLEANING, QM and recheck (REWORK_CHECKOUT), and inspection,
+   documentation and packaging also be s-batch steps? They match the rule (per-unit time > 0, maxBatch > 1).
+
+Answered 2026-11-17: Q1 (batch moves together), Q2 (no), Q3 (smaller), capacity (none; the share limits it),
+Q4 (the step list in §0). Still open: setup values of the carrier steps as exact per-batch values (MES seed or
+corrected), Q5–Q9.
+
+**Mill prep secondary** (asked 2026-11-17, as configured in `data/generator/fidentis.json`): MILL_PREP_SECONDARY,
+MILL_JOB_SECONDARY and SECONDARY_PLATE_REMOVAL are one per-carrier run `mill_carrier` on the mill. Setup 15
+(attended, whole worker share), main $30 \cdot$ telescopes (unattended), removal 5 (attended). Every plate is its
+own run (user 2026-11-03: one carrier at a time on the mill), and the mill is blocked from setup to removal (C9).
+The MES seeds MILL_PREP_SECONDARY with maxBatch 4 and MILL_JOB_SECONDARY with maxBatch 2. So in the MES the 15 of
+the prep could be shared by up to 4 plates (and a job by 2 parts). The model does not do that: 15 per plate. It is
+not an s-batch in the user's rule (per-unit time 0). Sharing it would be a mill run with several plates, i.e. a
+run over several carriers like the print, not an s-batch.
 
 ## 10. Proposed protocol entry (to add with the first implementation step; not added now)
 
