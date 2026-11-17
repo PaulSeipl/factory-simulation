@@ -40,6 +40,25 @@ def optimum(ci):
     return result
 
 
+def curing_and_manual(share):
+    """One worker: an operation of 25 without machine (e.g. Gegenbetten: 10 work, 15 curing) and a manual one of 10."""
+    return compile_instance(Instance.model_validate({
+        "schema_version": "0.8", "name": "curing", "machines": ["M"], "workers": ["W1"],
+        "orders": [{"id": "A", "operations": [{"id": "gb", "step": "gb", "duration": 25, "worker": share}]},
+                   {"id": "B", "operations": [{"id": "pack", "step": "pack", "duration": 10,
+                                               "worker": {"whole": True}}]}]}))
+
+
+@pytest.mark.parametrize(("share", "makespan"), [({"rest": 15}, 25), ({"whole": True}, 35)])
+def test_worker_takes_other_work_during_the_rest(share, makespan):
+    # rest 15 (2026-11-17): the worker is needed for [0, 10) only and packs B in [10, 20) while A cures: 25; with a
+    # whole share A blocks the worker for all 25 minutes: 25 + 10 = 35. Checker, replay and the rules agree.
+    ci = curing_and_manual(share)
+    assert optimum(ci).objective == makespan
+    plan = dispatch(ci, spt)
+    assert check_schedule(ci, plan) == []
+
+
 @pytest.mark.parametrize(("workers", "makespan"), [(("W1",), 30), (("W1", "W2"), 20)])
 def test_one_worker_does_one_thing_at_a_time(workers, makespan):
     # C12: with one worker the two operations run one after the other (30), with two in parallel (20)

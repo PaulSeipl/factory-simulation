@@ -464,7 +464,7 @@
     },
     "WorkerShare": {
       "additionalProperties": false,
-      "description": "Worker time of an operation (math/04_workers.md): the whole operation, or a prefix and/or a suffix of it\n(e.g. oven: loading and removal around a fixed program); the rest runs without a worker. Prefix and suffix\nmay be served by different workers. qualified: allowed workers, None = every worker of the instance.",
+      "description": "Worker time of an operation (math/04_workers.md): the whole operation, or a prefix and/or a suffix of it\n(e.g. oven: loading and removal around a fixed program); the rest runs without a worker. Prefix and suffix\nmay be served by different workers. qualified: allowed workers, None = every worker of the instance.\nrest: attended from the start except an unattended rest of this length at the end (e.g. Gegenbetten: work on\nthe parts, then curing); only without a machine, where the duration is one number, so the compilation turns it\ninto the prefix duration - rest (2026-11-17).",
       "properties": {
         "whole": {
           "default": false,
@@ -481,6 +481,12 @@
           "default": 0,
           "minimum": 0,
           "title": "Suffix",
+          "type": "integer"
+        },
+        "rest": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Rest",
           "type": "integer"
         },
         "qualified": {

@@ -50,6 +50,7 @@ fixed duration $p_o$ and need a share. Kinds (spec §3.2):
 | attended on a machine | whole | whole | setup and removal operations of print and mill runs | `CarrierStep.setup_attended`, `removal_attended` |
 | attended start, machine continues | whole | prefix $[S_o, S_o + a^{\mathrm{pre}}_o)$ | (no dental step yet) | `options`, `worker: {prefix}` |
 | attended start, then rest | none | prefix | Gegenbetten: work, then rest | `duration`, `worker: {prefix}` |
+| attended start, then a fixed rest | none | prefix $p_o - p^{\mathrm{rest}}_o$ | Gegenbetten of a blank: $5 + 5n$ work, then 15 curing (the work grows with the parts, the rest does not) | `worker: {rest}`; compiled into the prefix (2026-11-17) |
 | attended start and end, no gap | whole | prefix and suffix $[C_o - a^{\mathrm{suf}}_o, C_o)$ | oven: loading and removal inside the fixed program, one share per run | `CarrierStep.worker: {prefix, suffix}` |
 
 Rest without any resource is the unattended remainder $p_o - a^{\mathrm{pre}}_o$ of a machine-less operation; it
@@ -394,6 +395,7 @@ Monday 16:30 and B (150) from Tuesday 08:00, both due Tuesday 12:00: the $\theta
 
 | Date | Commit | Change |
 |---|---|---|
+| 2026-11-17 | see protocol (64) | Share kind with a fixed unattended rest $p^{\mathrm{rest}}_o$ (`WorkerShare.rest`, [V4], [V5]: only without machine, rest shorter than the operation); compiled into a prefix, so checker, DES, rules and CP-SAT are unchanged. Test: one worker, an operation of 25 with rest 15 and a manual one of 10: makespan 25 (35 with a whole share), CP-SAT, checker, replay and the rule agree. |
 | 2026-11-05 | e5348b0–78e228d | Component created: design summary; work calendar implemented (`Calendar`, `simulation.calendar`, schema 0.6, due dates on cutoffs). |
 | 2026-11-06 | 78e228d | DES: shares, calendar, swap rule (phase 2, tasks 1–3). |
 | 2026-11-06 | 78e228d | Dispatching rule with shares and machine-less operations, no calendar (phase 3, task 2). |

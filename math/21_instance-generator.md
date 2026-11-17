@@ -109,7 +109,7 @@ amortized share assumes batches across orders that nothing in the model forms; p
 | SUPPORT_REMOVAL … POLISH | per secondary part | worker | 30, 55, 15, 30 |
 | DATA_PREP_PRIMARY | per primary part | worker | 15 + 15 per part |
 | MILL_PREP_PRIMARY, MILL_JOB_PRIMARY, REMOVE_MOUNT | `mill_blank` per blank (forming) | mill; setup, removal attended | 15 + 62 per part + 10 |
-| GEGENBETTEN | `gegenbetten` (blank) | worker, no machine (curing inside the share, see §6) | 5 + 5 per part + 15 |
+| GEGENBETTEN | `gegenbetten` (blank) | worker for $5 + 5n$, then 15 curing (rest), no machine | 5 + 5 per part + 15 |
 | PREP_MILL_FLIPPED | `mill_flipped` per blank | mill; setup attended | 15 + 60 per part |
 | PART_REMOVAL_FROM_BLANK, PRIMARY_POLISHING, FINISHING_PRIMARY | `separate` (blank), per primary part | worker, no machine | 10 + 10 per part; 10 + 20, 10 + 10 per part |
 | INSPECTION, DOCUMENTATION, PACKAGING_SHIPPING | order | worker | 20 each |
@@ -157,8 +157,9 @@ Carriers: `simulation.carrier_generator.CarrierGeneratorParams` (route as `Route
   also for carrier steps; [03](03_carriers.md)), with a whole share each; before, they ran on a stand-in pool
   `hand` of one machine per worker, which had to grow with the workers and, with the curing of Gegenbetten as an
   unattended removal, blocked a stand-in machine while no worker was needed (the dental example keeps its `bench`
-  pool of 2 for 4 workers, its instances are pinned). Gegenbetten: one whole share of $20 + 5n$ (base 5 plus the
-  15 of curing), so the worker is charged 15 too much per blank until the share with an unattended rest. The base once per carrier of the carrier-bound steps is the base
+  pool of 2 for 4 workers, its instances are pinned). Gegenbetten: one operation of $20 + 5n$ (base 5 plus the
+  15 of curing) with a share `rest: 15` ([04](04_workers.md)): the worker works $5 + 5n$, then the blank cures
+  without anyone. The base once per carrier of the carrier-bound steps is the base
   $p^{\mathrm{su}}_s$ of the per-carrier run (`PerCarrierStep.base`), inside the main operation: one share, one
   worker, no gap (2026-11-17; the first version of the same day used a separate setup operation, which let another
   worker continue after a gap, user: not realistic). Powder removal is the removal of the print run (the printer stays
@@ -213,6 +214,7 @@ Own design. Benchmark generators from the literature (e.g. the generation of the
 | 2026-11-12 | uncommitted | `nest` extracted; arrival generator (§4b). |
 | 2026-11-12 | uncommitted | Workers and calendar in the carrier generator (`worker`, `attended` in the route; `workers`, `calendar` in the parameters); due dates on cutoffs; example `dental-carriers-workers.json`. |
 | 2026-11-13 | uncommitted | Route files: `route` may be a path (`data/routes/`), referenced by the generator parameter files and the experiment configurations; resolved content unchanged. |
+| 2026-11-17 | see protocol (64) | Fidentis Gegenbetten with a share `rest: 15` (worker $5 + 5n$, curing 15 unattended). |
 | 2026-11-17 | see protocol (64) | Fidentis worker-only carrier steps without a machine (`hand` removed); `no_machine` also for carrier steps (not the run step or batch steps). |
 | 2026-11-17 | see protocol (63) | `PerCarrierStep.base` (base inside the main operation); Fidentis carrier-bound steps without a separate setup operation. |
 | 2026-11-17 | see protocol (62) | `PerCarrierStep.part_base`; Fidentis carrier-bound steps (QM, recheck, sawing, Gegenbetten, separation) with the base once per carrier as run setup, cleaning and blasting with the full base per plate (user). |

@@ -8,6 +8,32 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-17 (64) — Carrier steps without machine; share with a fixed rest
+
+- **Decided (user):** do both format changes, so the stand-in pool `hand` goes and Gegenbetten needs the worker only
+  for $5 + 5n$. **Decided (Claude, stated, reviewed):** (1) a carrier step without machine has `duration` instead of
+  `options`; its operations compile to operations without machine and without a machine group (C8, C9 do not
+  apply), so no given runs, batch, setup or removal ([V22]) and a worker share is required ([V6]). (2) A share
+  kind `rest` $p^{\mathrm{rest}}_o$: attended from the start except a fixed unattended rest at the end; only
+  without machine, where the duration is one number, so the compilation turns it into the prefix
+  $p_o - p^{\mathrm{rest}}_o$ and no consumer changes ([V4], [V5]). Schema 0.8 regenerated twice with `--force`:
+  it has not left this branch.
+- **Done:** `CarrierStep.duration`, `CarrierStep.constant`, `WorkerShare.rest` (both omitted in the serialized
+  form when unset), `_shares` with the rest, `operation_graph` for machine-less carrier steps
+  (`src/simulation/model/instance.py`); `lead_time_bound` with the constant of a machine-less step
+  (`src/simulation/due_dates.py`); generator: `no_machine` also for carrier steps (not the run step or batch
+  steps). Fidentis: `hand` removed, cleaning, blasting, QM, recheck, sawing, Gegenbetten, separation without
+  machine; Gegenbetten base 20 (5 + 15), `rest: 15`. Tests: negative tests for every new rule
+  (`tests/test_worker_format.py`, `tests/test_carrier_generator.py`); hand case `test_worker_takes_other_work_during_the_rest`
+  (`tests/test_cpsat_workers.py`): one worker, an operation of 25 with rest 15 and a manual one of 10: CP-SAT
+  optimum 25 (35 with a whole share), checker, zero-disturbance replay and the rule agree; Fidentis: compiled
+  Gegenbetten share prefix 25 for 4 parts. 1601 tests pass. `math/03`, `math/04` (kinds table, change log),
+  `math/21`, `math/notation.md` ($p^{\mathrm{rest}}_o$).
+- **Found:** consumers needed no change for either feature: they read the compiled form, where a machine-less
+  carrier operation looks like a machine-less order operation and a rest is a prefix.
+- **Open:** the DES scales shares with the disturbance factor, so a rest scales with it too (the curing would
+  realistically stay 15); implementing s-batches (spec §7).
+
 ## 2026-11-17 (63) — Base once per run inside the main operation
 
 - **Decided (user):** the first version of (62) put the base of the carrier-bound steps into a separate setup

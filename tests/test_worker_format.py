@@ -141,6 +141,22 @@ def step_share_longer_than_step(d):
     d["carrier_steps"] = {"oven": {"options": {"P": 90}, "worker": {"prefix": 50, "suffix": 50}}}
 
 
+def rest_with_whole(d):
+    op(d, 2)["worker"] = {"whole": True, "rest": 5}
+
+
+def rest_on_operation_with_machine(d):
+    op(d, 0)["worker"] = {"rest": 5}
+
+
+def rest_not_shorter_than_operation(d):
+    op(d, 2)["worker"] = {"rest": op(d, 2)["duration"]}
+
+
+def rest_on_carrier_step_with_machine(d):
+    d["carrier_steps"] = {"qm": {"options": {"P": 20}, "worker": {"rest": 5}}}
+
+
 def carrier_step_with_options_and_duration(d):
     d["carrier_steps"] = {"qm": {"options": {"P": 20}, "duration": 20, "worker": {"whole": True}}}
 
@@ -164,6 +180,10 @@ def machine_less_carrier_step_without_worker(d):
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
+        (rest_with_whole, r"either whole, or a prefix and/or suffix > 0, or a rest > 0"),
+        (rest_on_operation_with_machine, r"order k, op print: a rest only for operations without machine"),
+        (rest_not_shorter_than_operation, r"order k, op pack: rest \d+ leaves no attended time"),
+        (rest_on_carrier_step_with_machine, r"carrier step qm: a rest only for operations without machine"),
         (carrier_step_with_options_and_duration, r"carrier step qm: options or duration, exactly one"),
         (carrier_step_without_options_or_duration, r"carrier step qm: options or duration, exactly one"),
         (machine_less_batch_step, r"carrier step qm: without a machine no given runs, batch, setup or removal"),

@@ -407,8 +407,8 @@ def test_fidentis_worker_carrier_steps_by_hand():
     # one order of 4 telescopes, one plate and one blank (user 2026-11-17): base once per carrier inside the main
     # operation of a per-carrier run (one worker share, no separate setup), then per unit. qm 15 + 4 * 15; recheck
     # the same, twice; saw 15 + 15 per secondary part;
-    # gegenbetten 20 + 4 * 5 (base 5 + curing 15, one whole share until the rest share); separation 10 + 4 * 10; clean,
-    # blast one plate
+    # gegenbetten 20 + 4 * 5 (base 5 + curing 15; the worker only for 5 + 4 * 5, then 15 unattended rest); separation
+    # 10 + 4 * 10; clean, blast one plate
     base = read_model(ROOT / "data/generator/fidentis.json", CarrierGeneratorParams)
     inst = generate_carrier_instance(base.model_copy(update={
         "n_orders": 1, "count_range": (4, 4), "count_lognormal": None}))
@@ -426,6 +426,8 @@ def test_fidentis_worker_carrier_steps_by_hand():
     # one operation per carrier and round, no machine, no setup or removal operation
     assert count == {"clean": 1, "blast": 1, "qm": 1, "recheck": 2, "saw": 1, "gegenbetten": 1, "separate": 1}
     assert all(not inst.carrier_steps[s].options for s in count)
+    gb = next(o for o, (owner, op_id) in enumerate(ci.op_keys) if op_id == "gegenbetten" and owner not in orders)
+    assert [(s.kind, s.length) for s in ci.shares[gb]] == [("prefix", 25)]  # 5 + 4 * 5, curing 15 without worker
 
 
 def test_per_carrier_part_time_must_be_positive():

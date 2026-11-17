@@ -18,7 +18,7 @@
   {"id": "polish_sec", "step": "polish_sec", "scope": "secondary", "predecessors": ["steam"], "worker": {"whole": true}},
   {"id": "data_prep_pri", "step": "data_prep_pri", "scope": "primary", "worker": {"whole": true}},
   {"id": "mill_blank", "step": "mill_blank", "scope": "carrier", "role": "form", "carries": "primary", "predecessors": ["data_prep_pri"], "attended": ["setup", "removal"]},
-  {"id": "gegenbetten", "step": "gegenbetten", "scope": "carrier", "carries": "primary", "predecessors": ["mill_blank"], "worker": {"whole": true}},
+  {"id": "gegenbetten", "step": "gegenbetten", "scope": "carrier", "carries": "primary", "predecessors": ["mill_blank"], "worker": {"rest": 15}},
   {"id": "mill_flipped", "step": "mill_flipped", "scope": "carrier", "carries": "primary", "predecessors": ["gegenbetten"], "attended": ["setup"]},
   {"id": "separate", "step": "separate", "scope": "carrier", "role": "separate", "carries": "primary", "predecessors": ["mill_flipped"], "worker": {"whole": true}},
   {"id": "polish_pri", "step": "polish_pri", "scope": "primary", "predecessors": ["separate"], "worker": {"whole": true}},

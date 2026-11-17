@@ -52,6 +52,7 @@ Note: $\mathcal{K}$ instead of the common $J$ ("jobs"), because "Job" denotes a 
 | $p_{o,m}$ | $\mathbb{Z}_{>0}$ | processing time of $o$ on $m \in M_o$, in `time_unit` | values of `Operation.options` | [01](01_basic-fjsp.md) |
 | $p_o$ | $\mathbb{Z}_{>0}$ | duration of an operation without machine, $o \in O^{\emptyset}$ | `Operation.duration` | [04](04_workers.md) |
 | $a^{\mathrm{pre}}_o$, $a^{\mathrm{suf}}_o$ | $\mathbb{Z}_{\ge 0}$, $a^{\mathrm{pre}}_o + a^{\mathrm{suf}}_o \le \min_m p_{o,m}$ | attended prefix and suffix of $o$ (0: none; not $r_o$, which would clash with releases); a whole share occupies the worker for all of $o$ | `WorkerShare.prefix`, `suffix`, `whole` | [04](04_workers.md) |
+| $p^{\mathrm{rest}}_o$ | $\mathbb{Z}_{>0}$, $< p_o$ | unattended rest at the end of an operation without machine; its worker share is the prefix $a^{\mathrm{pre}}_o = p_o - p^{\mathrm{rest}}_o$ (a duration, family $p$; not $r$: releases) | `WorkerShare.rest` | [04](04_workers.md) |
 | $d_k$ | $\mathbb{Z}_{\ge 0}$, $d_k \ge r_k$ | due date of order $k$ (soft, optional) | `Order.due_date` | [06](06_due-dates.md) |
 | $r_k$ | $\mathbb{Z}_{\ge 0}$ | release time of order $k$ | `Order.release`, `CompiledInstance.release` (per operation) | [01](01_basic-fjsp.md) |
 | $A_k$ | $\mathbb{Z}_{\ge 0}$, $A_k \le r_k$ | arrival of order $k$ (its nesting batch is done; the planning tool knows $k$ from then on) | `Order.arrival` | [07](07_order-arrivals.md) |

@@ -27,19 +27,31 @@ def _duplicates(ids) -> list[str]:
 class WorkerShare(BaseModel):
     """Worker time of an operation (math/04_workers.md): the whole operation, or a prefix and/or a suffix of it
     (e.g. oven: loading and removal around a fixed program); the rest runs without a worker. Prefix and suffix
-    may be served by different workers. qualified: allowed workers, None = every worker of the instance."""
+    may be served by different workers. qualified: allowed workers, None = every worker of the instance.
+    rest: attended from the start except an unattended rest of this length at the end (e.g. Gegenbetten: work on
+    the parts, then curing); only without a machine, where the duration is one number, so the compilation turns it
+    into the prefix duration - rest (2026-11-17)."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
     whole: bool = False
     prefix: NonNegativeInt = 0
     suffix: NonNegativeInt = 0
+    rest: NonNegativeInt = 0
     qualified: tuple[str, ...] | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def check_kind(self):
-        if self.whole == bool(self.prefix + self.suffix):
-            raise ValueError("[V4] worker share: either whole, or a prefix and/or suffix > 0")
+        if self.whole + bool(self.prefix + self.suffix) + bool(self.rest) != 1:
+            raise ValueError("[V4] worker share: either whole, or a prefix and/or suffix > 0, or a rest > 0")
         return self
+
+    @model_serializer(mode="wrap")
+    def _omit_rest(self, handler):
+        # left out at 0, so instance files and configuration hashes from before stay unchanged
+        data = handler(self)
+        if self.rest == 0:
+            data.pop("rest", None)
+        return data
 
 
 class Operation(BaseModel):
@@ -219,7 +231,9 @@ class Instance(BaseModel):
                                      "removal (nothing to block)")
                 if cs.worker is None:
                     raise ValueError(f"[V6] carrier step {step}: a step without machine needs a worker share")
-            self._check_share(f"carrier step {step}", cs.worker, cs.constant)
+            # the shortest main operation without a machine: the base of a per-carrier estimate, else the constant
+            main = cs.estimator.base if cs.runs == "per_carrier" and cs.estimator else cs.constant
+            self._check_share(f"carrier step {step}", cs.worker, cs.constant, None if cs.options else main)
             if cs.setup_attended and not cs.setup:
                 raise ValueError(f"[V7] carrier step {step}: setup_attended without setup")
             if cs.removal_attended and not cs.removal:
@@ -289,7 +303,7 @@ class Instance(BaseModel):
                         raise ValueError(f"[V14] {where}: role {op.role!r} only for carrier operations")
                     if unknown := sorted(set(op.options or ()) - machines):
                         raise ValueError(f"[V0] {where}: unknown machines {unknown}")
-                    self._check_share(where, op.worker, op.duration or min(op.options.values()))
+                    self._check_share(where, op.worker, op.duration or min(op.options.values()), op.duration)
                 if dups := _duplicates(op.predecessors):
                     raise ValueError(f"[V0] {where}: duplicate predecessors {dups}")
                 if unknown := sorted(set(op.predecessors) - set(local)):
@@ -309,7 +323,8 @@ class Instance(BaseModel):
             raise ValueError(f"[V2] cycle across orders and carriers: {' -> '.join(map(str, e.args[1]))}") from e
         return self
 
-    def _check_share(self, where: str, share: WorkerShare | None, shortest: int):
+    def _check_share(self, where: str, share: WorkerShare | None, shortest: int, machine_less: int | None = None):
+        """machine_less: the shortest duration of an operation without machine (None: it has a machine)."""
         # shortcut: checked against the shortest machine option; a run main operation whose estimated or reported
         # duration is shorter is caught by the checker (C11), upgrade if that happens in real data
         if share is None:
@@ -318,6 +333,11 @@ class Instance(BaseModel):
             raise ValueError(f"[V7] {where}: worker share, but the instance has no workers")
         if unknown := sorted(set(share.qualified or ()) - set(self.workers)):
             raise ValueError(f"[V0] {where}: unknown workers {unknown}")
+        if share.rest and machine_less is None:
+            raise ValueError(f"[V5] {where}: a rest only for operations without machine")
+        if share.rest and share.rest >= machine_less:
+            raise ValueError(f"[V5] {where}: rest {share.rest} leaves no attended time (operation at least "
+                             f"{machine_less})")
         if share.prefix + share.suffix > shortest:
             raise ValueError(f"[V5] {where}: prefix + suffix {share.prefix + share.suffix} longer than the operation "
                              f"({shortest})")
@@ -490,8 +510,13 @@ class Node(NamedTuple):
     duration: int | None = None  # operations without machine (options empty)
 
 
-def _shares(share: WorkerShare | None) -> tuple[WorkerShare, ...]:
-    return () if share is None else (share,)
+def _shares(share: WorkerShare | None, duration: int | None = None) -> tuple[WorkerShare, ...]:
+    """Shares of one operation; a rest becomes the prefix duration - rest (only without machine, V5)."""
+    if share is None:
+        return ()
+    if share.rest:
+        return (WorkerShare(prefix=duration - share.rest, qualified=share.qualified),)
+    return (share,)
 
 
 def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
@@ -534,8 +559,9 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
     def add_run(keys: list[tuple[str, str]], step: CarrierStep, main: int | None, entry: list, orders: list,
                 main_key: tuple[str, str]) -> None:
         if not step.options:  # without a machine: one plain operation (V22: no setup, removal), no machine group
+            d = step.duration if main is None else main
             nodes[main_key] = Node({}, list(dict.fromkeys(entry)), list(dict.fromkeys(orders)), None,
-                                   _shares(step.worker), step.duration if main is None else main)
+                                   _shares(step.worker, d), d)
             return
         for i, key in enumerate(keys):
             if key != main_key:
@@ -564,7 +590,7 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
         for op in o.operations:
             if op.scope != CARRIER:
                 nodes[o.id, op.id] = Node(dict(op.options or {}), preds(o.id, op), [o.id], None,  # {}: no machine
-                                          _shares(op.worker), op.duration)
+                                          _shares(op.worker, op.duration), op.duration)
     runs: dict[str, tuple[list, list]] = {r.id: ([], []) for r in inst.runs}  # entry predecessors, orders
     for c in inst.carriers:
         # same IDs and steps for all orders on a carrier
@@ -579,8 +605,8 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
                 add_run(keys_of(c.id, op.step, op.id, f"{op.id}/"), step, _estimate(inst, op.step, c.parts), ps,
                         members[c.id], (c.id, op.id))
             else:
-                nodes[c.id, op.id] = Node(dict(step.options), ps, members[c.id], None, _shares(step.worker),
-                                          step.duration)
+                nodes[c.id, op.id] = Node(dict(step.options), ps, members[c.id], None,
+                                          _shares(step.worker, step.duration), step.duration)
     for r in inst.runs:
         entry, orders = runs[r.id]
         add_run(run_keys(r), inst.carrier_steps[r.step], run_duration(inst, r), entry, orders, (r.id, r.step))
