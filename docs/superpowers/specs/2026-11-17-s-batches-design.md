@@ -27,6 +27,28 @@ commit `c3c7387`. MES values: `SEED_STEPS` in the MES backend `services/kpi/capa
   saving **across orders**: one base per batch instead of one per order. For the order and part steps on the list
   that is $15 + 10 + 10 + 15 + 10 + 10 + 10 = 80$ minutes per extra order in a batch at every step.
 
+**Route corrections (user, 2026-11-17, second round; replace the step list above).** Two kinds of "setup + per
+unit" steps:
+
+1. **Free s-batch** (the planner chooses the members, across orders or carriers; base once per batch):
+   `data_prep_pri`, `polish_pri`, `finish_pri`, `support_removal`, `grind`, `steam`, `polish_sec`;
+   `inspect`, `document`, `pack` (10 + 10 per order each); `clean` (15 attended + 10 per plate, at most 4 plates);
+   `blast` (5 + 5 per plate, at most 4 plates). So a capacity $c_s$ (in plates) is needed after all, for `clean`
+   and `blast`; the other free steps have none.
+2. **Carrier-bound** (members fixed by the persistent carrier, no choice; base once per carrier): `gegenbetten`
+   (prefix $5 + 5n$ attended for $n$ parts on the blank, then 15 unattended; 2 parts: 30), `separate`
+   ($10 + 10n$), `saw` (15 + 15 per secondary part on the plate), `qm` and `recheck` ($15 + 15$ per telescope on
+   the plate). These are not s-batches in the planning sense: the duration is $\mathrm{base} + \mathrm{per\_unit}
+   \cdot u$ per carrier, known at compile time. Today the generator folds an amortized base into the unit time
+   (e.g. `qm` 16 per telescope = $15/10 + 15$ rounded); that is wrong and gets fixed in the generator.
+
+Needed for kind 2 (no s-batch machinery): per-carrier base, i.e. the estimator fixed part $p^0$ that the format
+already has (`PerCarrierStep` hard-codes `fixed=0`); a per-part base for `saw` (time per secondary part, not per
+telescope); and a **prefix that grows with the parts** for `gegenbetten` (`WorkerShare.prefix` is one number per
+step today: a format change). Stand-in pool `hand`: carrier steps need a machine (`CarrierStep.options` has
+`min_length=1`); order and part steps may have none. Proposed: allow carrier steps without a machine, remove `hand`
+(with a prefix, `gegenbetten` would otherwise block a `hand` machine during its unattended rest).
+
 **Corrections to the text below.**
 - `Operation.step` and `RouteOperation.step` **already exist** (`model/instance.py`; the route file sets them).
   What is missing is the step per operation in `CompiledInstance` (03 §6 todo).
