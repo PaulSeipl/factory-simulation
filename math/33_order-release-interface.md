@@ -97,6 +97,41 @@ Gaalman (1996, `ZNV6S3HF`, p. 535) name for the release function. The budget is 
 capacity minus the reserve (N1), here a fixed number per weekday, set by Fidentis or by the experiment, user); the
 load unit is a parameter of the function (telescopes in step A, mill minutes in step B).
 
+(N5) Budget against the work still to be milled (decided by the user 2026-11-18, own formulation, not
+implemented). The workload norm is the average daily mill capacity times a window, and the work counted against it
+is what the shop floor still has to mill; part of the norm is held back for the orders forecast for the next
+nesting day:
+$$\text{budget}(\gamma) = n^{\mathrm{win}}\,\overline{\mathrm{cap}}_{\mathrm{mill}} - \mathrm{wip}_{\mathrm{mill}}(\gamma)
+  - \tilde\mu(w')\,\hat\psi$$
+with $\overline{\mathrm{cap}}_{\mathrm{mill}}$ the mill capacity of a month divided by its working days (advisor;
+a day's capacity from shift start to the last start at shift end + max overtime plus the longest mill operation,
+capped at the next shift start, user 2026-11-18), $n^{\mathrm{win}}$ the window in working days,
+$\mathrm{wip}_{\mathrm{mill}}(\gamma)$ the mill minutes of all bound orders not yet processed (planned durations; a
+running operation with its expected remainder; from the snapshot, no planner needed), $\tilde\mu(w')$ the forecast
+number of orders for the weekday $w'$ of the next nesting day (Fidentis, may differ from the true rate $\mu$) and
+$\hat\psi$ the mill minutes of a default order. The load of an order in (N4) is its mill minutes. The reserve is
+only for orders not yet arrived: when they arrive they count in $\mathrm{wip}$ instead. Closed loop on the actual
+load (workload control, Land & Gaalman 1996, p. 535: norms meant to keep the shop-floor queues stationary;
+whether they define the load as released, unfinished work is **[uncertain]**, not checked in the text). Arrivals
+then depend on the realized run, so the hindsight comparison does not apply. Open: $n^{\mathrm{win}}$; printer
+the same way, workers as metrics only (user). The reserve lasts one nesting interval: at the next nesting the
+forecast is replaced by the orders actually in the pool, so if fewer came, the waiting ones are bound then (nesting
+is daily, nothing binds in between); the planner never leaves capacity idle for the reserve, since it plans only
+real orders.
+
+**Variant with phantom orders (proposed by the user 2026-11-18, open):** the reserve as forecast orders (order kind
+FORECAST, [32](32_target-data-model.md) §2) with release on the next nesting day, planned by the planning tool and
+never executed; the budget is then the free mill time in the plan within the window, so it knows *when* the mill
+is free, not only how much. At the next nesting the phantoms are replaced by the real orders and the plan is
+rescheduled completely (as at every arrival), so slots of phantoms that did not come are refilled. Phantoms hold
+capacity in the plan, so real orders are planned around slots that may stay empty until the next rescheduling;
+that is their purpose (user). Their release is the next nesting time, at which they are replaced (user), so the DES
+never reaches a phantom's release and never starts one. A phantom needs its own default carriers; a model feature
+with the full Definition of Done (format, metrics without them). **Order (user 2026-11-18): the norm (N5) first,
+phantoms later, both as compared variants.** Own assessment: more precise in an undisturbed plan, but the
+precision is in a plan that changes with every disturbance, while the aggregate norm (N5) is what workload control
+uses **[uncertain]**, not checked in the library.
+
 ## 4. Objective function
 
 Not affected.

@@ -80,6 +80,10 @@ $$v_{\eta,z} = v_{\eta',z} = 1 \ \Rightarrow\ \overline{I}_\eta \le \underline{I
 $$\operatorname{day}(\underline{I}_\eta) \bmod 7 \in \mathcal{D}^{\mathrm{w}},\qquad \operatorname{mod}(\underline{I}_\eta) \ge h^{\mathrm{S}},\qquad \overline{I}_\eta - \operatorname{start}(\operatorname{day}(\underline{I}_\eta)) \le h^{\mathrm{E}} + \overline{\mathrm{ot}} \qquad \forall \eta$$
 where $\operatorname{start}(\nu)$ is the time of 00:00 on day $\nu$; the window ends before midnight (calendar
 validity, §2), so a share cannot cross into the next day.
+From a snapshot at $t$, C13 holds only for shares with $\underline{I}_\eta \ge t$: a share that started before $t$
+is realized history (like C2 for frozen operations and C14 for taken breaks); a disturbance may stretch it past the
+window, and the factory does not stop it (found on the Fidentis route, 2026-11-18: the DES rejected every plan
+update while a running share's expected end $t + 1$ lay one minute past the window).
 
 (C14) With a calendar, a worker who has a share on day $\nu$ starting before the latest break start
 ($\underline{I}_\eta < \operatorname{start}(\nu) + h^{\mathrm{B}+}$) has exactly one break $\mathrm{br}_{z,\nu}$ that
@@ -414,6 +418,7 @@ Monday 16:30 and B (150) from Tuesday 08:00, both due Tuesday 12:00: the $\theta
 | 2026-11-10 | uncommitted | (O6) the activity clock $C^{\mathrm{act}}_{\max}$ instead of the plain makespan (user: overtime and unattended rest count; night = last end); $\mathrm{gap}_\iota$. |
 | 2026-11-11 | uncommitted | (O7) cutoff slack $f^{\mathrm{sl}}$ (user: right after tardiness), `cutoff_slack(buf)`, `OVERTIME`, `worker_objective_with_slack(buf)`; $\mathrm{buf}$, $d^{\mathrm{ship}}_k$, $\mathrm{sh}_k$. |
 | 2026-11-11 | uncommitted | (C7$^o$) pending removals in the plan's order, each also clear of the removals before it (user); $O^{\mathrm{rm}}_t$, $\operatorname{free}_{z,o}$; planners book earliest possible start first, ties by due date then index; checker `forced_ends`, `forced_removals` shared by repair, rule and CP-SAT. |
+| 2026-11-18 | uncommitted | (C13) from a snapshot only for shares not yet started (`outside_shift(..., snapshot)`); regression test in `tests/test_snapshot_breaks.py`. |
 | 2026-11-09 | uncommitted | (C14$^f$) extended (user): the earliest clear start from $\max(h^{\mathrm{B}-}, t)$ next to started shares and pending removals; $\operatorname{free}^{\mathrm{br}}_z$; checker, repair, rule. |
 | 2026-11-09 | ef6f798 | Symbols renamed (user, grounded in the literature, protocol 2026-11-09 (24)): worker index $w$ → $z$ (Berti et al. 2021), day index $d$ → $\nu$, qualified workers $W_\eta$ → $W_o$, overtime $O_{w,d}$, $\bar O$ → $\mathrm{ot}_{z,\nu}$, $\overline{\mathrm{ot}}$, break length $L^{\mathrm{B}}$ → $p^{\mathrm{br}}$, worker load $V_w$ → $V_z$. |
 | 2026-11-08 | ef6f798 | Symbols renamed (user): break start $b_{w,d}$ → $\mathrm{br}_{w,d}$ (clash with the late offset $b$ of [22](22_scenarios.md)); worker assignment $y_{\eta,w}$ → $v_{\eta,w}$ (clash with the batch slot assignment $y_{o,j}$ of [03](03_carriers.md)). |

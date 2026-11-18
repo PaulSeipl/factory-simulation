@@ -66,7 +66,8 @@ def check_schedule(
         violations += [v for v in found if v]
     breaks = tuple(breaks)
     return (violations + run_on_several_machines(ci, by_op) + machine_overlaps(ci, by_op)
-            + worker_overlaps(ci, by_op) + outside_shift(ci, by_op) + break_violations(ci, by_op, breaks, snapshot)
+            + worker_overlaps(ci, by_op) + outside_shift(ci, by_op, snapshot)
+            + break_violations(ci, by_op, breaks, snapshot)
             + breaks_changed(breaks, snapshot))
 
 
@@ -303,18 +304,23 @@ def worker_overlaps(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> li
     return violations
 
 
-def outside_shift(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> list[Violation]:
+def outside_shift(ci: CompiledInstance, by_op: Mapping[int, Assignment],
+                  snapshot: Snapshot | None = None) -> list[Violation]:
     """C13 (only with a calendar): every share lies within one working day in [shift start, shift end + max
-    overtime]; machines run at any time."""
+    overtime]; machines run at any time. With a snapshot, a share that started before its time is realized history
+    and not checked (like C2 for frozen operations and C14 for taken breaks): a disturbance may stretch it past the
+    window, and the factory does not stop it there."""
     if (cal := ci.calendar) is None:
         return []
     latest = cal.shift_end + cal.max_overtime
+    t = snapshot.t if snapshot is not None else None
     return [
         Violation("C13", (ci.op_keys[o],), f"{w} on {ci.op_keys[o]} [{s},{e}) outside the shift window of day {d}")
         for w, intervals in worker_intervals(ci, by_op).items()
         for s, e, o in intervals
-        if not (is_working_day(cal, d := day_index(cal, s)) and minute_of_day(cal, s) >= cal.shift_start
-                and e - day_start(cal, d) <= latest)
+        if (t is None or s >= t)
+        and not (is_working_day(cal, d := day_index(cal, s)) and minute_of_day(cal, s) >= cal.shift_start
+                 and e - day_start(cal, d) <= latest)
     ]
 
 

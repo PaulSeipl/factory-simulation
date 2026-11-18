@@ -152,6 +152,18 @@
           "title": "Removal",
           "type": "integer"
         },
+        "setup_per_carrier": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Setup Per Carrier",
+          "type": "integer"
+        },
+        "removal_per_carrier": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Removal Per Carrier",
+          "type": "integer"
+        },
         "estimator": {
           "anyOf": [
             {

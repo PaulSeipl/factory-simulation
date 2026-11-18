@@ -130,11 +130,15 @@ Not affected. Order-based objectives use the order completions $C_k = \max_{o: k
 
 - Load composition (carriers) and print runs are given (nesting) and never changed by a planner. Frozen boundary: after print file generation the run's printer (and time?) is fixed. Not implemented yet: how print file generation enters the model is open (an operation in the route, an event, or a lead time before the setup); until then a run is frozen only when its first operation has started, like every other operation.
 - Setup and removal: one default time per carrier step, same on all machines of the step; per machine type later. They will need a worker (04); until then nothing delays a removal except the plan itself.
-- **Todo (user 2026-11-16): setup and removal depending on the load of the run.** In the MES the print setup takes
-  $90 + 5$ per plate (AM_PREP) and the powder removal $15 + 5$ per plate; the model has one number per step, so the
-  Fidentis case uses 95 and 25 (one plate, [21](21_instance-generator.md) §6), at most 15 and 15 too short for four
-  plates. Would need a setup estimator per run like the main operation (a model change: format and compilation;
-  checker, DES, rules and CP-SAT read the compiled duration).
+- **Setup and removal per carrier of the run** (user 2026-11-16: noted; 2026-11-18: "why not calculate the correct
+  value"): `CarrierStep.setup_per_carrier`, `removal_per_carrier`; a run of $|R|$ carriers has setup
+  $\text{setup} + |R| \cdot \text{setup\_per\_carrier}$ and removal alike (a per-carrier run: $|R| = 1$). MES print:
+  setup $90 + 5$ per plate (AM_PREP), powder removal $15 + 5$ per plate. Applied once, at compilation
+  (`operation_graph`, `CarrierStep.setup_for`, `removal_for`); checker, DES, rules and CP-SAT read the compiled
+  duration and are unchanged. Validation as for `setup`, `removal` (V7, V17, V22 count either). Left out of the
+  serialized form at 0; schema 0.8 regenerated in place (not released). The lead-time bound counts one carrier.
+  Tests `tests/test_carrier_runs.py`: runs of 3 and 1 plates of the Fidentis case (setups 105 and 95, removals 30
+  and 20), a setup from the per-carrier part alone, rejected without runs (V17).
 - Print duration: estimator $p^0 + \lambda \sum_\pi p_\pi$ clamped to $[\max_\pi p_\pi, \sum_\pi p_\pi]$; form and parameters are assumptions to be validated with Fidentis data; same value on every printer (identical printers). To swap the form, replace `estimate_run_duration`. Schema 0.4 was regenerated in place for these fields (not committed before).
 - **Mill as a shared machine (user 2026-11-03, not implemented).** Facts: (1) a blank holds primary parts of **several orders**; (2) every carrier is milled (secondary parts) **after the oven and before QM**, one carrier at a time; (3) changeovers on the mill are contained in the separate setup and removal operations; (4) the duration of milling a carrier depends on the number of telescopes on it; (5) every mill can take carriers. Rework after QM also uses the mill (see QM rework loops). Milling is serial (s-batch), not a p-batch, so the batch-step todo below is not triggered. Gaps in the model:
   - **G1 two carrier kinds (done, see §1 and §5):** a blank is structurally a carrier (parts of several orders, bound from milling to separation), but today an order has one carrier chain and primary parts are never on a carrier.
@@ -179,6 +183,7 @@ Not affected. Order-based objectives use the order completions $C_k = \max_{o: k
 | 2026-11-03 | 31b7574–91ebc7c | Carrier kinds (`Operation.carries`): one chain per part type, blanks as carriers, synchronization across kinds. |
 | 2026-11-03 | 31b7574–91ebc7c | Dental example with blanks, carrier milling, separation and polishing (notebook 05 re-run). |
 | 2026-11-06 | 78e228d | Renamed from `03_loads.md` to `03_carriers.md` (links in `math/`, code comments, tests, notebook 05, `CLAUDE.md` updated); intro and status cover both carrier kinds (plates, blanks) and oven batching. |
+| 2026-11-18 | uncommitted | Setup and removal per carrier of a run (`setup_per_carrier`, `removal_per_carrier`); schema 0.8 regenerated. |
 | 2026-11-17 | see protocol (64) | Carrier steps without a machine (`CarrierStep.duration`, [V22]). |
 | 2026-11-17 | see protocol (63) | Base $p^{\mathrm{su}}_s$ of a run, added after the clamp (`RunEstimator.base`, schema 0.8). |
 | 2026-11-09 | ef6f798 | Symbols renamed (protocol 2026-11-09 (24)): batch slot start $S^B_j$ → $S^{\mathrm{slot}}_j$, slot machine choice $z_{j,m}$ → $g_{j,m}$; carrier $b$ kept (own concept; the batching literature uses $b$ or $B$ for the capacity, ours is $c_s$). |

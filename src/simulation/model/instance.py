@@ -126,6 +126,9 @@ class CarrierStep(BaseModel):
     runs: Literal["none", "given", "per_carrier"] = "none"
     setup: NonNegativeInt = 0
     removal: NonNegativeInt = 0
+    # per carrier of the run on top (MES print: setup 90 + 5 per plate, powder removal 15 + 5 per plate; 2026-11-18)
+    setup_per_carrier: NonNegativeInt = 0
+    removal_per_carrier: NonNegativeInt = 0
     estimator: RunEstimator | None = None
     # p-batch decided by the planner (e.g. oven): up to this many carriers share one machine run, starting and
     # ending together; the program fixes the duration (no deviation in scenarios). None: one carrier per operation
@@ -145,7 +148,18 @@ class CarrierStep(BaseModel):
         data = handler(self)
         if self.duration is None:
             data.pop("duration", None)
+        for name in ("setup_per_carrier", "removal_per_carrier"):
+            if not getattr(self, name):
+                data.pop(name, None)
         return data
+
+    def setup_for(self, carriers: int) -> int:
+        """Setup of a run of this many carriers (0: no setup operation)."""
+        return self.setup + self.setup_per_carrier * carriers if self.setup or self.setup_per_carrier else 0
+
+    def removal_for(self, carriers: int) -> int:
+        """Removal of a run of this many carriers (0: no removal operation)."""
+        return self.removal + self.removal_per_carrier * carriers if self.removal or self.removal_per_carrier else 0
 
 
 class Carrier(BaseModel):
@@ -221,12 +235,13 @@ class Instance(BaseModel):
         if clash := sorted(machines & set(self.workers)):
             raise ValueError(f"[V0] IDs used for workers and machines: {clash}")
         for step, cs in self.carrier_steps.items():
+            setup, removal = cs.setup_for(1), cs.removal_for(1)  # nonzero: the runs have such an operation
             if unknown := sorted(set(cs.options) - machines):
                 raise ValueError(f"[V0] carrier step {step}: unknown machines {unknown}")
             if bool(cs.options) == (cs.duration is not None):
                 raise ValueError(f"[V3] carrier step {step}: options or duration, exactly one")
             if not cs.options:
-                if cs.runs == "given" or cs.batch_capacity is not None or cs.setup or cs.removal:
+                if cs.runs == "given" or cs.batch_capacity is not None or setup or removal:
                     raise ValueError(f"[V22] carrier step {step}: without a machine no given runs, batch, setup or "
                                      "removal (nothing to block)")
                 if cs.worker is None:
@@ -234,18 +249,18 @@ class Instance(BaseModel):
             # the shortest main operation without a machine: the base of a per-carrier estimate, else the constant
             main = cs.estimator.base if cs.runs == "per_carrier" and cs.estimator else cs.constant
             self._check_share(f"carrier step {step}", cs.worker, cs.constant, None if cs.options else main)
-            if cs.setup_attended and not cs.setup:
+            if cs.setup_attended and not setup:
                 raise ValueError(f"[V7] carrier step {step}: setup_attended without setup")
-            if cs.removal_attended and not cs.removal:
+            if cs.removal_attended and not removal:
                 raise ValueError(f"[V7] carrier step {step}: removal_attended without removal")
             if (cs.setup_attended or cs.removal_attended) and not self.workers:
                 raise ValueError(f"[V7] carrier step {step}: attended setup or removal, but the instance has no "
                                  "workers")
-            if cs.batch_capacity is not None and (cs.setup or cs.removal or cs.estimator):
+            if cs.batch_capacity is not None and (setup or removal or cs.estimator):
                 raise ValueError(f"[V17] carrier step {step}: a batch step has no setup, removal or estimator")
             if cs.batch_capacity is not None and (cs.runs != "none" or any(r.step == step for r in self.runs)):
                 raise ValueError(f"[V17] carrier step {step}: batched by the planner, so no given runs")
-            if cs.runs == "none" and (cs.setup or cs.removal or cs.estimator):
+            if cs.runs == "none" and (setup or removal or cs.estimator):
                 raise ValueError(f"[V17] carrier step {step}: setup, removal and estimator need runs ('given' or "
                                  "'per_carrier')")
             if cs.runs != "given" and any(r.step == step for r in self.runs):
@@ -540,8 +555,8 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
         """Setup, main operation, removal of a run (those with duration > 0); a carrier owns runs of several steps,
         so its setup and removal carry the operation id as prefix."""
         step = inst.carrier_steps[step_id]
-        return [(owner, j) for j, t in ((f"{prefix}setup", step.setup), (main, 1), (f"{prefix}removal", step.removal))
-                if t]
+        return [(owner, j) for j, t in ((f"{prefix}setup", step.setup_for(1)), (main, 1),
+                                        (f"{prefix}removal", step.removal_for(1))) if t]
 
     def run_keys(r: Run) -> list[tuple[str, str]]:
         return keys_of(r.id, r.step, r.step)
@@ -557,7 +572,7 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
         return keys[0], keys[-1]
 
     def add_run(keys: list[tuple[str, str]], step: CarrierStep, main: int | None, entry: list, orders: list,
-                main_key: tuple[str, str]) -> None:
+                main_key: tuple[str, str], carriers: int = 1) -> None:
         if not step.options:  # without a machine: one plain operation (V22: no setup, removal), no machine group
             d = step.duration if main is None else main
             nodes[main_key] = Node({}, list(dict.fromkeys(entry)), list(dict.fromkeys(orders)), None,
@@ -565,7 +580,8 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
             return
         for i, key in enumerate(keys):
             if key != main_key:
-                options = dict.fromkeys(step.options, step.setup if i == 0 else step.removal)
+                d = step.setup_for(carriers) if i == 0 else step.removal_for(carriers)
+                options = dict.fromkeys(step.options, d)
                 attended = step.setup_attended if i == 0 else step.removal_attended
                 shares = (WorkerShare(whole=True),) if attended else ()
             else:  # same estimate on every eligible machine (assumption: identical printers)
@@ -609,5 +625,6 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
                                           _shares(step.worker, step.duration), step.duration)
     for r in inst.runs:
         entry, orders = runs[r.id]
-        add_run(run_keys(r), inst.carrier_steps[r.step], run_duration(inst, r), entry, orders, (r.id, r.step))
+        add_run(run_keys(r), inst.carrier_steps[r.step], run_duration(inst, r), entry, orders, (r.id, r.step),
+                len(r.carriers))
     return nodes

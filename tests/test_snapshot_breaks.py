@@ -121,3 +121,19 @@ def test_without_a_snapshot_a_late_break_is_still_c14():
     _, rows = at_1310()
     assert "C14" in {v.constraint for v in check_schedule(CI, rows, None, (Break(worker="A", start=311),
                                                                              Break(worker="B", start=240)))}
+
+
+# --- C13 with a snapshot: a started share stretched past the window by a disturbance (2026-11-18) ----------------
+
+
+def test_started_share_past_the_shift_window_is_history_not_a_violation():
+    # k1 packaging by A planned [665, 685), inside the window (17:30 + 120 = 19:30 = t 690); factor 3 stretches it to
+    # 60 minutes, so at t = 700 it still runs with expected end 701, past the window. Found on the Fidentis route:
+    # the DES rejected the repaired plan for this frozen share (protocol 2026-11-18)
+    rows = plan(k1_pack=(None, 665, 685, ("A",)))
+    assert check_schedule(CI, rows, breaks=BREAKS) == []
+    snap = snap_at(rows, 700, k1_pack=3.0)
+    pack = next(f for f in snap.frozen if f.op_id == "pack" and f.order_id == "k1")
+    assert pack.running and pack.end == 701
+    assert "C13" not in constraints(frozen_rows(snap), snap, snap.breaks)
+    assert "C13" in constraints(frozen_rows(snap), None, snap.breaks)  # without the snapshot: outside the window

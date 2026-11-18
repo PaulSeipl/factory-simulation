@@ -94,6 +94,8 @@ class CarrierGeneratorParams(BaseModel):
     run_step: str = "print"  # carrier step executed in runs
     setup: NonNegativeInt = 0  # per run
     removal: NonNegativeInt = 0
+    setup_per_carrier: NonNegativeInt = 0  # per carrier of the run on top (CarrierStep.setup_per_carrier)
+    removal_per_carrier: NonNegativeInt = 0
     unit_time: PositiveInt | None = None  # run-step time per size unit of a carried part, for the estimator
     unit_base: NonNegativeInt = 0  # run-step time per carried part on top of its size times unit_time
     no_machine: tuple[str, ...] = ()  # steps without a machine (worker only or rest): a duration
@@ -185,7 +187,7 @@ class CarrierGeneratorParams(BaseModel):
 
 
 _LATER_DEFAULTS = {"count_lognormal": None, "run_capacity": None, "unit_base": 0, "no_machine": (),
-                   "base_durations": {}}
+                   "base_durations": {}, "setup_per_carrier": 0, "removal_per_carrier": 0}
 
 
 def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
@@ -200,7 +202,8 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
 
     def _run_kwargs(step: str) -> dict:
         if step == params.run_step:
-            return {"runs": "given", "setup": params.setup, "removal": params.removal, "estimator": params.estimator}
+            return {"runs": "given", "setup": params.setup, "removal": params.removal, "estimator": params.estimator,
+                    "setup_per_carrier": params.setup_per_carrier, "removal_per_carrier": params.removal_per_carrier}
         if (pc := params.per_carrier.get(step)) is not None:
             return {"runs": "per_carrier", "setup": pc.setup, "removal": pc.removal,
                     "estimator": RunEstimator(fixed=0, share=1, base=pc.base)}

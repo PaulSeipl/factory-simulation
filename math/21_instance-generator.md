@@ -99,7 +99,7 @@ amortized share assumes batches across orders that nothing in the model forms; p
 |---|---|---|---|
 | DATA_PREP_SECONDARY | `data_prep_sec` (order) | none; worker prefix 45 | 120 |
 | DATA_PREP_SEC_MILL | `data_prep_sec_mill` (order) | worker | 20 |
-| AM_PREP, AM_PRINT, PART_POWDER_REMOVAL | `print` run: setup, main, removal | printer; setup and removal attended | 100; estimator below; 25 |
+| AM_PREP, AM_PRINT, PART_POWDER_REMOVAL | `print` run: setup, main, removal | printer; setup and removal attended | 90 + 5 per plate; estimator below; 15 + 5 per plate |
 | PART_CLEANING, SAND_BLASTING | `clean`, `blast` (plate) | worker, no machine | 15 + 10, 5 + 5 per plate |
 | HEAT_TREATMENT | `oven` (plate, p-batch of 2) | oven; worker prefix and suffix 20 | 220 |
 | MILL_PREP_SECONDARY, MILL_JOB_SECONDARY, SECONDARY_PLATE_REMOVAL | `mill_carrier` per plate | mill; setup, removal attended | 15 + 30 per telescope + 5 |
@@ -163,9 +163,8 @@ Carriers: `simulation.carrier_generator.CarrierGeneratorParams` (route as `Route
   $p^{\mathrm{su}}_s$ of the per-carrier run (`PerCarrierStep.base`), inside the main operation: one share, one
   worker, no gap (2026-11-17; the first version of the same day used a separate setup operation, which let another
   worker continue after a gap, user: not realistic). Powder removal is the removal of the print run (the printer stays
-  blocked until a worker empties it). Print setup 95 for $90 + 5$ per plate, fixed at one plate (the setup of a step in runs is one number per step,
-  `CarrierStep.setup`; with daily nesting at about one order per day a print has one plate; at most 15 too low
-  for four plates). Removal of the
+  blocked until a worker empties it). Print setup $90 + 5$ per plate and powder removal $15 + 5$ per plate (`setup_per_carrier`,
+  `removal_per_carrier`, 2026-11-18; before: fixed 95 and 25). Removal of the
   mount without its 2 per part (folded into the 62 of `mill_blank`). The secondary mill job scales per telescope,
   exact only at 4 telescopes per secondary part; sawing scales per secondary part (`part_base` of a per-carrier
   step: time per part independent of its size).

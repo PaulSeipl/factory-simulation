@@ -8,6 +8,46 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-18 (65) — Arrival rates for the Fidentis route; C13 bug from a snapshot — uncommitted
+
+- **Decided (user):** arrival rates for the Fidentis route before step B of the release interface; merge the
+  s-batch branch (`claude/competent-sinoussi-91ba08`, entries (62)–(64)) into main (fast-forward to `e9604c3`).
+- **Found (bug, fixed):** a rate sweep (rule at arrivals) crashed with `PlanNotExecutable: [C13] ... outside the shift
+  window`. Cause in the checker, not in the repair: from a snapshot, C13 checked shares that had already started; a
+  running share stretched by a disturbance past shift end + max overtime (expected end $t + 1$) made every plan
+  update at that time infeasible. Deterministic cases from a search (rule start plan, rule at arrivals, 24
+  episodes, data before the merge): rate 0.8 seed 1 (`recheck1` [3480, 3571) at $t = 3570$), rate 1.2 seed 5
+  (`mill_blank/setup` at $t = 65490$). The first crash (CP-SAT start plan) did not reproduce in three reruns, most
+  likely a wall-limited start plan under CPU load from the parallel session. **Done:**
+  `check.feasibility.outside_shift(..., snapshot)` skips shares that started before $t$; `math/04` (C13), change
+  log; regression test in `tests/test_snapshot_breaks.py` (fails without the fix).
+- **Found (not fixed):** `run_one` crashes with `backlog = 0`: no order is visible at $t = 0$ and `horizon_bound`
+  takes the max of an empty set; all existing configurations have a backlog.
+- **Decided (user, same day):** two full rework rounds and powder removal as the print removal confirmed; the print
+  setup is calculated, not fixed. **Done:** `CarrierStep.setup_per_carrier`, `removal_per_carrier`
+  (`model/instance.py`, compile only), generator parameters of the same names, Fidentis setup $90 + 5$ and removal
+  $15 + 5$ per plate, `due_dates.py` (one carrier), schema 0.8 regenerated, three tests, `math/03` §6, `math/21`
+  §4a, §6. Full suite 1605 green; instance digests of all other configurations unchanged. The sweep and the fault
+  search now run in parallel (10 processes of 12 cores; before: one process, the reason it was slow).
+- **Decided (user, same day):** the rate sweep is postponed until everything is implemented, but done before the
+  experiments (arrival rates and load levels follow from it). Script kept outside the project (scratch); only the two
+  episodes that crashed before the C13 fix are rerun as a check: both run through (rate 0.8 seed 1, rate 1.2
+  seed 5, merged Fidentis data with the per-plate print setup).
+- **Decided (user, same day), release budget:** step A had only the fixed quota; the plan-based budget is step B.
+  User's advisor: average daily mill capacity from the month; the user decided it is compared against **the work
+  still to be milled** (released, not finished), not against what was released per day: a workload norm, closed
+  loop on the actual load, from the snapshot, no planner needed. Mill capacity of a day: from shift start to the last
+  start at 19:30 plus the longest mill operation (user). Printer the same way; worker capacity for metrics and
+  experiments. **Done:** (N5) in `math/33` §3 with the reserve $\tilde\mu(w')\hat\psi$ for the forecast orders of
+  the next nesting day; symbols in `notation.md`. Not implemented.
+- **User question:** reserve as phantom orders planned by the planning tool (more precise timing); if fewer orders
+  come, waiting orders should be pulled forward and planned operations moved into the free slots. **Clarified
+  (Claude):** in (N5) the reserve lasts only until the next nesting, where the real pool replaces it, and the planner
+  never plans around it, so no slot stays empty; the earlier statement "reserved capacity stays unused" was
+  imprecise. Phantom variant written down in `math/33` §3 as an open alternative.
+- **Open:** (N5) or phantom orders, or both as compared variants; rate sweep and load levels before the experiments;
+  `backlog = 0` crash; window $n^{\mathrm{win}}$ of the norm; implementation of (N5) (needs the step-B infrastructure: release inside the run, growing DES).
+
 ## 2026-11-17 (64) — Carrier steps without machine; share with a fixed rest
 
 - **Decided (user):** do both format changes, so the stand-in pool `hand` goes and Gegenbetten needs the worker only

@@ -115,3 +115,37 @@ def test_invalid_runs_rejected(mutate, message):
     mutate(d)
     with pytest.raises(ValidationError, match=message):
         Instance.model_validate(d)
+
+
+# --- setup and removal per carrier of the run (2026-11-18, math/03 §5) ---------------------------------------------
+
+
+def test_setup_and_removal_grow_with_the_carriers_of_the_run():
+    # MES print: setup 90 + 5 per plate, powder removal 15 + 5 per plate; one run of 3 plates and one of 1
+    from pathlib import Path
+
+    from simulation.carrier_generator import CarrierGeneratorParams, generate_carrier_instance
+    from simulation.io.json_loader import read_model
+
+    base = read_model(Path(__file__).parents[1] / "data" / "generator" / "fidentis.json", CarrierGeneratorParams)
+    inst = generate_carrier_instance(base.model_copy(update={
+        "n_orders": 4, "count_range": (4, 4), "count_lognormal": None, "carrier_capacity": 4, "run_capacity": 12}))
+    assert [len(r.carriers) for r in inst.runs] == [3, 1]
+    ci = compile_instance(inst)
+    for r, plates in zip(inst.runs, (3, 1), strict=True):
+        setup, removal = (ci.options[ci.op_index[r.id, j]][0][1] for j in ("setup", "removal"))
+        assert (setup, removal) == (90 + 5 * plates, 15 + 5 * plates)
+
+
+def test_setup_per_carrier_alone_creates_the_setup_operation():
+    d = data()
+    d["carrier_steps"]["mill"] |= {"setup": 0, "setup_per_carrier": 4}
+    ci = compile_instance(Instance.model_validate(d))
+    assert ci.options[ci.op_index["L1", "mill/setup"]] == ((ci.machine_index["M"], 4),)  # 0 + 4 * 1 carrier
+
+
+def test_setup_per_carrier_without_runs_rejected():
+    d = data()
+    d["carrier_steps"]["print"] |= {"setup_per_carrier": 5}
+    with pytest.raises(ValidationError, match=r"\[V17\].*setup, removal and estimator need runs"):
+        Instance.model_validate(d)
