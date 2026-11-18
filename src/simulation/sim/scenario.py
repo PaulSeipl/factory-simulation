@@ -33,23 +33,32 @@ class Scenario(BaseModel):
 
 
 def sample_scenario(
-    instance: Instance, sigma: float, seed: int, q: float = 1.0, max_early: int = 0, max_late: int = 0
+    instance: Instance, sigma: float, seed: int, q: float = 1.0, max_early: int = 0, max_late: int = 0,
+    keyed: bool = False,
 ) -> Scenario:
     """Log-normal factor per operation with mean 1: ln(factor) ~ N(-sigma^2 / 2, sigma^2).
 
     Start offset: 0 with probability q, otherwise uniform integer in [-max_early, max_late]. Offsets come
     from a separate random stream, so switching them on does not change the factors of a seed.
+    `keyed`: every operation draws from its own streams, keyed by seed and operation, so its disturbance does not
+    depend on which other operations exist (math/22 §3; needed when carriers and runs are created during a run,
+    math/33). Default: one stream in graph order, as before.
     """
     rng, start_rng = random.Random(seed), random.Random(f"start-{seed}")
+
+    def streams(owner: str, op_id: str) -> tuple[random.Random, random.Random]:
+        if not keyed:
+            return rng, start_rng
+        return random.Random(f"{seed}/{owner}/{op_id}"), random.Random(f"start-{seed}/{owner}/{op_id}")
+
+    def draw(owner: str, op_id: str) -> OperationFactor:
+        r, s = streams(owner, op_id)
+        return OperationFactor(order_id=owner, op_id=op_id, factor=r.lognormvariate(-sigma**2 / 2, sigma),
+                               start_offset=0 if s.random() < q else s.randint(-max_early, max_late))
+
     # every compiled operation, incl. carrier and run operations (owner in order_id); for instances without carriers
     # the same operations in the same order as the routes, so the draws of a seed are unchanged
-    factors = tuple(
-        OperationFactor(
-            order_id=owner, op_id=op_id, factor=rng.lognormvariate(-sigma**2 / 2, sigma),
-            start_offset=0 if start_rng.random() < q else start_rng.randint(-max_early, max_late),
-        )
-        for owner, op_id in operation_graph(instance)
-    )
+    factors = tuple(draw(owner, op_id) for owner, op_id in operation_graph(instance))
     return Scenario(instance=instance.name, seed=seed, sigma=sigma, q=q, max_early=max_early, max_late=max_late,
                     factors=factors)
 

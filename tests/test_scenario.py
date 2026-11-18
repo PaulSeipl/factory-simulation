@@ -65,3 +65,32 @@ def test_start_offsets_respect_q_and_range():
     assert min(offsets) >= -5 and max(offsets) <= 8
     # P(offset == 0) = q + (1 - q) / 14, since 0 is also one of the 14 uniform values; 2400 draws
     assert offsets.count(0) / len(offsets) == pytest.approx(0.4 + 0.6 / 14, abs=0.04)
+
+
+# --- keyed streams (math/22 §3, 2026-11-18): an operation's draws do not depend on the other operations ---------
+
+
+def test_keyed_factors_do_not_depend_on_the_other_operations():
+    from pathlib import Path
+
+    from simulation.carrier_generator import CarrierGeneratorParams, generate_carrier_instance
+
+    base = read_model(Path(__file__).parents[1] / "data" / "generator" / "dental-carriers-example.json",
+                      CarrierGeneratorParams)  # not the Fidentis case (user 2026-11-18)
+    small, large = (generate_carrier_instance(base.model_copy(update={"n_orders": n})) for n in (3, 9))
+    draws = [{(f.order_id, f.op_id): (f.factor, f.start_offset)
+              for f in sample_scenario(i, 0.3, 7, q=0.5, max_early=5, max_late=5, keyed=True).factors}
+             for i in (small, large)]
+    shared = set(draws[0]) & set(draws[1])  # the orders O1-O3 and the carriers and runs both instances have
+    assert any(k[0] == "O1" for k in shared) and any(k[0].startswith(("C", "B", "R")) for k in shared)
+    assert all(draws[0][k] == draws[1][k] for k in shared)
+    # the default stream in graph order does not have this property
+    plain = [{(f.order_id, f.op_id): f.factor for f in sample_scenario(i, 0.3, 7).factors} for i in (small, large)]
+    assert any(plain[0][k] != plain[1][k] for k in shared)
+
+
+def test_keyed_factors_have_mean_one_and_differ_by_seed():
+    factors = [f.factor for seed in range(10) for f in sample_scenario(MK10, 0.3, seed, keyed=True).factors]
+    assert mean(factors) == pytest.approx(1.0, abs=0.03)
+    assert sample_scenario(MK10, 0.3, 1, keyed=True) != sample_scenario(MK10, 0.3, 2, keyed=True)
+    assert {f.factor for f in sample_scenario(MK10, 0.0, 1, keyed=True).factors} == {1.0}

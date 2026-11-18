@@ -279,6 +279,66 @@ class Simulation:
                 if self.state.planned_start_at[o] == self.state.t:
                     self._on_planned_start(o)
 
+    def grow(self, ci: CompiledInstance, scenario: Scenario | None = None,
+             visible: Callable[[int], CompiledInstance] | None = None) -> None:
+        """Continue on a larger instance: the orders, carriers and runs nesting has just bound join the factory
+        (math/13_des.md §3, math/33). Every operation keeps its state under its key (order or carrier or run, op);
+        machines and workers must be the same. The new operations are unplanned (inert) until a plan holds them; their
+        disturbances come from `scenario`, which must cover the new instance (keyed streams, math/22, keep the old
+        operations' draws). Indices change, since compilation lists order operations first."""
+        old, s = self.ci, self.state
+        if ci.machine_ids != old.machine_ids or ci.worker_ids != old.worker_ids:
+            raise ValueError("grow: machines and workers must stay the same")
+        if missing := [k for k in old.op_keys if k not in ci.op_index]:
+            raise ValueError(f"grow: operations missing in the new instance: {missing[:3]}")
+        new = [ci.op_index[k] for k in old.op_keys]  # old index -> new index
+        order_new = [ci.order_ids.index(k) for k in old.order_ids]
+        plan = self.current_plan()  # read under the old indices, before any state is moved
+
+        def per_op(values, default):
+            out = [default() if callable(default) else default for _ in range(ci.n_ops)]
+            for o, v in enumerate(values):
+                out[new[o]] = v
+            return out
+
+        disturbance = factors_by_index(ci, scenario) if scenario else None
+        factor = [1.0 if ci.batch_capacity[o] > 1 else d.factor for o, d in enumerate(disturbance)] \
+            if disturbance else [1.0] * ci.n_ops
+        offset = [d.start_offset for d in disturbance] if disturbance else [0] * ci.n_ops
+        for o in range(old.n_ops):  # the draws of operations already in the factory stay as they were
+            factor[new[o]], offset[new[o]] = self.factor[o], self.offset[o]
+        self.factor, self.offset = factor, offset
+        for name, default in (("machine", 0), ("planned_start", 0), ("planned_end", 0), ("planned_start_at", None),
+                              ("start", None), ("end", None), ("late_start_at", None)):
+            setattr(s, name, per_op(getattr(s, name), default))
+        s.worker = per_op(s.worker, list)
+        s.running = [None if o is None else new[o] for o in s.running]
+        s.released = {new[o] for o in s.released}
+        s.share_done = {(new[o], i) for o, i in s.share_done}
+        s.started_batch = {new[o]: tuple(new[q] for q in b) for o, b in s.started_batch.items()}
+        s.followers = {new[o] for o in s.followers}
+        s.suffix_due = {new[o]: t for o, t in s.suffix_due.items()}
+        s.suffix_start = {new[o]: t for o, t in s.suffix_start.items()}
+        s.worker_on = [None if x is None else (new[x[0]], x[1]) for x in s.worker_on]
+
+        def event(e):
+            t, kind, seq, o = e
+            if kind is EventType.SHARE_END:
+                o = new[o // _SHARES] * _SHARES + o % _SHARES
+            elif kind is EventType.ARRIVAL:
+                o = order_new[o]
+            elif kind is not EventType.WAKE:
+                o = new[o]
+            return t, kind, seq, o
+
+        s.events = [event(e) for e in s.events]
+        heapq.heapify(s.events)
+        self.duration = per_op(self.duration, 0)
+        self.share_len = per_op(self.share_len, list)
+        self.planned = {new[o] for o in self.planned}
+        self.ci, self.visible = ci, visible or (lambda _t: ci)
+        self._apply(plan)  # order per machine and worker, batches, positions: derived from the per-op state
+
     def wake_at(self, t: int) -> None:
         """Make t a time point of the run, so that the planning tool is called then (no effect in the factory)."""
         self.state.push(t, EventType.WAKE, -1)

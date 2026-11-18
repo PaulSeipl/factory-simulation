@@ -51,6 +51,9 @@ A feature (e.g. loads, workers, JPC) is only done when it is included in:
 - pytest; run before completing each step.
 - One negative test per validation rule.
 - The zero-disturbance test and negative tests are never skipped, not even under time pressure.
+- Test new functionality on small instances (toy instances, the dental examples in `data/generator/`), never on the
+  Fidentis case (`data/generator/fidentis.json`): it is big and slow. The Fidentis case gets only its own tests that
+  check the case itself works (data file, hand values); otherwise it is used in experiments and notebooks.
 
 ## Mathematical documentation (`math/`)
 

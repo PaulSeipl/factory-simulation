@@ -127,9 +127,13 @@ def test_setup_and_removal_grow_with_the_carriers_of_the_run():
     from simulation.carrier_generator import CarrierGeneratorParams, generate_carrier_instance
     from simulation.io.json_loader import read_model
 
-    base = read_model(Path(__file__).parents[1] / "data" / "generator" / "fidentis.json", CarrierGeneratorParams)
+    # the dental example with the MES print values (not the Fidentis case, user 2026-11-18); one order per plate,
+    # three plates per print
+    base = read_model(Path(__file__).parents[1] / "data" / "generator" / "dental-carriers-example.json",
+                      CarrierGeneratorParams)
     inst = generate_carrier_instance(base.model_copy(update={
-        "n_orders": 4, "count_range": (4, 4), "count_lognormal": None, "carrier_capacity": 4, "run_capacity": 12}))
+        "n_orders": 4, "release_range": (0, 0), "count_range": (4, 4), "carrier_capacity": 4, "carriers_per_run": 3,
+        "setup": 90, "setup_per_carrier": 5, "removal": 15, "removal_per_carrier": 5}))
     assert [len(r.carriers) for r in inst.runs] == [3, 1]
     ci = compile_instance(inst)
     for r, plates in zip(inst.runs, (3, 1), strict=True):

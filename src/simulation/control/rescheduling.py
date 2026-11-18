@@ -21,8 +21,10 @@ from operator import attrgetter
 from typing import NamedTuple
 
 from simulation.check.feasibility import check_schedule
+from simulation.control.nesting import Nesting
 from simulation.metrics import plan_metrics
-from simulation.model.compiled import CompiledInstance
+from simulation.model.compiled import CompiledInstance, compile_instance, compile_visible
+from simulation.model.instance import Instance
 from simulation.model.schedule import Assignment, Break, Plan
 from simulation.objectives import TOTAL_TARDINESS, Objective, overtime
 from simulation.planners.repair import repair_plan
@@ -82,16 +84,24 @@ def execute(
     ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario | None = None,
     policy: ReschedulingPolicy | None = None, breaks: Sequence[Break] = (),
     visible: Callable[[int], CompiledInstance] | None = None, keep_history: bool = False,
+    nesting: Nesting | None = None, scenario_for: Callable[[Instance], Scenario] | None = None,
 ) -> ExecutionResult:
     """Run the factory on the plan and its breaks; with a policy the planning tool adapts the plan during the run.
 
     `visible`: t -> the instance the planning tool knows at t (`compile_visible`, math/07_order-arrivals.md); the
     tool plans over it and reschedules completely when it grows. None: every order is known from the start.
-    `keep_history`: record every plan the factory receives as a change set (e.g. to animate the plan over time)."""
+    `keep_history`: record every plan the factory receives as a change set (e.g. to animate the plan over time).
+    `nesting`: release during the run (math/33 step B3): `ci` is the instance of the orders bound at 0; at every
+    nesting time the orders nesting binds join the factory (`Simulation.grow`), with their disturbances from
+    `scenario_for(instance)` (keyed streams, math/22); the run goes on until the pool is empty and all work is done."""
+    if nesting is not None and (policy is None or policy.planner is None):
+        raise ValueError("release during the run needs a planner: repair cannot place a new order (math/33)")
     if visible is not None and any(t > 0 for t in ci.arrival) and (policy is None or policy.planner is None):
         raise ValueError("arrivals need a planner: repair cannot place a new order (math/07_order-arrivals.md)")
     at = visible or (lambda _t: ci)
     sim = Simulation(ci, plan, scenario, breaks, visible)
+    if nesting is not None and not nesting.done:
+        sim.wake_at(nesting.next)
     decisions: list[dict] = []
     anchor, wake, known = Anchor(sim.current_plan(), 0, sim.current_breaks()), None, at(0)
     history, sent = [], {}
@@ -99,6 +109,12 @@ def execute(
         _record(ci, history, sent, sim, decisions)
     while not sim.done:
         sim.process_events()
+        if nesting is not None and sim.state.t == nesting.next:
+            if (grown := nesting.bind(sim.state.t, sim.current_plan(), sim.snapshot())) is not None:
+                ci, at = compile_instance(grown), compile_visible(grown)
+                sim.grow(ci, scenario_for(grown) if scenario_for else None, at)
+            if not nesting.done:
+                sim.wake_at(nesting.next)
         while True:  # every start is an event too: the tool sees it at once (math/13 section 3, user 2026-11-11)
             if policy is not None:
                 ci_t = at(sim.state.t)
@@ -114,6 +130,8 @@ def execute(
             if not sim.start_operations() or policy is None:
                 break
     sim.check_completed()
+    if nesting is not None and not nesting.done:
+        raise RuntimeError(f"run ended with {len(nesting.waiting)} orders still waiting for nesting")
     return ExecutionResult(sim.realized(), sim.log, decisions, sim.realized_breaks(), history)
 
 
@@ -220,7 +238,7 @@ def _change(before: Sequence[Assignment], after: Sequence[Assignment], snap: Sna
     frozen = {(f.order_id, f.op_id) for f in snap.frozen}
     start_before = {(a.order_id, a.op_id): a.start for a in before}
     shifts = [abs(a.start - start_before[a.order_id, a.op_id]) for a in after if (a.order_id, a.op_id) not in frozen]
-    return (max(a.end for a in after) - max(a.end for a in before), max(shifts, default=0),
+    return (max((a.end for a in after), default=0) - max((a.end for a in before), default=0), max(shifts, default=0),
             sum(shifts) / len(shifts) if shifts else 0.0)
 
 
@@ -257,6 +275,7 @@ def _reschedule(
     decisions.append({"t": snap.t, "type": "REPLAN", "triggers": triggers, "accepted": accepted,
                       "changed_assignments": changed,
                       "inserted": sum((a.order_id, a.op_id) not in machine_before for a in free),
-                      "makespan_before": max(a.end for a in repaired), "makespan_after": max(a.end for a in proposed),
+                      "makespan_before": max((a.end for a in repaired), default=0),
+                      "makespan_after": max((a.end for a in proposed), default=0),
                       "planner_time": planner_time} | ({"planner": info} if info else {}))
     return Plan(proposed, breaks) if accepted else None

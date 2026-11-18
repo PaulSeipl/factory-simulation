@@ -154,6 +154,37 @@ before); for 5 seeds with quota 2 (orders of 4): acceptance and due dates unchan
 without quota and not after the due date, every order beyond the second of a batch could not wait, backlog at 0;
 a huge quota equals binding all; five negative tests; a Fidentis episode with quota 1.5 runs through `run_one`.
 
+**Step B (2026-11-18), the norm (N5) during the run:** B1 keyed scenario streams ([22](22_scenarios.md) §3);
+B2 `Simulation.grow` ([13](13_des.md) §4); B3:
+- `arrival_generator.ReleaseNorm` (`machines`, `capacity_per_day` $\overline{\mathrm{cap}}$, `window_days`
+  $n^{\mathrm{win}}$, required, user 2026-11-18, `default_load` $\hat\psi$, `forecast` $\tilde\mu(w)$),
+  `ArrivalParams.norm` (exclusive with `quota`, needs `due_working_days`, left out of the serialized form at None);
+  `arrival_orders` and `assemble` split from `generate_arrival_instance` (static instances unchanged, digests).
+- `control.nesting.Nesting`: the orders with acceptance and due date from the start, the backlog bound at 0, the
+  pool; `budget` = (N5) in telescopes, $\mathrm{wip}$ from the current plan and the snapshot (planned durations on
+  the gated machines; a running operation's expected remainder; no realized durations, no leakage); `bind(t, plan,
+  snapshot)` releases by (N4) with `capacity` $= n^{\mathrm{win}}\overline{\mathrm{cap}} - \text{reserve}$ and
+  returns the grown instance (packages numbered as in the static instance). Helpers `average_daily_capacity`
+  (user's rule: from shift start to the last start at shift end + max overtime, plus the longest operation, at most
+  until the next shift start, averaged over four weeks) and `default_order_load` (one order of $n^{\mathrm{def}}$
+  parts nested alone: minutes on the gated machines and the longest operation).
+- (N4) with a varying budget: an order is "larger than the whole budget" against the capacity, not today's budget;
+  it is bound only while the budget is positive; no starvation guard (the timing override binds every order by its
+  due date).
+- `execute(..., nesting=, scenario_for=)`: a wake at every nesting time; at a nesting time the orders bound join
+  through `grow`, the planning tool reschedules completely as at every arrival; the run ends only when the pool is
+  empty (otherwise an error).
+- `run_one`: with a norm the release runs inside the run (keyed scenario), the row adds `mean_pool_time`,
+  `max_pool_time` (minutes from acceptance to binding); hindsight with a norm rejected (arrivals come from the run);
+  an empty start plan when nothing is known at 0 (fixes the `backlog = 0` crash, also for fixed arrivals).
+- Tests `tests/test_nesting.py` (15, the small dental example, not the Fidentis case, user 2026-11-18): binding all
+  during the run equals the static arrivals in realized schedule and decisions (seeds 1, 2; zero-change test of
+  the feature); the budget by hand (norm 2000, wip 900 from a running and a planned operation, reserve 500: 4.8
+  telescopes, capacity 12); `average_daily_capacity` by hand ((4 · 1440 + 1930) / 5 for the longest job 1240;
+  690 + 300); `default_order_load` by hand (84, 32); a tight norm holds orders back and every order arrives by its
+  due date; four negative tests; hindsight with a norm rejected; `run_one` with a norm (backlog 0 and 1) and
+  without a norm with backlog 0.
+
 State of the code against the rest of this note:
 
 - Nesting is emulated in the arrival generator before the run ([07](07_order-arrivals.md) §3a,

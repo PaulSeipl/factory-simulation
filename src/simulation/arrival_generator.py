@@ -32,6 +32,17 @@ from simulation.release import PoolOrder, release
 WEEKDAYS = range(7)
 
 
+class ReleaseNorm(BaseModel):
+    """Release during the run against the work still to be processed (math/33 (N5), step B3)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    machines: tuple[str, ...] = Field(min_length=1)  # gated machines (IDs), e.g. ("mill1",)
+    capacity_per_day: PositiveFloat  # average capacity of a working day, all gated machines (average_daily_capacity)
+    window_days: PositiveInt  # n^win: the norm is window_days * capacity_per_day (no default: user 2026-11-18)
+    default_load: PositiveFloat  # minutes of a default order on the gated machines (default_order_load)
+    forecast: dict[int, NonNegativeFloat] = {}  # weekday of the next nesting -> orders expected (Fidentis)
+
+
 class ArrivalParams(BaseModel):
     """Generation half of an experiment configuration (the experiment itself follows in step 5)."""
 
@@ -54,6 +65,9 @@ class ArrivalParams(BaseModel):
     # The backlog stays bound at t = 0.
     quota: dict[int, PositiveFloat] | None = None
     quota_size: PositiveInt = 4  # telescopes of a default order (user 2026-11-17)
+    # release during the run against the work still to be milled (math/33 (N5)); arrivals then come from the run, the
+    # instance of generate_arrival_instance is only the bind-all reference
+    norm: ReleaseNorm | None = None
 
     @model_validator(mode="after")
     def check_consistency(self) -> Self:
@@ -82,6 +96,13 @@ class ArrivalParams(BaseModel):
                 raise ValueError(f"quota for weekdays {extra} without nesting")
             if missing := sorted(set(self.nesting_days) - set(self.quota)):
                 raise ValueError(f"no quota for nesting weekdays {missing}")
+        if self.norm is not None:
+            if self.quota is not None:
+                raise ValueError("quota and norm: one release rule")
+            if self.due_working_days is None:
+                raise ValueError("norm needs due_working_days: due dates from the arrival would depend on the run")
+            if extra := sorted(set(self.norm.forecast) - set(self.nesting_days)):
+                raise ValueError(f"forecast for weekdays {extra} without nesting")
         if self.due_working_days is not None and self.backlog_earliest_cutoff > self.due_working_days:
             raise ValueError(f"backlog_earliest_cutoff {self.backlog_earliest_cutoff} after due_working_days "
                              f"{self.due_working_days}")
@@ -95,6 +116,8 @@ class ArrivalParams(BaseModel):
             data.pop("quota", None)
         if self.quota_size == 4:
             data.pop("quota_size", None)
+        if self.norm is None:
+            data.pop("norm", None)
         return data
 
     def default_name(self) -> str:
@@ -150,6 +173,28 @@ def _poisson(rng: random.Random, mean: float) -> int:
 def generate_arrival_instance(params: ArrivalParams) -> Instance:
     """The hindsight instance: every order with its acceptance, arrival (= release) and due date, each nesting batch
     nested separately (IDs prefixed P<batch>)."""
+    data, counted = arrival_orders(params)
+    return assemble(params, data, counted)
+
+
+def assemble(params: ArrivalParams, data: dict, counted: dict[str, int]) -> Instance:
+    """The instance of the orders in `data` (each with its arrival), every distinct arrival one package nested on its
+    own, numbered P1, P2, ... in arrival order (math/07, V21). Used for the hindsight instance and, during a run with
+    release, for the orders bound so far (math/33 step B3): packages only come later, so their numbers stay."""
+    base = params.base.model_copy(update={"n_orders": max(len(data["orders"]), 1)})
+    carriers, runs = [], []
+    for p, arr in enumerate(sorted({o["arrival"] for o in data["orders"]}), start=1):
+        batch = [o | {"size": counted[o["id"]]} for o in data["orders"] if o["arrival"] == arr]
+        c, r = nest(batch, base, prefix=f"P{p}")
+        carriers += c
+        runs += r
+    return Instance.model_validate(data | {"name": params.name or params.default_name(), "carriers": carriers,
+                                           "runs": runs})
+
+
+def arrival_orders(params: ArrivalParams) -> tuple[dict, dict[str, int]]:
+    """All orders of the experiment with acceptance, due date and the arrival of the static rules (next batch, or the
+    quota), as instance data without carriers and runs, and the size (counted parts) of each order."""
     if not (times := sample_arrivals(params)):
         raise ValueError("no order sampled: raise the rates, the window or the backlog")
     base = params.base.model_copy(update={"n_orders": len(times)})
@@ -170,14 +215,7 @@ def generate_arrival_instance(params: ArrivalParams) -> Instance:
             raw["due_date"] = nth_cutoff(cal, acc, params.due_working_days)
     if params.quota is not None:
         _release_by_quota(params, data["orders"], counted)
-    carriers, runs = [], []
-    for p, arr in enumerate(sorted({o["arrival"] for o in data["orders"]}), start=1):
-        batch = [o | {"size": counted[o["id"]]} for o in data["orders"] if o["arrival"] == arr]
-        c, r = nest(batch, base, prefix=f"P{p}")
-        carriers += c
-        runs += r
-    data |= {"name": params.name or params.default_name(), "carriers": carriers, "runs": runs}
-    return Instance.model_validate(data)
+    return data | {"carriers": [], "runs": []}, counted
 
 
 def _release_by_quota(params: ArrivalParams, orders: list[dict], size: dict[str, int]) -> None:

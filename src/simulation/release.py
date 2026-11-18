@@ -18,7 +18,7 @@ class PoolOrder(NamedTuple):
 
 
 def release(pool: Sequence[PoolOrder], budget: float | None, load: Callable[[PoolOrder], float],
-            next_nesting: int | None) -> list[str]:
+            next_nesting: int | None, capacity: float | None = None) -> list[str]:
     """IDs of the orders bound now, in nesting order.
 
     Timing: an order whose due date is not after the next nesting time (`next_nesting`; None: none follows) is bound
@@ -27,13 +27,19 @@ def release(pool: Sequence[PoolOrder], budget: float | None, load: Callable[[Poo
     smaller later one may take its place (user 2026-11-17). An order larger than the whole budget is bound, and takes
     the whole budget, as soon as it alone has the earliest due date of the rest of the pool (user 2026-11-17);
     while another order shares that due date, the others go first. Starvation: if nothing is bound, the first order
-    is."""
+    is.
+
+    `capacity`: the largest budget there can be, when the budget changes from one nesting to the next (the workload
+    norm (N5), step B3; None: the budget itself, as with a fixed quota). An order is "larger than the whole budget"
+    if it exceeds the capacity; it is bound only while the budget is positive, and an order that merely does not fit
+    today's budget waits. Without the starvation guard then: the timing override binds every order by its due date."""
     ordered = sorted(pool, key=lambda o: (o.due_date, o.accepted, o.index))
     forced = [o for o in ordered if next_nesting is None or o.due_date <= next_nesting]
     used = sum(load(o) for o in forced)
     bound = {o.id for o in forced}
     rest = [o for o in ordered if o.id not in bound]
-    if budget is not None and rest and load(rest[0]) > budget and (
+    whole = budget if capacity is None else capacity
+    if budget is not None and budget > 0 and rest and load(rest[0]) > whole and (
             len(rest) == 1 or rest[1].due_date > rest[0].due_date):
         bound.add(rest[0].id)  # the whole budget: no balancing after it
     else:
@@ -41,6 +47,6 @@ def release(pool: Sequence[PoolOrder], budget: float | None, load: Callable[[Poo
             if budget is None or used + load(o) <= budget:
                 bound.add(o.id)
                 used += load(o)
-    if not bound and ordered:
+    if not bound and ordered and capacity is None:
         bound.add(ordered[0].id)
     return [o.id for o in ordered if o.id in bound]

@@ -29,10 +29,12 @@ def run_metrics(ci: CompiledInstance, plan: Sequence[Assignment], result: Execut
     replans = [d for d in result.decisions if d["type"] == "REPLAN"]
     in_plan = [a for a in result.schedule if (a.order_id, a.op_id) in planned]
     metrics = {
-        "planned_makespan": max(a.end for a in plan),
+        "planned_makespan": max((a.end for a in plan), default=0),
         "makespan": max(a.end for a in result.schedule),
         "mean_flow_time": mean(end - release[k] for k, end in order_end.items()),
-        "mean_start_deviation": mean(abs(a.start - planned[a.order_id, a.op_id].start) for a in in_plan),
+        # an empty start plan (nothing known at 0, math/33) has no deviation
+        "mean_start_deviation": mean(abs(a.start - planned[a.order_id, a.op_id].start) for a in in_plan)
+        if in_plan else 0.0,
         "machine_changes": sum(a.machine != planned[a.order_id, a.op_id].machine for a in in_plan),
         "repairs": sum(d["type"] == "REPAIR" for d in result.decisions),
         "reschedulings": len(replans),

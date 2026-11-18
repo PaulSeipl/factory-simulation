@@ -8,6 +8,50 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-18 (67) — Checks of the notes in math/ — uncommitted
+
+- **Decided (user):** an automatic check of the notes instead of a knowledge graph (Claude's recommendation; a
+  visual graph is available by opening `math/` in Obsidian).
+- **Done:** `tests/test_math_notes.py` (43 cases, 0.3 s): every `[..](file.md)` link of every note points to an
+  existing file; no control characters (tabs, mangled escapes); no symbol registered twice in the own tables of
+  `notation.md` (correspondence tables excluded). All pass on the current notes. A planted tab, dead link and
+  duplicate symbol each made the matching test fail.
+- **Open:** symbols used in formulas but missing in `notation.md` are not checked (too many false positives for a
+  pattern match: indices, local symbols, LaTeX commands); section references (§) are not checked.
+
+## 2026-11-18 (66) — Release step B1: keyed scenario streams — uncommitted
+
+- **Decided (user):** implement the norm (N5) first, phantoms later; step B in parts B1–B4, stop after each
+  (plan stated by Claude). Commit before step B by the user (`96b5099`).
+- **Done:** `sample_scenario(..., keyed=False)` (`src/simulation/sim/scenario.py`): with `keyed=True` every
+  operation draws factor and offset from streams seeded by (seed, owner, operation); default unchanged.
+  `math/22` §3 (keyed streams, limit of common random numbers for carrier and run operations), §4, change log.
+  Tests in `tests/test_scenario.py` (+2): shared operations of Fidentis instances with 3 and 9 orders get the same
+  draws (not so for the default stream); mean one, seed dependence, $\sigma = 0$.
+- **B2 done (user: "continue with B2"):** `Simulation.grow(ci, scenario, visible)` (`src/simulation/sim/des.py`):
+  per-operation state, sets, dicts and the event heap moved by key to the new indices, derived orders rebuilt with
+  `_apply`; `math/13` §4, change log. Tests `tests/test_des_grow.py` (7): a run on the instance known before $t$,
+  grown at $t$, equals the run on the full instance (realized schedule, log, breaks, snapshot) for two toy packages
+  (arrival 10; arrival 3 during a running operation) and the Fidentis route with workers and calendar (seeds 2–5,
+  each with an operation running at $t$); two negative tests. Mutation check: dropping the remap of `released`
+  fails a test; the remap of ARRIVAL events is not covered (in the release flow no arrival of a known order is
+  pending when the instance grows). Found: the growth time must be a time point of the run (execute sets a wake at
+  each nesting time, B3).
+- **B3 done (user: window $n^{\mathrm{win}}$ as a required parameter):** release during the run with the (N5)
+  budget; details and tests in `math/33` §5; `math/07` §3a, `math/23` (M8') pool time, change logs. Code:
+  `arrival_generator` (`ReleaseNorm`, `ArrivalParams.norm`, `arrival_orders`, `assemble`), `control/nesting.py`
+  (new), `release.release(..., capacity=)`, `execute(..., nesting=, scenario_for=)`, `experiment.run_one`,
+  `metrics.run_metrics` (empty start plan), `_change` and the REPLAN record with empty plans.
+- **Decided (user, same day): no tests or sweeps of new functionality on the Fidentis case** ("big, only in
+  experiments or notebooks"); the tests of this pass moved to the small dental examples (`test_nesting`,
+  `test_des_grow`, `test_release`, `test_carrier_runs`, `test_scenario`); `test_nesting` went from 6.5 min to 13 s.
+  The data-file checks of the Fidentis case in `test_carrier_generator.py` remain, to be decided by the user.
+- **Found:** comparing decisions needs to ignore `planner_time` (wall clock). The CP-SAT shortcut error ("level
+  ...: no solution within the time limit") appeared once in a run under CPU load from a parallel test run; it did
+  not reproduce alone (a known wall-clock dependence, `math/07` §5).
+- **Open:** B4 left: nothing beyond the notes above; the Fidentis data-file tests; the rate sweep and load levels
+  before the experiments; phantom orders.
+
 ## 2026-11-18 (65) — Arrival rates for the Fidentis route; C13 bug from a snapshot — uncommitted
 
 - **Decided (user):** arrival rates for the Fidentis route before step B of the release interface; merge the

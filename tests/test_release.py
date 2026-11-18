@@ -136,18 +136,17 @@ def test_invalid_quota_rejected(changes, message):
         params(**changes)
 
 
-def test_fidentis_episode_with_quota_runs_through(tmp_path):
-    # Fidentis case (math/21 §4a), about one order per working day, quota 1.5 default orders (6 telescopes): holds
-    # orders back; the episode with the rule at arrivals finishes; due 10 working days after acceptance (user)
+def test_episode_with_quota_runs_through(tmp_path):
+    # the dental example (not the Fidentis case, user 2026-11-18), quota 1.5 default orders (6 telescopes) at 3 orders
+    # per working day: holds orders back; the episode with the rule at arrivals finishes
     from simulation.experiment import run_one
 
-    base = read_model(ROOT / "data" / "generator" / "fidentis.json", CarrierGeneratorParams)
-    arrivals = ArrivalParams(seed=0, base=base, rates=dict.fromkeys(range(5), 1.2), window_days=3, backlog=1,
-                             due_working_days=10, backlog_earliest_cutoff=5, quota=dict.fromkeys(range(5), 1.5))
+    arrivals = ArrivalParams(seed=0, base=BASE, rates=dict.fromkeys(range(5), 3.0), window_days=3, backlog=1,
+                             due_working_days=4, quota=dict.fromkeys(range(5), 1.5))
     free = generate_arrival_instance(arrivals.model_copy(update={"seed": 3, "quota": None}))
     held = generate_arrival_instance(arrivals.model_copy(update={"seed": 3}))
     assert sum(o.arrival for o in held.orders) > sum(o.arrival for o in free.orders)
-    config = ExperimentConfig(name="fidentis-quota", arrivals=arrivals, seeds=(3,),
+    config = ExperimentConfig(name="quota", arrivals=arrivals, seeds=(3,),
                               policies={"rule": {"planner": "rule"}})
     row = run_one(config, "rule", 3, tmp_path)  # finishes: every order completed (run_one checks the realized run)
     assert row["orders"] == len(held.orders) and row["mean_lead_time"] > 0

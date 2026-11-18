@@ -24,15 +24,16 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat
+from pydantic import BaseModel, ConfigDict, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, model_validator
 
 from simulation.arrival_generator import ArrivalParams, generate_arrival_instance
+from simulation.control.nesting import Nesting
 from simulation.control.rescheduling import ReschedulingPolicy, execute
 from simulation.io.json_loader import read_model, write_csv, write_jsonl
 from simulation.metrics import run_metrics
 from simulation.model.compiled import compile_instance, compile_visible
 from simulation.objectives import worker_objective_with_slack
-from simulation.planners.cpsat import cpsat_planner, solve
+from simulation.planners.cpsat import CpSatResult, cpsat_planner, solve
 from simulation.planners.dispatching import dispatch_planner, ect, spt
 from simulation.sim.scenario import sample_scenario
 
@@ -63,6 +64,13 @@ class ExperimentConfig(BaseModel):
     hindsight_deterministic_time: PositiveFloat = 120.0
     policies: dict[str, PolicyConfig] = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def check_hindsight(self):
+        if self.arrivals.norm is not None and (bad := sorted(k for k, p in self.policies.items() if p.hindsight)):
+            raise ValueError(f"policies {bad}: hindsight needs fixed arrivals, but with a norm they come from the run "
+                             "(math/33)")
+        return self
+
     def digest(self) -> str:
         return hashlib.sha256(self.model_dump_json().encode()).hexdigest()[:12]
 
@@ -71,25 +79,36 @@ def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) ->
     """One episode; returns its CSV row and writes its plan history."""
     commit = _commit()  # at the start: the code this run imported (edits during a long run do not count)
     pc = config.policies[policy_name]
-    inst = generate_arrival_instance(config.arrivals.model_copy(update={"seed": seed}))
+    arrivals = config.arrivals.model_copy(update={"seed": seed})
+    nesting = Nesting(arrivals) if arrivals.norm is not None else None  # release during the run (math/33 (N5))
+    inst = nesting.instance() if nesting else generate_arrival_instance(arrivals)
     ci, at = compile_instance(inst), compile_visible(inst)
     objective = worker_objective_with_slack(config.buffer)
-    if pc.hindsight:
+    if not at(0).n_ops:  # nothing known at 0 (no backlog): the first plan comes with the first arrival
+        start = CpSatResult(status="EMPTY", schedule=[], objective=None, bound=None, wall_time=0.0)
+    elif pc.hindsight:
         start = solve(ci, objective, config.hindsight_time_limit, 1, seed,
                       deterministic_time=config.hindsight_deterministic_time)
     else:
         start = solve(at(0), objective, config.time_limit, 1, seed, deterministic_time=config.deterministic_time)
-    if not start.schedule:
+    if not start.schedule and start.status != "EMPTY":
         raise RuntimeError(f"{config.name}/{policy_name}/{seed}: no start plan ({start.status})")
     planner = (cpsat_planner(config.time_limit, 1, seed, objective=objective,
                              deterministic_time=config.deterministic_time)
                if pc.planner == "cpsat" else dispatch_planner(spt, ect))
     policy = ReschedulingPolicy(planner=planner, max_makespan_change=pc.max_makespan_change,
                                 max_shift=pc.max_shift, period=pc.period)
-    scenario = sample_scenario(inst, config.sigma, seed, config.q, config.max_early, config.max_late)
+    def scenario_for(instance):  # keyed with nesting: an operation's draws do not depend on the packages (math/22)
+        return sample_scenario(instance, config.sigma, seed, config.q, config.max_early, config.max_late,
+                               keyed=nesting is not None)
+
     t0 = time.perf_counter()
-    result = execute(ci, start.schedule, scenario, policy, start.breaks, visible=None if pc.hindsight else at,
-                     keep_history=True)
+    result = execute(ci, start.schedule, scenario_for(inst), policy, start.breaks,
+                     visible=None if pc.hindsight else at, keep_history=True, nesting=nesting,
+                     scenario_for=scenario_for)
+    if nesting is not None:  # the instance of every order as nesting bound it
+        inst = nesting.instance()
+        ci = compile_instance(inst)
     plans = out / config.name / "plans"
     plans.mkdir(parents=True, exist_ok=True)
     write_jsonl(result.history, plans / f"{policy_name}-{seed}.jsonl")
@@ -97,7 +116,9 @@ def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) ->
             "policy": policy_name, "seed": seed, "orders": len(inst.orders), "operations": ci.n_ops,
             "start_status": start.status, "start_levels": " ".join(map(str, start.levels)), "start_bound": start.bound,
             "start_wall_limited": start.wall_limited, "wall_time": round(time.perf_counter() - t0, 1),
-            "bottleneck_load": bottleneck_load(result.schedule)} | run_metrics(ci, start.schedule, result)
+            "bottleneck_load": bottleneck_load(result.schedule)} | run_metrics(ci, start.schedule, result) | (
+        {"mean_pool_time": sum(o.arrival - o.accepted for o in inst.orders) / len(inst.orders),
+         "max_pool_time": max(o.arrival - o.accepted for o in inst.orders)} if nesting is not None else {})
 
 
 def bottleneck_load(schedule) -> float:
