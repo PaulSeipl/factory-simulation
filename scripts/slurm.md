@@ -59,7 +59,9 @@ After the first hindsight run, set `--mem` from `sacct -j <job> -o JobID,MaxRSS,
 ## Collecting
 
 The rows land in `~/simulation/experiments/results/<config>/rows/` on the shared home directory. When `squeue` is
-empty, run `uv run experiment merge` on the login node. It lists missing runs. Rerun one by index with
+empty, run `uv run experiment merge` on the login node. It lists missing runs by `<policy>-<seed>`; find their
+index in `uv run experiment list`. (Not `list --missing`: it counts only rows of the host it runs on, and every
+compute node has its own host name.) Rerun one by index with
 `sbatch -p Abaki -q abaki --wrap 'uv run --no-sync experiment task --index 42'` (not `--array=42` on the script:
 with one array task the stride is 1, and it would run every index from 42 on).
 

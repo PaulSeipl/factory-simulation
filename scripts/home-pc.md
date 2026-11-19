@@ -176,10 +176,12 @@ cd ~/simulation && bash scripts/home-run.sh
 
 Detach with `Ctrl+b`, then `d`, and close the laptop. Later: `ssh home`, then `tmux attach -t exp`.
 
-`scripts/home-run.sh` runs every index from `experiment list`, 4 at a time (one per physical core; `JOBS=2 bash
-scripts/home-run.sh` for fewer), blocks sleep while they run (check with `systemd-inhibit --list`), and runs
-`merge` at the end. The CLI does not resume, so after an interruption pass only the missing indices:
-`bash scripts/home-run.sh 10 11 30`.
+`scripts/home-run.sh` calls `uv run experiment run`, 4 runs at a time (one per physical core; `JOBS=2 bash
+scripts/home-run.sh` for fewer), blocks sleep while they run (check with `systemd-inhibit --list`), and merges at
+the end. It skips every run this PC already has a row for (same configuration hash, `host` = this PC), so after
+an interruption just start it again. What is left: `uv run experiment list --missing`. Other arguments go to
+`experiment run`: configuration names, `--policy <name>`, `--seed <n>` (both repeatable), `--restart` (rerun
+also what is done).
 
 Estimate: 25 hindsight runs × 50–80 min ≈ 21–33 CPU-hours, so about 6–9 h on 4 cores for the hindsight runs
 alone, longer if the 6700K is slower per core than the laptop.
