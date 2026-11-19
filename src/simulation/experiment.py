@@ -1,7 +1,9 @@
 """Arrival experiments (math/07_order-arrivals.md §6): configuration, one run, parallel runner.
 
     uv run experiment list                      # every run (index, configuration, policy, seed)
-    uv run experiment run arrivals-rate6 [...]  # by name (experiments/<name>.json) or path; no name: all
+    uv run experiment list --missing            # only runs this host has no row for (current configuration hash)
+    uv run experiment run arrivals-rate6 [...]  # by name (experiments/<name>.json) or path; no name: all;
+                                                # skips runs this host has done (--restart: all); --policy, --seed
     uv run experiment task --index 7            # one run by index (Slurm: index from SLURM_ARRAY_TASK_ID)
     uv run experiment merge                     # row files -> one CSV per configuration
 
@@ -185,10 +187,33 @@ def merge(configs: list[ExperimentConfig], out: Path) -> None:
             write_csv([{k: r.get(k) for k in keys} for r in rows], out / f"{c.name}.csv")
 
 
-def run(configs: list[ExperimentConfig], out: Path, processes: int | None = None) -> None:
-    """Every (configuration, policy, seed) in parallel, then merge."""
+def done(config: ExperimentConfig, policy: str, seed: int, out: Path) -> bool:
+    """A row of this configuration hash from this host; a row of another machine does not count (timings differ)."""
+    path = out / config.name / "rows" / f"{policy}-{seed}.json"
+    if not path.is_file():
+        return False
+    row = json.loads(path.read_text(encoding="utf-8"))
+    return row["config_hash"] == config.digest() and row.get("host") == socket.gethostname()
+
+
+def select(configs: list[ExperimentConfig], policies=(), seeds=(), missing_in: Path | None = None):
+    """(index, configuration, policy, seed) of `tasks`, the index unchanged: only the given policies and seeds (none:
+    all) and, with `missing_in`, only the runs not `done` there."""
+    known_p, known_s = {p for c in configs for p in c.policies}, {s for c in configs for s in c.seeds}
+    if bad := sorted(set(policies) - known_p) + sorted(set(seeds) - known_s):
+        raise SystemExit(f"not in these configurations: {' '.join(map(str, bad))}")
+    return [(i, c, p, s) for i, (c, p, s) in enumerate(tasks(configs))
+            if (not policies or p in policies) and (not seeds or s in seeds)
+            and (missing_in is None or not done(c, p, s, missing_in))]
+
+
+def run(configs: list[ExperimentConfig], out: Path, processes: int | None = None, policies=(), seeds=(),
+        restart: bool = False) -> None:
+    """The selected runs in parallel (without `restart`: only those this host has not done), then merge."""
+    todo = select(configs, policies, seeds, None if restart else out)
+    print(f"{len(todo)} runs to do", file=sys.stderr)  # noqa: T201
     with Pool(processes) as pool:
-        pool.starmap(run_task, [(c, p, s, out) for c, p, s in tasks(configs)])
+        pool.starmap(run_task, [(c, p, s, out) for _, c, p, s in todo])
     merge(configs, out)
 
 
@@ -202,15 +227,21 @@ def main(argv: list[str] | None = None) -> None:
             cmd.add_argument("--index", type=int, default=None, help="index from `list` (default: SLURM_ARRAY_TASK_ID)")
         cmd.add_argument("configs", nargs="*", help="names in experiments/ or paths (default: all)")
         cmd.add_argument("--out", type=Path, default=Path("experiments/results"))
+        if name in ("list", "run"):
+            cmd.add_argument("--policy", action="append", default=[], help="only this policy (repeatable)")
+            cmd.add_argument("--seed", type=int, action="append", default=[], help="only this seed (repeatable)")
+        if name == "list":
+            cmd.add_argument("--missing", action="store_true", help="only runs without a row from this host")
         if name == "run":
             cmd.add_argument("--processes", type=int, default=None, help="default: number of CPUs")
+            cmd.add_argument("--restart", action="store_true", help="also rerun runs this host has done")
     args = parser.parse_args(argv)
     configs = load(args.configs)
     if args.command == "list":
-        for i, (c, p, s) in enumerate(tasks(configs)):
+        for i, c, p, s in select(configs, args.policy, args.seed, args.out if args.missing else None):
             print(f"{i:4d}  {c.name:<28} {p:<22} {s}")  # noqa: T201
     elif args.command == "run":
-        run(configs, args.out, args.processes)
+        run(configs, args.out, args.processes, args.policy, args.seed, args.restart)
     elif args.command == "task":
         index = args.index if args.index is not None else int(os.environ.get("SLURM_ARRAY_TASK_ID", -1))
         all_tasks = tasks(configs)
