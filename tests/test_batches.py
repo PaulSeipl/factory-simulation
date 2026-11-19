@@ -229,3 +229,67 @@ def test_rescheduling_with_batches_keeps_every_constraint(planner, seed):
     result = execute(ci, dispatch(ci, spt, ect), sc, policy)
     assert {v.constraint for v in check_schedule(ci, result.schedule)} <= {"C2"}  # incl. C10
     assert any(d["type"] == "REPLAN" for d in result.decisions)
+
+
+# --- batches only within one step (math/03 §6 todo, s-batch spec §7 step 1) -------------------------------------
+
+
+def two_steps_on_one_oven() -> CompiledInstance:
+    """Two carriers, one print run each on one printer (10 min); oven and temper are two batch steps (capacity 2,
+    10 min) on the same machine oven1; one saw (1 min). Mixing steps would pay: C1's temper with C2's oven in
+    one run gives makespan 41; kept apart the best is 42 (both ovens [20,30), both tempers [30,40), saws to 42)."""
+    params = CarrierGeneratorParams(
+        seed=0, n_orders=2, count_range=(12, 12), carriers_per_run=1,
+        route=[{"id": "print", "step": "print", "scope": "carrier", "role": "form"},
+               {"id": "oven", "step": "oven", "scope": "carrier", "predecessors": ["print"]},
+               {"id": "temper", "step": "temper", "scope": "carrier", "predecessors": ["oven"]},
+               {"id": "saw", "step": "saw", "scope": "carrier", "role": "separate", "predecessors": ["temper"]}],
+        machines={"print": 1, "oven": 1, "temper": 1, "saw": 1},
+        durations={"print": (10, 10), "oven": (10, 10), "temper": (10, 10), "saw": (1, 1)})
+    raw = generate_carrier_instance(params).model_dump()
+    raw["machines"] = [m for m in raw["machines"] if m != "temper1"]
+    raw["carrier_steps"]["temper"]["options"] = {"oven1": 10}
+    for step in ("oven", "temper"):
+        raw["carrier_steps"][step]["batch_capacity"] = 2
+    return compile_instance(Instance.model_validate(raw))
+
+
+def test_step_per_operation():
+    ci = two_steps_on_one_oven()
+    step = dict(zip(ci.op_keys, ci.step, strict=True))
+    assert step["C1", "oven"] == "oven" and step["C1", "temper"] == "temper"
+    toy = dict(zip(CI.op_keys, CI.step, strict=True))  # a run with setup and removal: they carry the run's step
+    assert toy["R1", "setup"] == toy["R1", "print"] == toy["R1", "removal"] == "print"
+
+
+def mixed_plan(ci: CompiledInstance) -> list[Assignment]:
+    """C1's temper and C2's oven on oven1 with the same start and end: two steps, so two runs, not one batch."""
+    times = {("R1", "print"): ("print1", 0, 10), ("R2", "print"): ("print1", 10, 20),
+             ("C1", "oven"): ("oven1", 10, 20), ("C1", "temper"): ("oven1", 20, 30),
+             ("C2", "oven"): ("oven1", 20, 30), ("C2", "temper"): ("oven1", 30, 40),
+             ("C1", "saw"): ("saw1", 30, 31), ("C2", "saw"): ("saw1", 40, 41)}
+    return [Assignment(order_id=k[0], op_id=k[1], machine=m, start=s, end=e) for k, (m, s, e) in times.items()]
+
+
+def test_two_steps_at_the_same_time_on_one_machine_overlap():
+    ci = two_steps_on_one_oven()
+    assert set(ci.op_keys) == {("R1", "print"), ("R2", "print"), *((c, j) for c in ("C1", "C2")
+                                                                    for j in ("oven", "temper", "saw"))}
+    violations = check_schedule(ci, mixed_plan(ci))
+    assert [v.constraint for v in violations] == ["C5"]
+    assert set(violations[0].ops) == {("C1", "temper"), ("C2", "oven")}
+
+
+@pytest.mark.parametrize("planner", ["rule", "cpsat"])
+def test_planners_keep_two_steps_apart(planner):
+    ci = two_steps_on_one_oven()
+    result = None if planner == "rule" else solve(ci, time_limit=10, workers=1)
+    plan = dispatch(ci, spt, ect) if result is None else result.schedule
+    assert check_schedule(ci, plan) == []
+    if result is not None:
+        assert (result.status, result.objective) == ("OPTIMAL", 42)
+    assert times(replay(ci, plan).schedule) == times(plan)  # zero disturbance: the DES keeps the runs apart too
+    runs: dict[tuple, set[str]] = {}
+    for a in plan:
+        runs.setdefault((a.machine, a.start, a.end), set()).add(ci.step[ci.op_index[a.order_id, a.op_id]])
+    assert all(len(steps) == 1 for steps in runs.values())

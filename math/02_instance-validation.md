@@ -102,6 +102,10 @@ $$A^{\mathrm{acc}}_k \le A_k \le r_k \qquad \forall k \in \mathcal{K}$$
 (V21) Packages: the orders on one carrier arrive together, and so do the carriers of one given run.
 $$A_k = A_{k'} \quad \forall b \in \mathcal{B},\ k, k' \in \mathcal{K}_b; \qquad A_{k(b)} = A_{k(b')} \quad \forall R \in \mathcal{R}^{\mathrm{given}},\ b, b' \in R$$
 
+### s-batches ([08](08_serial-batches.md))
+
+(V23) An s-batch step is a step of the instance without runs (not a p-batch step); each of its operations has one whole worker share or a machine without worker, covers at most the capacity, $n_o \le c_s$, is longer than the setup on every machine option, $p^{\mathrm{su}}_s < p_{o,m}$, and with a worker and a calendar fits the longest share of one day (formula in [08](08_serial-batches.md) §3). Code: `Instance._check_s_batch_steps`; tests `tests/test_s_batch_format.py`.
+
 ## 4. Objective function
 
 Not affected.

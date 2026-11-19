@@ -13,7 +13,7 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 from simulation.calendar import WEEK, day_index, day_start, shift_window
-from simulation.model.compiled import CompiledInstance, share_interval
+from simulation.model.compiled import CompiledInstance, s_batch_length, share_interval
 from simulation.model.schedule import Assignment, Break, Plan
 from simulation.sim.des import planned_batches
 
@@ -33,6 +33,7 @@ def shift_repair(
     workers: Sequence[Sequence[int]] = (),
     share_len: Sequence[Sequence[int]] = (),
     fit: Callable[[int, int], int] | None = None,
+    batch_id: Sequence[str | None] = (),
 ) -> tuple[list[int], list[int]]:
     """New planned start and end per operation.
 
@@ -42,9 +43,11 @@ def shift_repair(
     from the planned duration, at least t + 1), None if not started;
     workers[o]: worker idx per share (empty: no workers); share_len[o]: share lengths of a started operation as in
     the snapshot (empty: the planned ones); fit(o, s): earliest start >= s at which the shares of o (a batch's
-    first member) lie in the shift and outside the breaks of their workers (None: no calendar).
+    first member) lie in the shift and outside the breaks of their workers (None: no calendar); batch_id[o]: the
+    plan's s-batch id (math/08; empty: none), an s-batch moves as one and keeps its length.
     """
-    p = [ci.fixed_duration[o] if machine[o] is None else dict(ci.options[o])[machine[o]] for o in range(ci.n_ops)]
+    batch = planned_batches(ci, machine, planned_start, start, batch_id=batch_id)
+    p = planned_durations(ci, machine, batch)
     prev: list[int | None] = [None] * ci.n_ops  # previous operation on the same machine
     for ops in order_on:
         for a, b in zip(ops, ops[1:], strict=False):
@@ -55,7 +58,6 @@ def shift_repair(
         if start[o] is not None:  # end None: running, expected end from the planned duration, at least t + 1
             new_start[o], new_end[o] = start[o], end[o] if end[o] is not None else max(start[o] + p[o], t + 1)
 
-    batch = planned_batches(ci, machine, planned_start, start)
     for ops in set(batch):
         for b in ops[1:]:  # within a batch nobody waits for a fellow member
             prev[b] = prev[ops[0]]
@@ -147,6 +149,17 @@ def shift_repair(
     raise ValueError("shift repair does not converge: the orders per machine and worker contain a cycle")
 
 
+def planned_durations(ci: CompiledInstance, machine: Sequence[int | None],
+                      batch: Sequence[tuple[int, ...]]) -> list[int]:
+    """Planned duration per operation on its machine; every member of an s-batch gets the batch's length."""
+    p = [ci.fixed_duration[o] if machine[o] is None else dict(ci.options[o])[machine[o]] for o in range(ci.n_ops)]
+    for ops in {b for b in batch if len(b) > 1 and ci.s_setup[b[0]] is not None}:
+        p[ops[0]] = s_batch_length(ci, ops, machine[ops[0]])
+        for q in ops[1:]:
+            p[q] = p[ops[0]]
+    return p
+
+
 def repair(ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignment],
            breaks: Sequence[Break] = ()) -> list[Assignment]:
     """The repaired plan's assignments; `repair_plan` also returns its breaks."""
@@ -170,8 +183,10 @@ def repair_plan(ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignm
     w_index = {w: z for z, w in enumerate(ci.worker_ids)}
     machine: list[int | None] = [None] * ci.n_ops
     planned_start, planned_end, workers = [0] * ci.n_ops, [0] * ci.n_ops, [[] for _ in range(ci.n_ops)]
+    batch_id: list[str | None] = [None] * ci.n_ops
     for a in plan:
         o = ci.op_index[a.order_id, a.op_id]
+        batch_id[o] = a.batch
         machine[o] = None if a.machine is None else ci.machine_index[a.machine]
         planned_start[o], planned_end[o], workers[o] = a.start, a.end, [w_index[w] for w in a.workers]
     start: list[int | None] = [None] * ci.n_ops
@@ -202,12 +217,13 @@ def repair_plan(ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignm
             workers if ci.worker_ids else (), share_len)
     brk: dict[tuple[int, int], int | None] = {}
     if cal is None:
-        new_start, new_end = shift_repair(*args)
+        new_start, new_end = shift_repair(*args, batch_id=batch_id)
     else:
-        brk, fit, owe = _calendar(ci, snapshot, plan, breaks, workers, machine, busy, overtime)
+        p = planned_durations(ci, machine, planned_batches(ci, machine, planned_start, start, batch_id=batch_id))
+        brk, fit, owe = _calendar(ci, snapshot, plan, breaks, workers, p, busy, overtime)
         while True:  # a break created on a new day may need another round for shares placed before it
             n_breaks = len(brk)
-            new_start, new_end = shift_repair(*args, fit=fit)
+            new_start, new_end = shift_repair(*args, fit=fit, batch_id=batch_id)
             owe(new_start, new_end, share_len)
             if len(brk) == n_breaks:
                 break
@@ -219,21 +235,21 @@ def repair_plan(ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignm
     assignments = [
         Assignment(order_id=k, op_id=j, machine=None if machine[o] is None else ci.machine_ids[machine[o]],
                    start=new_start[o], end=new_end[o], workers=tuple(ci.worker_ids[z] for z in workers[o]),
-                   share_lengths=kept[o])
+                   share_lengths=kept[o], batch=batch_id[o])
         for o, (k, j) in enumerate(ci.op_keys)]
     return Plan(assignments, tuple(sorted((Break(worker=ci.worker_ids[z], start=b) for (z, _), b in brk.items()
                                            if b is not None), key=lambda b: (b.start, b.worker))))
 
 
 def _calendar(ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignment], breaks: Sequence[Break],
-              workers: Sequence[Sequence[int]], machine: Sequence[int | None],
+              workers: Sequence[Sequence[int]], p: Sequence[int],
               fixed: dict[int, list[tuple[int, int]]], overtime: bool = False,
               ) -> tuple[dict[tuple[int, int], int | None], Callable[[int, int], int], Callable[..., None]]:
-    """Breaks per (worker, day) and the shift fit of an operation for the repair. `fixed`: per worker the started
-    shares, taken breaks and pending removals."""
+    """Breaks per (worker, day) and the shift fit of an operation for the repair. `p`: planned duration per
+    operation (an s-batch member: the batch's); `fixed`: per worker the started shares, taken breaks and pending
+    removals."""
     cal, t = ci.calendar, snapshot.t
     w_index = {w: z for z, w in enumerate(ci.worker_ids)}
-    p = [ci.fixed_duration[o] if machine[o] is None else dict(ci.options[o])[machine[o]] for o in range(ci.n_ops)]
 
     def latest_break(d: int) -> int:
         return day_start(cal, d) + cal.break_latest
@@ -327,12 +343,12 @@ def forced_removals(ci: CompiledInstance, snapshot: Snapshot,
     if cal is not None:
         for b in snapshot.breaks:
             busy[ci.worker_ids.index(b.worker)].append((b.start, b.start + cal.break_length))
-    lead_of: dict[tuple[str | None, int, int], int] = {}
+    lead_of: dict[tuple[str, str | None, int, int], int] = {}
     pending, members = {}, defaultdict(list)
     for o, f in frozen:
         if (i := _pending_removal(ci, o, f)) is None:
             continue
-        lead = lead_of.setdefault((f.machine, f.start, f.end), o) if ci.batch_capacity[o] > 1 else o
+        lead = lead_of.setdefault((ci.step[o], f.machine, f.start, f.end), o) if ci.batch_capacity[o] > 1 else o
         members[lead].append(o)
         if lead == o:
             pending[o] = (i, f)

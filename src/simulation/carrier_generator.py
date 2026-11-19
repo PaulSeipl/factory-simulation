@@ -27,7 +27,17 @@ from pydantic import (
 from simulation.calendar import next_cutoff
 from simulation.due_dates import lead_time_bound
 from simulation.io.json_loader import resolve_reference
-from simulation.model.instance import CARRIER, ORDER, Calendar, CarrierStep, Instance, Order, RunEstimator, WorkerShare
+from simulation.model.instance import (
+    CARRIER,
+    ORDER,
+    Calendar,
+    CarrierStep,
+    Instance,
+    Order,
+    RunEstimator,
+    SBatchStep,
+    WorkerShare,
+)
 
 
 class RouteOperation(BaseModel):
@@ -105,6 +115,7 @@ class CarrierGeneratorParams(BaseModel):
     # carrier step -> carriers per machine run decided by the planner (p-batch)
     batch_capacity: dict[str, Annotated[int, Field(ge=2)]] = {}
     per_carrier: dict[str, PerCarrierStep] = {}  # carrier step -> every carrier its own run
+    s_batch_steps: dict[str, SBatchStep] = {}  # step -> s-batches across orders (math/08), passed to the instance
     blank_capacity: PositiveInt | None = None  # counted parts per blank; needed iff carrier operations carry them
     due_date_tightness: tuple[PositiveFloat, ...] = ()  # theta per order (lead-time bound); () = no due dates
     workers: tuple[str, ...] = ()  # individual workers; shares in the route (math/04_workers.md)
@@ -133,6 +144,8 @@ class CarrierGeneratorParams(BaseModel):
             raise ValueError(f"base_durations for carrier steps {carrier}: use per_carrier setup")
         if unknown := sorted(set(self.no_machine) - steps):
             raise ValueError(f"no_machine for steps {unknown} not in the route")
+        if unknown := sorted(set(self.s_batch_steps) - steps):
+            raise ValueError(f"s_batch_steps for steps {unknown} not in the route")
         if blocked := sorted(({self.run_step} | set(self.batch_capacity)) & set(self.no_machine)):
             raise ValueError(f"no_machine for {blocked}: the run step and batch steps need machines")
         if both := sorted(s for s in self.no_machine if s in self.machine_pool or s in self.machines):
@@ -187,7 +200,7 @@ class CarrierGeneratorParams(BaseModel):
 
 
 _LATER_DEFAULTS = {"count_lognormal": None, "run_capacity": None, "unit_base": 0, "no_machine": (),
-                   "base_durations": {}, "setup_per_carrier": 0, "removal_per_carrier": 0}
+                   "base_durations": {}, "setup_per_carrier": 0, "removal_per_carrier": 0, "s_batch_steps": {}}
 
 
 def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
@@ -268,6 +281,7 @@ def generate_carrier_instance(params: CarrierGeneratorParams) -> Instance:
         "runs": runs,
         "workers": params.workers,
         "calendar": params.calendar,
+        "s_batch_steps": params.s_batch_steps,
     })
 
 

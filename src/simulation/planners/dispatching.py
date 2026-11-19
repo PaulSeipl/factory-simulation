@@ -8,7 +8,10 @@ Without an assignment rule ("joint"):
   the earliest possible start t is taken over all (ready operation, eligible machine) pairs, and
   the sequencing rule ranks the pairs that can start at t, i.e. it chooses operation and machine.
 
-Both variants are non-delay: a machine never stays idle while a candidate could start on it.
+Both variants are non-delay: a machine never stays idle while a candidate could start on it. With a delay per
+scheduling iteration (the GA's decoder, math/14_genetic-algorithm.md), iteration ζ ranks every candidate that can
+start by t + D_ζ, and the chosen one starts at its own earliest start: parameterized active schedules (Gonçalves et
+al. 2005). A later lead lets operations ready by its start join its batch.
 
 A batch step (e.g. oven) is batched greedily: when an operation of it is chosen at time t on machine m, the
 other operations of a batch step that are ready by t and may use m with the same duration join it, in the order of
@@ -23,7 +26,8 @@ worker's busy intervals: an oven removal planned later leaves its worker free in
 worker with the least worker load wins, then the lowest index. A batch's shares are planned once and all members
 carry the same workers; the parts of a run are placed one after the other on its machine, each part as soon as its
 workers allow (the machine stays blocked in between, C9). Operations without machine wait only for their workers.
-With a calendar, shares lie within the shift without overtime and outside the worker's break that day; the break
+With a calendar, shares lie within the shift without overtime (the GA's decoder may give an operation an overtime
+allowance, math/14_genetic-algorithm.md) and outside the worker's break that day; the break
 starts at the earliest break start, or later if the frozen part forces it (snapshot's day: not before t, after a
 running share; a pending removal comes first), and dispatch_plan returns these breaks. Machines run at any time,
 so a print may run overnight and its removal waits until the morning.
@@ -44,7 +48,7 @@ from functools import cache
 from typing import TYPE_CHECKING
 
 from simulation.calendar import WEEK, day_index, day_start, shift_window
-from simulation.model.compiled import CompiledInstance, Share, share_interval
+from simulation.model.compiled import CompiledInstance, Share, batch_key, s_batch_length, share_interval
 from simulation.model.schedule import Assignment, Break, Plan
 from simulation.objectives import MAKESPAN, Objective
 from simulation.planners.repair import forced_removals
@@ -128,8 +132,16 @@ def dispatch_plan(
     sequencing: SequencingRule,
     assignment: AssignmentRule | None = None,
     snapshot: Snapshot | None = None,
+    delay: Sequence[int] | None = None,
+    overtime: Sequence[int] | None = None,
 ) -> Plan:
-    """The rule plan with the breaks it booked (empty without a calendar or without workers)."""
+    """The rule plan with the breaks it booked (empty without a calendar or without workers). `delay[ζ]`: minutes
+    iteration ζ may look past the earliest start (one entry per operation is enough: an iteration places at least
+    one); None: non-delay. `overtime[o]`: minutes past shift end that o's new shares may use (at most the calendar's
+    maximum overtime; an s-batch uses its chosen operation's); None: no overtime, as for the rules."""
+    if overtime is not None and ci.calendar is not None and max(overtime, default=0) > ci.calendar.max_overtime:
+        raise ValueError(f"overtime allowance {max(overtime)} exceeds the maximum overtime "
+                         f"{ci.calendar.max_overtime}")
     own =[dict(opts) or {None: ci.fixed_duration[o]} for o, opts in enumerate(ci.options)]  # machine None: no machine
     min_p = [min(d.values()) for d in own]
     work_left = [0] * len(ci.order_ids)
@@ -189,16 +201,24 @@ def dispatch_plan(
             return None
         return s
 
-    def free_from(w: int, s: int, n: int) -> int:
+    def ot_of(o: int) -> int:
+        """Overtime allowance of o's new shares: minutes past shift end (0 for the rules)."""
+        return overtime[o] if overtime is not None else 0
+
+    def part_fits(n: int, ot: int) -> bool:
+        """A share of n minutes fits one part of the shift, the second extended by ot minutes of overtime."""
+        return any(n <= b - a for a, b in ((cal.shift_start, cal.break_earliest),
+                                           (cal.break_earliest + cal.break_length, cal.shift_end + ot)))
+
+    def free_from(w: int, s: int, n: int, ot: int = 0) -> int:
         """Earliest s' >= s at which a new share [s', s' + n) is free for worker w: clear of its bookings and, with a
-        calendar, inside the shift without overtime and outside that day's break."""
-        if cal is not None and all(n > b - a for a, b in ((cal.shift_start, cal.break_earliest),
-                                                           (cal.break_earliest + cal.break_length, cal.shift_end))):
+        calendar, inside the shift extended by ot minutes of overtime and outside that day's break."""
+        if cal is not None and not part_fits(n, ot):
             raise ValueError(f"share of {n} minutes longer than both parts of the shift")
         while True:
             intervals = busy[w]
             if cal is not None:
-                s = window(s, n, cal.shift_end)
+                s = window(s, n, cal.shift_end + ot)
                 if (b := break_at(w, day_index(cal, s))) is not None:
                     intervals = [*busy[w], (b, b + cal.break_length)]
             if (e := clash_end(intervals, s, n)) is None:
@@ -208,7 +228,8 @@ def dispatch_plan(
     def worker_start(o: int, t: int, p: int) -> int:
         """Earliest start >= t of o (duration p) at which every share finds a qualified worker free."""
         spans, limit = _spans(ci.shares[o], p), t + 2 * WEEK + max((b for bs in busy for _, b in bs), default=0)
-        while (later := max((min(free_from(w, t + off, n) for w in sh.workers) - off for sh, off, n in spans),
+        while (later := max((min(free_from(w, t + off, n, ot_of(o)) for w in sh.workers) - off
+                             for sh, off, n in spans),
                             default=t)) > t:
             if later > limit:  # the calendar repeats weekly: no fit within two weeks after all bookings, none ever
                 raise ValueError(f"{ci.op_keys[o]}: its shares never lie within the shifts at the same time")
@@ -222,27 +243,28 @@ def dispatch_plan(
         if load:
             worker_load[w] += e - s
 
-    def pick(o: int, sh: Share, s: int, n: int) -> str:
+    def pick(o: int, sh: Share, s: int, n: int, ot: int) -> str:
         """Book the free qualified worker for [s, s + n) with the least worker load, then the lowest index."""
-        free = [w for w in sh.workers if free_from(w, s, n) == s]
+        free = [w for w in sh.workers if free_from(w, s, n, ot) == s]
         if not free:  # cannot happen: every caller passes a time at which a qualified worker is free
             raise ValueError(f"{ci.op_keys[o]}: no qualified worker free for its {sh.kind} [{s},{s + n})")
         w = min(free, key=lambda w: (worker_load[w], w))
         book(w, s, s + n)
         return ci.worker_ids[w]
 
-    def take_workers(o: int, t: int, p: int) -> tuple[str, ...]:
-        """Book a worker for every share of o started at t."""
-        return tuple(pick(o, sh, t + off, n) for sh, off, n in _spans(ci.shares[o], p))
+    def take_workers(o: int, t: int, p: int, ot: int | None = None) -> tuple[str, ...]:
+        """Book a worker for every share of o started at t (overtime allowance: o's unless given)."""
+        ot = ot_of(o) if ot is None else ot
+        return tuple(pick(o, sh, t + off, n, ot) for sh, off, n in _spans(ci.shares[o], p))
 
     out: list[Assignment] = []
     frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
     # worker time of the frozen part: the started shares as in the snapshot (C7), a batch's shares once; then a
     # worker for every pending share (e.g. the removal of a running oven), the same for all members of a batch
     workers_of: dict[int, list[str | None]] = {}
-    batch_lead: dict[tuple[str | None, int, int], int] = {}
+    batch_lead: dict[tuple, int] = {}
     for o, f in frozen.items():
-        if ci.batch_capacity[o] > 1 and (lead := batch_lead.setdefault((f.machine, f.start, f.end), o)) != o:
+        if (key := batch_key(ci, o, f)) is not None and (lead := batch_lead.setdefault(key, o)) != o:
             workers_of[o] = workers_of[lead]  # the same list: filled once for the whole batch
             continue
         workers_of[o] = list(f.workers)
@@ -269,12 +291,12 @@ def dispatch_plan(
         end_of[o] = s + ci.shares[o][i].length
 
     def lead(o: int, f) -> int:
-        return batch_lead[f.machine, f.start, f.end] if ci.batch_capacity[o] > 1 else o
+        return o if (key := batch_key(ci, o, f)) is None else batch_lead[key]
 
     for o, f in frozen.items():  # the frozen part: kept unchanged, occupies its machine until its end
         end = end_of.get(lead(o, f), f.end)
         out.append(Assignment(order_id=f.order_id, op_id=f.op_id, machine=f.machine, start=f.start, end=end,
-                              workers=tuple(workers_of[o]), share_lengths=f.share_lengths))
+                              workers=tuple(workers_of[o]), share_lengths=f.share_lengths, batch=f.batch))
         if f.machine is not None:
             m = ci.machine_index[f.machine]
             state.machine_free[m] = max(state.machine_free[m], end)
@@ -320,36 +342,57 @@ def dispatch_plan(
         if open_preds[o] == 0 and o not in frozen:
             make_ready(o)
 
+    zeta = 0  # scheduling iteration
     while ready:
         candidates = [  # a run's head (setup) waits for its own workers: own[o][m] is its own duration
             (worker_start(o, max(state.ready_at[o], state.machine_free[m] if m is not None else 0), own[o][m]),
              o, m, p)
             for o, mps in ready.items() for m, p in mps
         ]
-        t = min(c[0] for c in candidates)
-        _, o, m, p = min(
-            (c for c in candidates if c[0] == t),
+        reach = min(c[0] for c in candidates) + (delay[zeta] if delay is not None else 0)
+        zeta += 1
+        t, o, m, p = min(
+            (c for c in candidates if c[0] <= reach),
             key=lambda c: (*sequencing(ci, state, c[1], c[2], c[3]), c[1], c[2] is None, c[2] or 0),
         )
         batch = [o]
-        if ci.batch_capacity[o] > 1:  # greedy: the ready operations that fit on m with the same duration join
+        if ci.batch_capacity[o] > 1:  # greedy: the ready operations of its step on m with the same duration join
             mates = [(q, mp) for q, mps in ready.items() for mp in mps if q != o and ci.batch_capacity[q] > 1
-                     and mp == (m, p) and state.ready_at[q] <= t]
+                     and ci.step[q] == ci.step[o] and mp == (m, p) and state.ready_at[q] <= t]
             mates.sort(key=lambda qm: (*sequencing(ci, state, qm[0], m, p), qm[0]))
             batch += [q for q, _ in mates[:ci.batch_capacity[o] - 1]]
+        elif ci.s_setup[o] is not None:  # s-batch (math/08): ready ops of its step on m join while units, shift allow
+            mates = sorted(((q, mp) for q, mps in ready.items() for mp in mps if q != o and ci.step[q] == ci.step[o]
+                            and mp[0] == m and state.ready_at[q] <= t),
+                           key=lambda qm: (*sequencing(ci, state, qm[0], m, qm[1]), qm[0]))
+            units = ci.units[o]
+            for q, _ in mates:
+                if (cap := ci.s_capacity[o]) is not None and units + ci.units[q] > cap:
+                    continue
+                # the worker must be free for the longer batch at t, inside one shift part (with o's overtime
+                # allowance, none for the rules; free_from rejects longer shares) and clear of its break
+                n = s_batch_length(ci, sorted([*batch, q]), m)
+                if (cal is None or part_fits(n, ot_of(o))) and worker_start(o, t, n) == t:
+                    batch.append(q)
+                    units += ci.units[q]
+            batch.sort()  # the first member (smallest index) carries the shares, as in the DES
+            p = s_batch_length(ci, batch, m)
         for q in batch:
             del ready[q]
             if m is None:
                 continue
             if assignment is None:
-                state.load[m] += p
+                state.load[m] += duration[q][m]  # each member's own work (a batch's length would count it n times)
             else:
-                state.backlog[m] -= p
+                state.backlog[m] -= duration[q][m]
 
         if m is not None:  # before placing: ECT in make_ready reads it
             state.machine_free[m] = t + p
         group = run_of.get(o)
-        workers = take_workers(o, t, own[o][m])  # a batch's shares once, for all members
+        s_batch = len(batch) > 1 and ci.s_setup[o] is not None
+        lead = batch[0]
+        # a batch's shares once, for all members, with the allowance its join was checked with (o's)
+        workers = take_workers(lead, t, p if s_batch else own[o][m], ot_of(o))
         start = end = t
         for i, q in enumerate(group or batch):  # a run part after part on one machine; a batch (or one op) at t
             if group:
@@ -361,7 +404,8 @@ def dispatch_plan(
                 start, end = t, t + p
             owner, op_id = ci.op_keys[q]
             out.append(Assignment(order_id=owner, op_id=op_id, machine=None if m is None else ci.machine_ids[m],
-                                  start=start, end=end, workers=workers))
+                                  start=start, end=end, workers=workers,
+                                  batch="/".join(ci.op_keys[lead]) if s_batch else None))  # unique: lead not frozen
             for k in ci.op_orders[q]:
                 state.work_left[k] -= min_p[q]
             for s in ci.successors[q]:

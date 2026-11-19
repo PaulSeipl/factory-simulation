@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING
 from ortools.sat.python import cp_model
 
 from simulation.calendar import day_index, day_start, is_working_day
-from simulation.model.compiled import CompiledInstance, Share
+from simulation.model.compiled import CompiledInstance, Share, batch_key
 from simulation.model.schedule import Assignment, Break, Plan
 from simulation.objectives import MAKESPAN, CalendarVars, Objective, horizon_bound, level_weights, serial_end
 from simulation.planners.repair import forced_removals
@@ -66,7 +66,18 @@ def solve(
     reference: Sequence[Assignment] | None = None,
     change_budget: int | None = None,
     deterministic_time: float | None = None,  # work-based limit: same result under any machine load (1 worker)
+    horizon_cap: int | None = None,  # upper bound of all times; default: the hint's end for makespan (math/12)
 ) -> CpSatResult:
+    if horizon_cap is None and objective is MAKESPAN and hint:
+        # the optimal makespan is at most the hint's: a tighter horizon (fewer calendar days, smaller domains). If the
+        # hint is not feasible the capped model may be infeasible: then the full horizon
+        args = {"objective": objective, "time_limit": time_limit, "workers": workers, "seed": seed, "hint": hint,
+                "snapshot": snapshot, "reference": reference, "change_budget": change_budget,
+                "deterministic_time": deterministic_time}
+        capped = solve(ci, **args, horizon_cap=max(a.end for a in hint))
+        if capped.status in ("OPTIMAL", "FEASIBLE"):
+            return capped
+        return solve(ci, **args, horizon_cap=0)
     cal = ci.calendar if ci.worker_ids else None  # shifts and breaks bind workers only (machines run at any time)
     frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
     # op -> (share, forced start, free workers, booked worker), C7^o
@@ -84,6 +95,8 @@ def solve(
     free_ops = [o for o in ci.topo_order if o not in frozen]
     horizon = (serial_end(ci, base, free_ops) if cal is not None
                else base + sum(max(durations(o)) for o in free_ops))
+    if horizon_cap:  # 0: the full horizon
+        horizon = max(min(horizon, horizon_cap), base)
     model = cp_model.CpModel()
     starts: list[cp_model.IntVar] = []
     ends: list[cp_model.IntVar] = []
@@ -92,7 +105,10 @@ def solve(
     per_worker: list[list[cp_model.IntervalVar]] = [[] for _ in ci.worker_ids]
     # occupy their machine through the run's span (C9) or through their batch slot (C10)
     in_run = {o for g in ci.machine_groups for o in g} | {o for o in range(ci.n_ops) if ci.batch_capacity[o] > 1}
-    frozen_batches: set[tuple[str | None, int, int]] = set()
+    # s-batch operations (math/08): their length and machine interval come from their slot (C15)
+    s_ops = {o for o in range(ci.n_ops) if ci.s_setup[o] is not None and o not in frozen}
+    in_run |= s_ops
+    frozen_batches: set[tuple] = set()
 
     for o in range(ci.n_ops):
         if (f := frozen.get(o)) is not None:  # C7: fixed machine and times (realized, expected or forced end)
@@ -102,16 +118,17 @@ def solve(
                 choice.append([])
                 continue
             m = ci.machine_index[f.machine]
-            batch = ci.batch_capacity[o] > 1
-            if o not in in_run or (batch and (f.machine, f.start, f.end) not in frozen_batches):
-                frozen_batches.add((f.machine, f.start, f.end))  # a started batch blocks its machine once
+            key = batch_key(ci, o, f)
+            if (o not in in_run and key is None) or (key is not None and key not in frozen_batches):
+                frozen_batches.add(key)  # a started batch (p- or s-batch) blocks its machine once
                 per_machine[m].append(model.new_fixed_size_interval_var(f.start, end_of[o] - f.start, f"frozen_{o}"))
             choice.append([(m, model.new_constant(1))])
             continue
         starts.append(model.new_int_var(max(ci.release[o], t), horizon, f"S_{o}"))  # C4 and C6 as lower bound
         ends.append(model.new_int_var(0, horizon, f"C_{o}"))
         if (fixed := ci.fixed_duration[o]) is not None:  # C1': no machine, fixed duration
-            model.add(ends[o] == starts[o] + fixed)
+            if o not in s_ops:
+                model.add(ends[o] == starts[o] + fixed)
             choice.append([])
             continue
         lits = []
@@ -121,7 +138,8 @@ def solve(
                 per_machine[m].append(model.new_optional_fixed_size_interval_var(starts[o], p, x, f"a_{o}_{m}"))
             lits.append((m, p, x))
         model.add_exactly_one(x for _, _, x in lits)  # C1
-        model.add(ends[o] == starts[o] + sum(p * x for _, p, x in lits))  # C2
+        if o not in s_ops:
+            model.add(ends[o] == starts[o] + sum(p * x for _, p, x in lits))  # C2
         choice.append([(m, x) for m, _, x in lits])
     for o in range(ci.n_ops):
         if o not in frozen:
@@ -161,16 +179,16 @@ def solve(
         return out
 
     share_lits: dict[int, list[list[tuple[int, cp_model.IntVar]]]] = {}  # op -> per share [(worker, v)]
-    families: dict[tuple, list[int]] = {}  # operations that may share a batch: same options, capacity and shares
+    families: dict[tuple, list[int]] = {}  # operations that may share a batch: same step, options, capacity, shares
     for o in range(ci.n_ops):
         if o in frozen:
             continue
         if ci.batch_capacity[o] > 1:
-            families.setdefault((ci.options[o], ci.batch_capacity[o], ci.shares[o]), []).append(o)
-        elif ci.shares[o]:
+            families.setdefault((ci.step[o], ci.options[o], ci.batch_capacity[o], ci.shares[o]), []).append(o)
+        elif ci.shares[o] and o not in s_ops:
             share_lits[o] = shares_of(str(o), ci.shares[o], starts[o], ends[o], 1)
     slot_of: dict[int, list[tuple[cp_model.IntVar, list]]] = {}  # batch op -> [(y_oj, slot's share choice)]
-    for (options, capacity, shares), ops in families.items():
+    for (_, options, capacity, shares), ops in families.items():
         used, slot_start, slot_machine, members = [], [], [], []
         for j in range(len(ops)):  # at most one slot per operation
             used.append(model.new_bool_var(f"batch_{ops[0]}_{j}"))
@@ -200,17 +218,20 @@ def solve(
             slot_of[o] = [(y_oj, slot_shares[j]) for j, y_oj in enumerate(y)]
         for j in range(len(ops)):
             model.add(sum(members[j]) <= capacity * used[j])
+    s_slots = _s_batch_slots(model, ci, s_ops, starts, ends, choice, per_machine, shares_of, horizon)
+    for o, entries in s_slots.items():
+        slot_of[o] = [(y, shares) for y, shares, _ in entries]
     for intervals in per_machine:
         model.add_no_overlap(intervals)  # C5
 
     # frozen worker time: started shares as in the snapshot (a batch once), pending removals at the forced time
     frozen_workers: dict[int, list] = {}
     frozen_time: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # what is fixed per worker (calendar)
-    seen: set[tuple[str | None, int, int]] = set()
+    seen: set[tuple] = set()
     for o, f in frozen.items():
-        if ci.batch_capacity[o] > 1 and (f.machine, f.start, f.end) in seen:
+        if (key := batch_key(ci, o, f)) is not None and key in seen:
             continue
-        seen.add((f.machine, f.start, f.end))
+        seen.add(key)
         lengths = f.share_lengths or [sh.length for sh in ci.shares[o]]
         for sh, n, w in zip(ci.shares[o], lengths, f.workers, strict=True):
             if w is not None:
@@ -262,6 +283,17 @@ def solve(
         for lits, w in zip(share_lits.get(o, ()), a.workers, strict=False):
             for z, v in lits:
                 model.add_hint(v, ci.worker_ids[z] == w)
+    # the hint's s-batches: every batch in the slot of its member with the smallest index (that member's own last
+    # slot, which every later member of the family may use too); an operation without batch id in its own last slot
+    lead: dict[str, int] = {}
+    for a in hint or ():
+        if (o := ci.op_index[a.order_id, a.op_id]) in s_slots and a.batch is not None:
+            lead[a.batch] = min(lead.get(a.batch, o), o)
+    for a in hint or ():
+        if (o := ci.op_index[a.order_id, a.op_id]) in s_slots:
+            j = len(s_slots[lead.get(a.batch, o) if a.batch is not None else o]) - 1
+            for i, (y, _, _) in enumerate(s_slots[o]):
+                model.add_hint(y, i == j)
 
     if horizon - t > horizon_bound(ci):  # the spreads of the lexicographic weights rely on it (math/06 section 4)
         raise AssertionError(f"horizon {horizon} - t {t} exceeds the bound {horizon_bound(ci)}")
@@ -310,6 +342,11 @@ def solve(
     def chosen(lits) -> str:
         return next(ci.worker_ids[z] for z, v in lits if solver.boolean_value(v))
 
+    # an s-batch of two or more members: the key of its member with the smallest index (no started batch has it)
+    by_slot: dict[int, list[int]] = defaultdict(list)
+    for o, entries in s_slots.items():
+        by_slot[next(slot for y, _, slot in entries if solver.boolean_value(y))].append(o)
+    s_batch_id = {o: "/".join(ci.op_keys[min(ops)]) for ops in by_slot.values() if len(ops) > 1 for o in ops}
     schedule = []
     for o in range(ci.n_ops):
         if o in frozen:
@@ -334,6 +371,7 @@ def solve(
         schedule.append(Assignment(
             order_id=order_id, op_id=op_id, machine=None if m is None else ci.machine_ids[m],
             start=solver.value(starts[o]), end=solver.value(ends[o]), workers=tuple(ws), share_lengths=lengths,
+            batch=frozen[o].batch if o in frozen else s_batch_id.get(o),
         ))
     breaks = tuple(sorted((Break(worker=ci.worker_ids[z], start=b if isinstance(b, int) else solver.value(b))
                            for z, b in break_vars),
@@ -415,6 +453,66 @@ def _clear_start(intervals: Sequence[tuple[int, int]], s: int, n: int) -> int:
     while (e := next((e for a, e in intervals if a < s + n and s < e), None)) is not None:
         s = e
     return s
+
+
+def _s_batch_slots(model, ci: CompiledInstance, s_ops: set[int], starts, ends, choice, per_machine, shares_of,
+                   horizon: int) -> dict[int, list[tuple]]:
+    """s-batch slots per step (math/08 C15, spec section 4 (b)): slot j has used u_j, start T_j, end E_j, a machine
+    choice g_{j,m} if its step has machines, and one share set over [T_j, E_j) present with u_j. Operation i of a
+    family takes exactly one slot j <= i (symmetry), y_{o,j} => S_o = T_j, C_o = E_j and the slot's machine;
+    E_j = T_j + p^su u_j + sum_o c_{o,j} with c_{o,j} = (p_{o,m} - p^su) of o if y_{o,j}, else 0; units <= c_s.
+    Returns per operation [(y_{o,j}, slot shares, slot id)]."""
+    families: dict[tuple, list[int]] = defaultdict(list)  # one step, the same shares, with or without machine
+    for o in sorted(s_ops):
+        families[ci.step[o], ci.shares[o], bool(ci.options[o])].append(o)
+    out: dict[int, list[tuple]] = {}
+    slot_id = 0
+    for (_, shares, on_machine), ops in families.items():
+        setup, cap = ci.s_setup[ops[0]], ci.s_capacity[ops[0]]
+        machines = sorted({m for o in ops for m, _ in ci.options[o]})
+        net = {o: sum((p - setup) * x for (_, x), (_, p) in zip(choice[o], ci.options[o], strict=True))
+               if on_machine else ci.fixed_duration[o] - setup for o in ops}
+        used, t_slot, e_slot, g, slot_shares, contrib, member = [], [], [], [], [], [], []
+        for j in range(len(ops)):
+            name = f"s{ops[0]}_{j}"
+            used.append(model.new_bool_var(f"u_{name}"))
+            t_slot.append(model.new_int_var(0, horizon, f"T_{name}"))
+            e_slot.append(model.new_int_var(0, horizon, f"E_{name}"))
+            size = model.new_int_var(0, horizon, f"len_{name}")
+            model.add(size == e_slot[j] - t_slot[j])
+            g.append({m: model.new_bool_var(f"g_{name}_{m}") for m in machines} if on_machine else {})
+            if on_machine:
+                model.add(sum(g[j].values()) == used[j])
+                for m, gm in g[j].items():  # the batch occupies its machine once (C5)
+                    per_machine[m].append(model.new_optional_interval_var(t_slot[j], size, e_slot[j], gm,
+                                                                         f"slot_{name}_{m}"))
+            slot_shares.append(shares_of(name, shares, t_slot[j], e_slot[j], used[j]) if shares else [])
+            contrib.append([])
+            member.append([])
+            if j:
+                model.add(used[j] <= used[j - 1])  # symmetry: slots are used from the front
+        for i, o in enumerate(ops):
+            y = [model.new_bool_var(f"y_s{o}_{j}") for j in range(i + 1)]  # symmetry: operation i uses a slot <= i
+            model.add_exactly_one(y)
+            x_of = dict(choice[o])
+            for j, y_oj in enumerate(y):
+                model.add(starts[o] == t_slot[j]).only_enforce_if(y_oj)
+                model.add(ends[o] == e_slot[j]).only_enforce_if(y_oj)  # batch availability
+                for m, gm in g[j].items():
+                    model.add(gm == x_of.get(m, 0)).only_enforce_if(y_oj)
+                c = model.new_int_var(0, horizon, f"c_s{o}_{j}")
+                model.add(c == net[o]).only_enforce_if(y_oj)
+                model.add(c == 0).only_enforce_if(~y_oj)
+                contrib[j].append(c)
+                member[j].append((o, y_oj))
+            out[o] = [(y_oj, slot_shares[j], slot_id + j) for j, y_oj in enumerate(y)]
+        for j in range(len(ops)):
+            model.add(e_slot[j] == t_slot[j] + setup * used[j] + sum(contrib[j]))  # setup once (C15)
+            model.add(sum(y for _, y in member[j]) >= used[j])  # a used slot holds a member
+            limit = cap if cap is not None else sum(ci.units[o] for o in ops)
+            model.add(sum(ci.units[o] * y for o, y in member[j]) <= limit * used[j])  # units <= c_s
+        slot_id += len(ops)
+    return out
 
 
 def cpsat_planner(

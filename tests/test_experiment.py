@@ -65,6 +65,33 @@ def test_cli_task_by_slurm_index_then_merge(tmp_path, monkeypatch, capsys):
         main(["task", "--index", "2", str(path), "--out", str(out)])
 
 
+def test_cli_run_continues_missing_runs_of_this_host(tmp_path, capsys):
+    import pytest
+
+    from simulation.experiment import main
+
+    path = tmp_path / "tiny.json"
+    path.write_text(config().model_dump_json(), encoding="utf-8")
+    out = tmp_path / "results"
+    main(["run", str(path), "--out", str(out), "--processes", "1", "--policy", "rule"])
+    capsys.readouterr()
+    main(["list", "--missing", str(path), "--out", str(out)])
+    assert capsys.readouterr().out.split() == ["1", "tiny", "cpsat", "1"]  # the index of the full list
+    rule = out / "tiny" / "rows" / "rule-1.json"
+    row = json.loads(rule.read_text(encoding="utf-8"))
+    rule.write_text(json.dumps(row | {"host": "other-machine"}), encoding="utf-8")
+    main(["list", "--missing", "--seed", "1", str(path), "--out", str(out)])
+    assert len(capsys.readouterr().out.splitlines()) == 2  # a row of another host does not count
+    main(["run", str(path), "--out", str(out), "--processes", "1"])
+    assert "2 runs to do" in capsys.readouterr().err
+    main(["run", str(path), "--out", str(out), "--processes", "1"])
+    assert "0 runs to do" in capsys.readouterr().err
+    main(["run", str(path), "--out", str(out), "--processes", "1", "--restart", "--policy", "rule"])
+    assert "1 runs to do" in capsys.readouterr().err
+    with pytest.raises(SystemExit, match="not in these configurations: hindsight 7"):
+        main(["list", str(path), "--policy", "hindsight", "--seed", "7"])
+
+
 def test_cli_unknown_configuration_rejected():
     import pytest
 

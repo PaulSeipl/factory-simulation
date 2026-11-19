@@ -8,11 +8,266 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-19 (80) — GA steps 3 and 4: rescheduling planner, NSGA-II — uncommitted
+
+- **Decided (user):** do steps 3 and 4, then summarize. **Decided (Claude, stated in the summary):** the change
+  budget as a rank (changes beyond $\kappa$ first, then the objective), not as a penalty weight; warm start = the
+  current plan encoded and decoded first; no population kept between reschedulings; the time limit checked after
+  every decode (a cut generation does not count); NSGA-II as its own module over the GA's keys and decoder, with
+  uniform crossover and key mutation (own operators for random keys), no change budget, not a DES planner.
+- **Done:** `solve_ga(..., snapshot, current, change_budget)`, `ga_planner`, `encode` for plans that lack arrived
+  operations, `rule_plans` lazy; `planners/nsga2.py` (`dominates`, `non_dominated_fronts`, `crowding_distances`,
+  `nsga2`). Tests: zero disturbance of GA plans (toy, toy-workers, s-batches), GA reschedulings in the DES from
+  snapshots, change budget 0 keeps every machine where the unbudgeted GA moves two (mutation-checked), warm start
+  decoded first under a time limit; NSGA-II fronts and crowding by hand, the (makespan, overtime) front
+  $\{(600, 30), (1530, 0)\}$ of the late pack, feasible and mutually non-dominated fronts.
+  [14](14_genetic-algorithm.md) §3, §3a, §3b, §5, §6, §7, change log; [05](05_rescheduling-frozen-part.md)
+  (budget for the GA); [references.md](references.md) (Deb et al. 2002 now read: pp. 183–186, 192); README.
+- **Found:** the first budget test passed with the budget ignored (on b1 × 2 the GA keeps every machine anyway);
+  with b1 × 3 the unbudgeted GA moves two machines, so the test now shows both sides. The infinite crowding
+  distance of the extremes is not legible in the extracted text of Deb et al. **[uncertain]**.
+- **Open:** run GA and NSGA-II on the Fidentis case (experiments: time limit per rescheduling, delay scale,
+  parameters, parallel evaluation); stability as an NSGA-II objective (needs a reference plan as an `Objective`);
+  decoder speed. Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-19 (79) — `experiment run`: one run per worker at a time — uncommitted
+
+- **Found (user, home PC):** after 7.5 h only 2 of 4 workers busy for 3 h, 18 runs left, almost all
+  `hindsight+thresholds`. Cause: `Pool.starmap` default chunksize (ceil(n / (4 · processes)), 7 for 110 runs) gives
+  each worker a block of neighbouring indices; the hindsight runs are neighbours in `tasks`, so a few workers hold
+  them in sequence while the others are done.
+- **Done (Claude):** `simulation.experiment.run` passes `chunksize=1`. Results unchanged (runs are independent);
+  only the order of work across workers changes. `tests/test_experiment.py` 5 passed.
+- **Open:** the PC run started with commit 9532032 keeps the old chunking until restarted.
+
+## 2026-11-19 (78) — GA step 2: overtime key — uncommitted
+
+- **Decided (user):** continue with step 2; NSGA-II as an offline trade-off analysis (step 4); a logarithmic map of
+  the delay key as one option for the delay scale. **Decided (Claude, stated to the user):** the decoder stays one
+  function (`dispatch_plan` with optional `delay` and `overtime`; `ga.decode` is the GA's thin front end) instead
+  of a copy for the GA, so rules and GA share every constraint; the overtime key is an allowance per operation,
+  $\mathrm{ot}^{\mathrm{al}}_o = \operatorname{round}(\upsilon^{\mathrm{ot}}_o \overline{\mathrm{ot}})$, not per
+  worker and day (own); an s-batch is booked with the chosen operation's allowance.
+- **Done:** `dispatch_plan(..., overtime=None)` (`ot_of`, `part_fits`, `free_from` with the extended shift end,
+  `pick`/`take_workers` with the allowance; rejected above $\overline{\mathrm{ot}}$); chromosome with
+  `N_KEYS = 4`; tests: `late_pack` by hand (allowance 30 ends Monday 18:00, 29 waits for Tuesday, 0 = rule plan),
+  GA under makespan takes the overtime, under the overtime objective avoids it; s-batch instance with calendar
+  where random chromosomes plan overtime next to batches, checker clean; mutation check of the batch allowance
+  (two tests fail without the fix). [14](14_genetic-algorithm.md) (keys, decoding, objective, hand example 2,
+  open points, change log), [11](11_dispatching-rules.md), [notation.md](notation.md)
+  ($\mathrm{ot}^{\mathrm{al}}_o$, $\upsilon^{\mathrm{ot}}$), README.
+- **Found:** a profile of one decode: the dental workers example (40 orders, 14 machines, 4 workers) calls the
+  worker gap search `free_from` 17496 times, the Fidentis case (10 orders, 3 machines, 2 workers) 2562 times: the
+  decoder recomputes the earliest start of every ready candidate in every iteration, so its cost grows with the
+  number of orders in parallel, not with the number of operations. $p^{\max}$ on the Fidentis case is the print
+  (1902 minutes).
+- **Open:** step 3 `ga_planner` (snapshot, warm start, change budget, time check during seeding); step 4 NSGA-II;
+  delay scale (per step, per machine, logarithmic); decoder speed-up (incremental candidate starts) if the
+  experiments need it. Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-19 (77) — GA step 1: BRKGA with priority, machine and delay keys — uncommitted
+
+- **Decided (user):** start the GA; machine keys for every operation with a choice (also for future machine
+  set-ups, not only Brandimarte); the delay key in step 1 (waiting to assemble batches), not as a later option;
+  measurements on the Fidentis case postponed to the experiments; the run time noted for them. **Decided (Claude,
+  stated to the user):** random keys decoded by the existing dispatcher (no second schedule builder); BRKGA
+  generation scheme and its parameter values from Gonçalves et al. (2011); the delay per scheduling iteration as
+  in Gonçalves et al. (2005); a single lexicographic objective in the DES, NSGA-II only as a possible offline
+  analysis (pending the user's view); overtime as a separate key in step 2 (a delay alone never plans overtime).
+- **Done:** `dispatch_plan(..., delay=None)` with the delay window; `planners/ga.py` (`GaParams`, `decode`,
+  `encode`, `rule_plans`, `solve_ga`); `tests/test_ga.py` (zero delay = non-delay plan on toy, mk01 and dental
+  instances; hand instance `wait_for_batch`: every rule 11, CP-SAT and GA 10, hand chromosome batch at $[2, 10)$;
+  checker on GA plans and on random chromosomes; GA never worse than the best rule; same seed same plan; machine
+  key; encode; negative tests of `GaParams`). [14](14_genetic-algorithm.md) new; [11](11_dispatching-rules.md)
+  §1 and change log; [notation.md](notation.md) (υ, ζ, $D_\zeta$, $p^{\max}$, $\alpha^{\mathrm{del}}$,
+  $\alpha^{\mathrm{in}}$, $N^{\mathrm{pop}}$, $N^{\mathrm{el}}$, $N^{\mathrm{mut}}$); [references.md](references.md)
+  (Bean 1994, Deb et al. 2002, Defersha & Rooyani 2020, Gonçalves et al. 2005 and 2011, Zotero key of Lunardi et
+  al. 2021); README.
+- **Found:** a decode costs 20 ms on the Fidentis case (10 orders) and 150 ms on the dental workers example (the
+  rule plan alone takes as long; the delay adds nothing). 30 random chromosomes without the GA reach 24970–32170
+  on the Fidentis case against 30730 for the rule (non-delay, before the delay key). $\alpha^{\mathrm{del}}
+  p^{\max}$ is 2853 minutes on the Fidentis case: a random delay key looks up to two days ahead. Bean (1994) has
+  text only after the user's OCR.
+- **Open:** step 2 overtime key; step 3 `ga_planner` (snapshot, warm start, change budget); delay scale on our
+  durations and GA parameters in the experiments; waiting reaches only ready partners, membership stays greedy
+  ([14](14_genetic-algorithm.md) §6); NSGA-II decision (user). Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-19 (76) — CP-SAT horizon and batch hint, norm retuned, route diagram — uncommitted
+
+- **Decided (user):** of the proposals (horizon, hint of batches, caps, pairing restriction, norm), do the
+  horizon, the hint and the norm; caps and pairing restriction not now; then the GA.
+- **Done:** `solve` caps the horizon at the hint's end for makespan, with a fallback to the full horizon
+  if the capped model has no solution; the hint's s-batches go into the slots ($y$ hints)
+  ([12](12_cp-sat.md) §3, tests `test_the_hint_caps_the_horizon...`, `test_an_infeasible_hint_falls_back...`,
+  fallback mutation-checked). Notebook 08: forecast = arrival rate, windows 2, 3, 5 days, 16 episodes in a
+  process pool; overtime per worker. `diagrams/fidentis-route.mmd` generated by `diagrams/fidentis_route.py`
+  (route with the durations of one order of 4 telescopes). `notation.md` and [33](33_order-release-interface.md)
+  (N5) no longer say "not implemented" (implemented in step B3, `Nesting.budget`).
+- **Found:** horizon and hint change little (CP-SAT with s-batches 24700 → 24500, without 23080; bounds about
+  14000). The norm with the rate as forecast cuts tardy days in some episodes (rate 0.6, seed 2: 15 → 6) but tardy
+  orders rise and orders wait in the pool; a 2-day window above capacity is worse than binding all. Two seeds are
+  too few.
+- **Open:** s-batch caps (user, list in the session); CP-SAT slot model; rate sweep for the norm. Next: the GA.
+
+---
+
+## 2026-11-19 (75) — s-batches step 8 and notebook 08: s-batches and forecast on the Fidentis case — uncommitted
+
+- **Decided (user):** step 8 and a notebook showing s-batches and the forecast, with the viz adjusted.
+  **Decided (Claude):** the notebook is built and executed by `notebooks/build_08_s_batches_and_forecast.py`
+  (jupyter_client; no nbconvert in the project). **Decided (user):** results stored in between, only the plots
+  rerun (`notebooks/results/08/*.json` with a digest of the Fidentis parameters, `RECOMPUTE` flag); all cores
+  (CP-SAT 12 threads, the 8 episodes in a process pool, `notebooks/forecast_episode.py`): 3:40 min, from the
+  stored results 6 s.
+- **Done:** `data/generator/fidentis.json` with 12 `s_batch_steps` ([21](21_instance-generator.md) §6);
+  `viz.py`: Gantt per machine groups p- and s-batches by `batch_key` and skips worker-only operations (a KeyError
+  before), worker rows show one bar per s-batch labelled with all orders, order rows show the batch's worker time
+  on every member (`tests/test_viz.py` +1); rule: a batch fits one shift part (`free_from` raised on the Fidentis
+  case; test on the tiny instance). [08](08_serial-batches.md) status, §6, §7a; [11](11_dispatching-rules.md)
+  §3; [33](33_order-release-interface.md) §6, change log.
+- **Found:** s-batches save 675 setup minutes (8 % worker time) with the rule but hardly change the makespan (mill
+  bottleneck); CP-SAT is worse with the slots (24700 against 23080 on 12 threads; one thread 26020 against
+  22055). The bounds (about 14000) are close to the mill's pure processing time (13732), so the gap is mostly the
+  bound (own assessment). The norm with a reserve of one
+  default order a day (above the mill's 0.76) and a 2-day window holds orders for up to 13 days and does not
+  reduce tardiness; a parametrization issue to be swept.
+- **Open:** CP-SAT slot count or hint of batches; norm settings (reserve below capacity, longer window) in the rate
+  sweep; overlapping labels of short bars in `plot_days`. Thesis sections that use the s-batch or norm results:
+  none written yet.
+
+---
+
+## 2026-11-19 (74) — Experiment command line: continue missing runs per host — uncommitted
+
+- **Decided (user):** after an interrupted run on the home PC, continue only what this machine has not done, with
+  a parameter to rerun everything and a selection by name instead of index. **Decided (Claude, stated to the
+  user):** `run` continues by default and `--restart` reruns; "done" means row file with the current configuration
+  hash and this host name, the commit does not count; a row of another host is rerun and overwritten.
+- **Done:** `simulation.experiment.done`, `select`; `run --restart`, `list --missing`, `--policy` and `--seed` on
+  `list` and `run` (unknown names rejected). `scripts/home-run.sh` now calls `experiment run` (continues by itself),
+  `scripts/home-pc.md` §8 and `scripts/slurm.md` updated. Test
+  `tests/test_experiment.py::test_cli_run_continues_missing_runs_of_this_host`; 5 tests in the file pass. `math/07`
+  §5 and change log.
+- **Found:** on Slurm every compute node has its own host name, so `list --missing` does not apply there; the
+  guide uses the `merge` report instead.
+- **Open:** rows are still one file per run, not per host, so results of two machines must stay in separate
+  result folders (scripts/README.md rule 3).
+
+## 2026-11-18 (73) — s-batches step 6: CP-SAT forms s-batches — uncommitted
+
+- **Decided (Claude, per spec §4 (b)):** slots per family (step, shares, with or without machine), the length
+  $C^{\mathrm{slot}}_j = S^{\mathrm{slot}}_j + p^{\mathrm{su}}_s u_j + \sum_o c_{o,j}$ with reified $c_{o,j}$
+  (no product $y \cdot x$), one share set per slot, units capacity; batch id = the member with the smallest index.
+  No hint of the current plan's batch structure (starts, ends, machines only).
+- **Done:** `_s_batch_slots` in `planners/cpsat.py`; members without own C2, machine interval and shares.
+  [12](12_cp-sat.md) §3, change log; [08](08_serial-batches.md) status, §5, §6, change log. Tests
+  `tests/test_s_batch_cpsat.py` (8); `tiny` takes the number of orders and the plate size.
+- **Found:** on three plates (ready 6, 11, 16, setup 9) the optimum 117 batches only O2 + O3; waiting for all
+  three costs one minute more (118), all alone 126; the rule finds 117 as well. Worker A is the bottleneck, so
+  waiting rarely pays here. Without the slots 6 of 8 CP-SAT tests fail (mutation check).
+- **Open:** step 8, measurement on the Fidentis case (s-batch steps in `data/generator/fidentis.json`, digests
+  change); the notebook s-batches and forecast with the viz (batch bars without the step in `viz.py`); slot count
+  bound (spec §4 (b), [uncertain]) and bound quality on larger instances.
+
+## 2026-11-18 (72) — s-batches step 5: the rule forms s-batches — uncommitted
+
+- **Decided (Claude, per spec §4 (b)):** greedy join without waiting; a mate that does not fit (units, shift) is
+  skipped, a later one may still join; batch id = key of the member with the smallest index (unique across
+  replans: a started member is never replanned).
+- **Done:** `dispatch_plan` joins ready operations of the chosen operation's step on its machine while $n_o$ fits
+  $c_s$ and `worker_start` finds the worker free for the batch length at $t$; members get the batch interval, one
+  share, the id; machine load counts each member's own work. [11](11_dispatching-rules.md) §3, change log;
+  [08](08_serial-batches.md) status, §5, §6, change log. Tests `tests/test_s_batch_rule.py` (21).
+- **Found:** with an assignment rule (ECT) the machine is fixed before batching, so two polishings on two tools
+  never join; joint selection forms the batch. Same as for the oven p-batch; noted as a limit of the rule.
+- **Open:** step 6 (CP-SAT slots with variable length and worker per slot).
+
+## 2026-11-18 (71) — s-batches step 4: DES, snapshot, repair, frozen part — uncommitted
+
+- **Decided (Claude, per spec §4 (b)):** realized batch length = setup with the factor of the first member plus
+  each member without setup with its own factor; a batch of one member as before. The batch length is reported as
+  C2 (like any duration; a realized schedule deviates there), not as C15.
+- **Done:** `s_batch_length`, `batch_key` (`model/compiled.py`); DES `batch_id` state, grouping by id, realized
+  and planned batch length (expected end, shift fit), id in `current_plan()`, `realized()`, `grow`; snapshot
+  `FrozenOperation.batch` and the batch's expected end; C7 compares the id; rule and CP-SAT keep a frozen batch
+  once and with its id; `shift_repair` and the calendar fit with the batch length (`planned_durations`).
+  [08](08_serial-batches.md) §5, §6, status, change log; [13](13_des.md) §3; [22](22_scenarios.md) §3. Tests
+  `tests/test_s_batch_des.py` (10), C15 length test now C2.
+- **Found:** a complete rescheduling before a planned batch starts dissolves it (the rule and CP-SAT form no
+  batches until steps 5, 6); a started batch stays. Without the batch id in the snapshot four tests fail
+  (mutation check).
+- **Open:** step 5 (the rule forms batches: greedy join with units and shift fit; unique batch ids).
+
+## 2026-11-18 (70) — s-batches step 3: checker C15 — uncommitted
+
+- **Decided (user):** steps per secondary part (support removal, grinding, steam, polish_sec) stay per secondary
+  part, not per telescope (MES table, [21](21_instance-generator.md) §4a); the telescope count enters only the
+  carrier steps (mill, QM, rework) through the part times. Units serve the capacity only, never a duration: a
+  batch's length uses each member's own $p_{o,m}$.
+- **Done:** `CompiledInstance.s_setup`, `s_capacity`, `units`; C15 `s_batch_violations` (one step, machine,
+  workers, start, end; length $p^{\mathrm{su}}_s + \sum (p_{o,m} - p^{\mathrm{su}}_s)$; units $\le c_s$; batch id
+  only on s-batch steps); C2 skips members; one machine interval (C5) and one worker share (C12, C13) per batch.
+  [08](08_serial-batches.md) §2, §3 (C15), §5, §6, change log; `notation.md` $O_j$, $C^{\mathrm{slot}}_j$. Tests
+  `tests/test_s_batch_checker.py` (11, hand batch 55 against 60, makespan 81 against 86); `tiny` in
+  `tests/test_s_batch_format.py` takes polishing tools. Mutation checks of the worker and machine dedupe.
+- **Found:** non-anticipatory setup needs no constraint of its own: batch availability plus C3, C4. The batch
+  symbol $B$ of the step-2 text clashed with the carriers $\mathcal{B}$; replaced by the slot symbols.
+- **Open:** step 4 (DES, repair): realized batch lengths, frozen part and forced removals for s-batches.
+
+## 2026-11-18 (69) — s-batches step 2: format, V23, Assignment.batch — uncommitted
+
+- **Decided (user):** `clean` and `blast` take at most 4 plates per s-batch; the other free steps have no
+  capacity (answer to the contradiction in spec §0). **Decided (Claude, to confirm):** the duration of an operation
+  of an s-batch step stays its singleton time with the setup inside (spec §4 (b) stores it without), so a batch
+  lasts $p^{\mathrm{su}}_s + \sum (p_o - p^{\mathrm{su}}_s)$ and nothing existing changes (confirmed by the user,
+  name "step" kept); no units $n_o$ (capacity in members); the Fidentis configuration gets its s-batch steps only
+  once planners form batches. **Decided (user):** the capacity counts parts, not members: units $n_o$ (part
+  operation: its parts; order and carrier operation: 1, the factors of the generator), V23 rejects
+  $n_o > c_s$, `instance.units`, tests `test_units_by_hand`, `test_capacity_in_parts`. **Decided (user):** machines allowed (option A): one whole share with or without
+  machine, or a machine without worker; no prefix or suffix (that is a run). Steps 3–6 cover machine-bound batches.
+- **Done:** new [08](08_serial-batches.md) (prose, durations, V23, implementation, assumptions, sources);
+  `SBatchStep`, `Instance.s_batch_steps`, V23 (`_check_s_batch_steps`, `longest_share`),
+  `Assignment.batch`, all omitted at their defaults; `CarrierGeneratorParams.s_batch_steps` (pass-through, unknown
+  steps rejected); schema 0.8 regenerated. [02](02_instance-validation.md) V23, `notation.md` $c_s$ extended,
+  `terminology.md` p-batch / s-batch, README. Tests `tests/test_s_batch_format.py` (15). Mutation check of step 1:
+  without the same-step clause in the rule's greedy join, `test_planners_keep_two_steps_apart[rule]` fails.
+- **Found:** no existing rule checked that a whole share fits a shift part; V23 does it for s-batch steps only.
+  V22 (carrier steps without machine) is in the code but missing in [02](02_instance-validation.md).
+- **Open:** step 3 (checker C15). Is schema 0.8 still open, or does the Definition of Done want 0.9 (user)?
+  V22 into 02.
+
+## 2026-11-18 (68) — s-batches step 1: batches only within one step — uncommitted
+
+- **Decided (user):** free s-batches across orders are not implemented yet (only the carrier-bound base of
+  protocols (62), (63)); implement them along the spec `docs/superpowers/specs/2026-11-17-s-batches-design.md`
+  §7, one step at a time. Commit of the nesting work first by the user (`530e309`).
+- **Done:** step 1 of §7 (the todo "batches only within one step" of [03](03_carriers.md) §6): $s(o)$ as
+  `CompiledInstance.step` (`Node.step` in `operation_graph`); the step in every batch key of the checker
+  (`check/feasibility.py`), DES (`planned_batches`), repair, the rule (greedy join, frozen batches) and CP-SAT
+  (families, frozen batches). [03](03_carriers.md) C10, §5, §6, status and change log; `notation.md` $s(o)$.
+  Tests (`tests/test_batches.py`, +5): step per operation; oven and temper as two batch steps on one oven, where
+  a mixed run would pay (41 against 42): the mixed hand plan is C5, rule and CP-SAT keep the steps apart (CP-SAT
+  optimum 42), zero-disturbance. The new tests fail on the old code.
+- **Found:** the spec named only checker, rule and CP-SAT; the DES, repair and the frozen-part handling of the
+  rule and CP-SAT used the same `(machine, start, end)` key and needed the step too.
+- **Open:** before step 2, two questions for the user: (1) the spec contradicts itself on capacity ($c_s = \infty$
+  in §0, but 4 plates for `clean` and `blast` in the second round; both are carrier steps, so p-batch capacity or
+  s-batch capacity?); (2) the spec's migration test on the Fidentis file conflicts with the test rule of
+  `CLAUDE.md`, proposed: a dental example, Fidentis only for the measurement (step 8). Step 2 changes the
+  generator (`base_durations` split into setup and per unit), so the Fidentis data and pinned digests change.
+  `viz.py` still draws batch bars by `(machine, start, end)` (display only).
+
 ## 2026-11-18 (67) — Checks of the notes in math/ — uncommitted
 
 - **Decided (user):** an automatic check of the notes instead of a knowledge graph (Claude's recommendation; a
   visual graph is available by opening `math/` in Obsidian).
-- **Done:** `tests/test_math_notes.py` (43 cases, 0.3 s): every `[..](file.md)` link of every note points to an
+- **Done:** `tests/test_math_notes.py` (43 cases, 0.3 s): every Markdown link to a file in every note points to an
   existing file; no control characters (tabs, mangled escapes); no symbol registered twice in the own tables of
   `notation.md` (correspondence tables excluded). All pass on the current notes. A planted tab, dead link and
   duplicate symbol each made the matching test fail.

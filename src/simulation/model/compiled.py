@@ -4,7 +4,7 @@ Operations are indexed in file order: the operations of every order (contiguous 
 operations of the carriers and of the runs (math/03_carriers.md). Owners in op_keys are orders, carriers or runs.
 """
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, fields
 from types import MappingProxyType
 from typing import NamedTuple
@@ -12,7 +12,7 @@ from typing import NamedTuple
 from graphlib import TopologicalSorter
 
 from simulation.calendar import WeekCalendar
-from simulation.model.instance import Instance, operation_graph, visible_instance
+from simulation.model.instance import Instance, operation_graph, units, visible_instance
 
 type OpKey = tuple[str, str]  # (owner_id, op_id); owner: order, carrier or run
 
@@ -65,6 +65,12 @@ class CompiledInstance:
     # order idx -> arrival: the planning tool knows the order from then on (math/07); the DES only wakes the tool
     arrival: tuple[int, ...] = ()
     accepted: tuple[int, ...] = ()  # order idx -> acceptance (math/07), for the lead time
+    # op idx -> process step s(o) (setup and removal of a run: the run's step); a batch holds one step only (C10)
+    step: tuple[str, ...] = ()
+    # op idx -> setup of its s-batch step, inside its duration (math/08); None: not an s-batch step
+    s_setup: tuple[int | None, ...] = ()
+    s_capacity: tuple[int | None, ...] = ()  # op idx -> units per s-batch of its step; None: no limit
+    units: tuple[int, ...] = ()  # op idx -> n_o, its units against the s-batch capacity (math/08)
 
     @property
     def n_ops(self) -> int:
@@ -95,12 +101,31 @@ def _rebuild(state: dict) -> CompiledInstance:
     return CompiledInstance(**state)
 
 
+def s_batch_length(ci: CompiledInstance, ops: Sequence[int], machine: int | None) -> int:
+    """Planned length of the s-batch `ops` on machine idx `machine` (None: without machine): the setup once plus each
+    member without it (math/08 C15); a single member lasts its own duration."""
+    setup = ci.s_setup[ops[0]]
+    return setup + sum((ci.fixed_duration[o] if machine is None else dict(ci.options[o])[machine]) - setup for o in ops)
+
+
+def batch_key(ci: CompiledInstance, o: int, x) -> tuple | None:
+    """The batch of operation o in assignment or frozen operation x: a p-batch by step, machine and time (C10), an
+    s-batch by its id (C15); None if o is in none. Members of one batch share the key."""
+    if ci.batch_capacity[o] > 1:
+        return ci.step[o], x.machine, x.start, x.end
+    if x.batch is not None and ci.s_setup[o] is not None:
+        return "s-batch", x.batch
+    return None
+
+
 def compile_instance(instance: Instance) -> CompiledInstance:
     machine_ids = instance.machines
     machine_index = {m: i for i, m in enumerate(machine_ids)}
     order_index = {o.id: i for i, o in enumerate(instance.orders)}
     release = {o.id: o.release for o in instance.orders}
     graph = operation_graph(instance)
+    op_of = {(o.id, op.id): op for o in instance.orders for op in o.operations}  # order operations by key
+    order_of = {(o.id, op.id): o for o in instance.orders for op in o.operations}
     op_keys = tuple(graph)
     op_index = {key: i for i, key in enumerate(op_keys)}
 
@@ -140,6 +165,11 @@ def compile_instance(instance: Instance) -> CompiledInstance:
         worker_ids=instance.workers,
         fixed_duration=tuple(node.duration for node in graph.values()),
         shares=tuple(_compile_shares(node.shares, instance.workers) for node in graph.values()),
+        step=tuple(node.step for node in graph.values()),
+        s_setup=tuple(sb.setup if (sb := instance.s_batch_steps.get(node.step)) else None for node in graph.values()),
+        s_capacity=tuple(sb.capacity if (sb := instance.s_batch_steps.get(node.step)) else None
+                         for node in graph.values()),
+        units=tuple(units(order_of[key], op_of[key]) if key in op_of else 1 for key in op_keys),
     )
 
 

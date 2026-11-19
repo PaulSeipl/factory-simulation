@@ -9,10 +9,11 @@ for CP-SAT, the DES, dispatching rules and the GA. Objective-agnostic on purpose
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from simulation.calendar import day_index, day_start, is_working_day, minute_of_day
-from simulation.model.compiled import CompiledInstance, OpKey, share_interval
+from simulation.model.compiled import CompiledInstance, OpKey, s_batch_length, share_interval
 from simulation.model.schedule import Assignment, Break
 
 if TYPE_CHECKING:
@@ -21,7 +22,8 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class Violation:
-    # "C1".."C5" (math/01), "C6", "C7" (math/05), "C8".."C10" (math/03), "C11".."C14" (math/04); "C0" = not in the
+    # "C1".."C5" (math/01), "C6", "C7" (math/05), "C8".."C10" (math/03), "C11".."C14" (math/04), "C15" (math/08);
+    # "C0" = not in the
     # instance
     constraint: str
     ops: tuple[OpKey, ...]
@@ -48,13 +50,14 @@ def check_schedule(
     for o, a in by_op.items():
         key = ci.op_keys[o]
         p_of = {ci.machine_ids[m]: p for m, p in ci.options[o]}
+        in_batch = a.batch is not None and ci.s_setup[o] is not None  # length checked for the batch (C15)
         if (fixed := ci.fixed_duration[o]) is not None:  # operation without machine (math/04)
             on_machine = None if a.machine is None else Violation(
                 "C11", (key,), f"{key} has no machine, planned on {a.machine}")
-            duration = on_machine or (None if o in frozen else wrong_duration(key, a, fixed))
+            duration = on_machine or (None if o in frozen or in_batch else wrong_duration(key, a, fixed))
         else:
             duration = not_eligible(key, a.machine, p_of) or (
-                None if o in frozen else wrong_duration(key, a, p_of[a.machine]))
+                None if o in frozen or in_batch else wrong_duration(key, a, p_of[a.machine]))
         found = [
             duration,
             *worker_shares_wrong(ci, o, a),
@@ -66,6 +69,7 @@ def check_schedule(
         violations += [v for v in found if v]
     breaks = tuple(breaks)
     return (violations + run_on_several_machines(ci, by_op) + machine_overlaps(ci, by_op)
+            + s_batch_violations(ci, by_op, frozen)
             + worker_overlaps(ci, by_op) + outside_shift(ci, by_op, snapshot)
             + break_violations(ci, by_op, breaks, snapshot)
             + breaks_changed(breaks, snapshot))
@@ -130,11 +134,13 @@ def frozen_changed(key: OpKey, a: Assignment, f: FrozenOperation, end: int | Non
     `end`: its required end if not the snapshot's (forced overstay, see forced_ends)."""
     started = [(i, w) for i, w in enumerate(f.workers) if w is not None]
     end = f.end if end is None else end
-    if (a.machine, a.start, a.end) != (f.machine, f.start, end) or any(
+    if (a.machine, a.start, a.end, a.batch) != (f.machine, f.start, end, f.batch) or any(
             i >= len(a.workers) or a.workers[i] != w for i, w in started):
         forced = f", forced end {end}" if end != f.end else ""
-        return Violation("C7", (key,), f"{key} is frozen as {f.machine} [{f.start},{f.end}) {f.workers}{forced}, "
-                                       f"planned {a.machine} [{a.start},{a.end}) {a.workers}")
+        batch = f" batch {f.batch}" if f.batch or a.batch else ""
+        planned = f" batch {a.batch}" if f.batch or a.batch else ""
+        return Violation("C7", (key,), f"{key} is frozen as {f.machine} [{f.start},{f.end}) {f.workers}{forced}"
+                                       f"{batch}, planned {a.machine} [{a.start},{a.end}) {a.workers}{planned}")
     return None
 
 
@@ -147,11 +153,11 @@ def forced_ends(ci: CompiledInstance, frozen: Mapping[int, FrozenOperation], by_
     of the removals before it, with the plan's worker; a batch (one run) has one removal. A planner may not delay a
     removal on its own; the delay comes only from disturbances and from the removals before it."""
     busy = {w: list(v) for w, v in blocked.items()}
-    runs: dict[tuple[str | None, int, int], list[int]] = defaultdict(list)
+    runs: dict[tuple, list[int]] = defaultdict(list)
     for o, f in frozen.items():
         i = next((i for i, sh in enumerate(ci.shares[o]) if sh.kind == "suffix"), None)
         if f.running and i is not None and i < len(f.workers) and f.workers[i] is None and o in by_op:
-            runs[(f.machine, f.start, f.end) if ci.batch_capacity[o] > 1 else (str(o), 0, 0)].append(o)
+            runs[(ci.step[o], f.machine, f.start, f.end) if ci.batch_capacity[o] > 1 else (o,)].append(o)
     out = {}
     def removal_start(o: int) -> int:
         return by_op[o].end - next(sh.length for sh in ci.shares[o] if sh.kind == "suffix")
@@ -209,28 +215,34 @@ def machine_overlaps(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> l
     C9: a run blocks its machine from the start of its first operation to the end of its last one, also in a gap
     between them (e.g. a print that has finished and waits for its removal); a pair involving such a span is C9.
 
-    C10: operations of a batch step (capacity > 1) on one machine with identical start and end form one machine
-    run, holding at most the capacity; they occupy the machine as one interval.
+    C10: operations of one batch step (capacity > 1) on one machine with identical start and end form one machine
+    run, holding at most the capacity; they occupy the machine as one interval. Operations of two different batch
+    steps are two runs, so on one machine at the same time they overlap (C5).
     """
     in_group = {o: g for g in ci.machine_groups for o in g}
     per_machine: dict[str, list[tuple[int, int, tuple[int, ...]]]] = defaultdict(list)
-    batches: dict[tuple[str, int, int], list[int]] = defaultdict(list)
+    batches: dict[tuple[str, str, int, int], list[int]] = defaultdict(list)
+    s_batches: dict[tuple[str, str, int, int], list[int]] = defaultdict(list)
     violations = []
     for o, a in by_op.items():
         g = in_group.get(o)
         if a.machine is None:  # operation without machine (C11 if it should have one)
             continue
         if ci.batch_capacity[o] > 1:
-            batches[a.machine, a.start, a.end].append(o)
+            batches[ci.step[o], a.machine, a.start, a.end].append(o)
+        elif a.batch is not None and ci.s_setup[o] is not None:  # s-batch: one interval (C15 checks the members)
+            s_batches[a.batch, a.machine, a.start, a.end].append(o)
         elif g is None or not all(q in by_op for q in g):
             per_machine[a.machine].append((a.start, a.end, (o,)))
         elif o == g[0]:
             per_machine[a.machine].append((a.start, by_op[g[-1]].end, g))
-    for (machine, s, e), ops in batches.items():
+    for (_, machine, s, e), ops in batches.items():
         per_machine[machine].append((s, e, tuple(ops)))
         if len(ops) > (cap := min(ci.batch_capacity[o] for o in ops)):
             violations.append(Violation("C10", tuple(ci.op_keys[o] for o in ops),
                                         f"{len(ops)} operations in one run on {machine} [{s},{e}), capacity {cap}"))
+    for (_, machine, s, e), ops in s_batches.items():
+        per_machine[machine].append((s, e, tuple(ops)))
     for machine, intervals in per_machine.items():
         running: list[tuple[int, int, tuple[int, ...]]] = []
         for s, e, ops in sorted(intervals):
@@ -261,17 +273,57 @@ def worker_shares_wrong(ci: CompiledInstance, o: int, a: Assignment) -> list[Vio
     ]
 
 
+def s_batch_violations(ci: CompiledInstance, by_op: Mapping[int, Assignment],
+                       frozen: Mapping[int, FrozenOperation] = MappingProxyType({})) -> list[Violation]:
+    """C15 (math/08): the operations with one batch id form an s-batch: all of one s-batch step, on one machine (or
+    none) and with the same workers, all with the batch's start and end (batch availability), and at most c_s units.
+    A batch id on an operation of another step is C15. The length S + p^su_s + sum (p_o - p^su_s) is the batch's C2
+    (a realized schedule deviates there, as in C2), not checked for a started batch (its end is the snapshot's)."""
+    members: dict[str, list[int]] = defaultdict(list)
+    violations = []
+    for o, a in by_op.items():
+        if a.batch is None:
+            continue
+        if ci.s_setup[o] is None:
+            violations.append(Violation("C15", (ci.op_keys[o],), f"{ci.op_keys[o]} in batch {a.batch}, but its step "
+                                                                  f"{ci.step[o]} is no s-batch step"))
+        else:
+            members[a.batch].append(o)
+    for b, ops in members.items():
+        keys, first = tuple(ci.op_keys[o] for o in ops), by_op[ops[0]]
+        for what, values in (("steps", {ci.step[o] for o in ops}), ("machines", {by_op[o].machine for o in ops}),
+                             ("workers", {by_op[o].workers for o in ops}), ("starts", {by_op[o].start for o in ops}),
+                             ("ends", {by_op[o].end for o in ops})):
+            if len(values) > 1:
+                violations.append(Violation("C15", keys, f"batch {b}: members with different {what} "
+                                                         f"{sorted(values, key=str)}"))
+        m = None if first.machine is None else ci.machine_index.get(first.machine)
+        eligible = all(dict(ci.options[o]).get(m) is not None if m is not None else ci.fixed_duration[o] is not None
+                       for o in ops)  # otherwise C1 / C11
+        if eligible and not any(o in frozen for o in ops) and first.end - first.start != (
+                p := s_batch_length(ci, ops, m)):
+            violations.append(Violation("C2", keys, f"batch {b}: end - start = {first.end - first.start}, "
+                                                    f"p = {p} (setup {ci.s_setup[ops[0]]} once)"))
+        if (cap := ci.s_capacity[ops[0]]) is not None and (n := sum(ci.units[o] for o in ops)) > cap:
+            violations.append(Violation("C15", keys, f"batch {b}: {n} units, capacity {cap}"))
+    return violations
+
+
 def worker_intervals(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> dict[str, list[tuple[int, int, int]]]:
     """Worker -> [(from, to, op)] over all shares; a batch (one oven run) counts once, with its first member."""
-    seen_batches: set[tuple[str | None, int, int]] = set()
+    seen_batches: set[tuple[str, str | None, int, int]] = set()  # p-batches by step, s-batches by id
     out: dict[str, list[tuple[int, int, int]]] = defaultdict(list)
     for o, a in sorted(by_op.items()):
         if len(a.workers) != len(ci.shares[o]) or (a.share_lengths and len(a.share_lengths) != len(ci.shares[o])):
             continue  # reported under C11
         if ci.batch_capacity[o] > 1:
-            if (a.machine, a.start, a.end) in seen_batches:
+            if (ci.step[o], a.machine, a.start, a.end) in seen_batches:
                 continue
-            seen_batches.add((a.machine, a.start, a.end))
+            seen_batches.add((ci.step[o], a.machine, a.start, a.end))
+        elif a.batch is not None and ci.s_setup[o] is not None:  # s-batch: one share for all members
+            if ("s-batch", a.batch, a.start, a.end) in seen_batches:
+                continue
+            seen_batches.add(("s-batch", a.batch, a.start, a.end))
         # a realized schedule carries the realized share lengths (DES), a plan the planned ones
         lengths = a.share_lengths or [s.length for s in ci.shares[o]]
         for s, n, w in zip(ci.shares[o], lengths, a.workers, strict=True):
@@ -284,10 +336,10 @@ def worker_overlaps(ci: CompiledInstance, by_op: Mapping[int, Assignment]) -> li
     """C12: a worker does one thing at a time (half-open share intervals). C11: the members of one batch carry the
     same workers (one run, one loading and one removal)."""
     violations = []
-    batches: dict[tuple[str | None, int, int], list[int]] = defaultdict(list)
+    batches: dict[tuple[str, str | None, int, int], list[int]] = defaultdict(list)
     for o, a in by_op.items():
         if ci.batch_capacity[o] > 1:
-            batches[a.machine, a.start, a.end].append(o)
+            batches[ci.step[o], a.machine, a.start, a.end].append(o)
     for ops in batches.values():
         if len({by_op[o].workers for o in ops}) > 1:
             violations.append(Violation("C11", tuple(ci.op_keys[o] for o in ops),

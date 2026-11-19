@@ -9,7 +9,9 @@ and is ready (the worker comes late, counted once). Realized durations come from
 
 A batch (operations of a batch step planned on one machine with the same start, e.g. carriers in one oven run)
 starts jointly once all its operations are ready; the program fixes its duration, so scenario factors do not
-apply to it (math/03_carriers.md).
+apply to it (math/03_carriers.md). An s-batch (math/08: the operations with one batch id in the plan) starts the
+same way, one share for its worker, and all members end together after the realized setup (factor of its first
+member) plus each member's realized duration without the setup.
 
 Workers (math/04_workers.md): every worker share is served by its planned worker, in the planned order per
 worker (no overtaking). A whole share or a prefix starts with the operation, which therefore also waits for those
@@ -40,7 +42,7 @@ from enum import IntEnum
 
 from simulation.calendar import day_index, day_start, is_working_day, minute_of_day
 from simulation.check.feasibility import check_schedule
-from simulation.model.compiled import CompiledInstance, share_interval
+from simulation.model.compiled import CompiledInstance, s_batch_length, share_interval
 from simulation.model.schedule import Assignment, Break
 from simulation.sim.scenario import Scenario, factors_by_index, realized_duration
 from simulation.sim.snapshot import Snapshot, snapshot
@@ -82,6 +84,7 @@ class SimState:
     released: set[int] = field(default_factory=set)  # released to the shop floor, not started yet
     late_start_at: list[int | None] = field(default_factory=list)  # per op: start time after a late offset
     batch: list[tuple[int, ...]] = field(default_factory=list)  # per op: its planned batch, (o,) if none
+    batch_id: list[str | None] = field(default_factory=list)  # per op: its s-batch id in the plan (math/08)
     start: list[int | None] = field(default_factory=list)  # per op: actual start
     end: list[int | None] = field(default_factory=list)  # per op: actual completion
     worker: list[list[int]] = field(default_factory=list)  # current plan: worker idx per share of each op
@@ -136,6 +139,7 @@ class Simulation:
             machine=[0] * ci.n_ops, planned_start=[0] * ci.n_ops, planned_end=[0] * ci.n_ops,
             planned_start_at=[None] * ci.n_ops, running=[None] * ci.n_machines, start=[None] * ci.n_ops,
             end=[None] * ci.n_ops, late_start_at=[None] * ci.n_ops, batch=[(o,) for o in range(ci.n_ops)],
+            batch_id=[None] * ci.n_ops,
             worker=[[] for _ in range(ci.n_ops)], worker_on=[None] * n_w, break_until=[0] * n_w,
             pending_breaks=[[] for _ in range(n_w)], break_start=[None] * len(self.breaks),
         )
@@ -258,7 +262,7 @@ class Simulation:
         """The plan the factory currently executes (the one last sent to it)."""
         s = self.state
         return [Assignment(order_id=k, op_id=j, machine=self._machine_id(o), start=s.planned_start[o],
-                           end=s.planned_end[o], workers=self._worker_ids(o))
+                           end=s.planned_end[o], workers=self._worker_ids(o), batch=s.batch_id[o])
                 for o, (k, j) in enumerate(self.ci.op_keys) if o in self.planned]
 
     def update_plan(self, plan: Sequence[Assignment], breaks: Sequence[Break] | None = None) -> None:
@@ -309,7 +313,7 @@ class Simulation:
             factor[new[o]], offset[new[o]] = self.factor[o], self.offset[o]
         self.factor, self.offset = factor, offset
         for name, default in (("machine", 0), ("planned_start", 0), ("planned_end", 0), ("planned_start_at", None),
-                              ("start", None), ("end", None), ("late_start_at", None)):
+                              ("start", None), ("end", None), ("late_start_at", None), ("batch_id", None)):
             setattr(s, name, per_op(getattr(s, name), default))
         s.worker = per_op(s.worker, list)
         s.running = [None if o is None else new[o] for o in s.running]
@@ -374,7 +378,8 @@ class Simulation:
     def realized(self) -> list[Assignment]:
         s = self.state
         return [Assignment(order_id=k, op_id=j, machine=self._machine_id(o), start=s.start[o], end=s.end[o],
-                           workers=self._worker_ids(o), share_lengths=tuple(self.share_len[o]))
+                           workers=self._worker_ids(o), share_lengths=tuple(self.share_len[o]),
+                           batch=s.batch_id[o])
                 for o, (k, j) in enumerate(self.ci.op_keys) if o in self.planned]
 
     # --- internals ---------------------------------------------------------------------------------
@@ -391,6 +396,7 @@ class Simulation:
             if s.start[o] is None:
                 s.machine[o] = NO_MACHINE if a.machine is None else ci.machine_index[a.machine]
                 s.worker[o] = [worker_index[w] for w in a.workers]
+                s.batch_id[o] = a.batch
                 self.duration[o], self.share_len[o] = self._realized(o)
             elif s.end[o] is None:  # running: a share not started yet (oven removal) takes the plan's worker
                 first = next((f for f, batch in s.started_batch.items() if o in batch), o)
@@ -401,7 +407,11 @@ class Simulation:
         for o in sorted(self.planned, key=lambda o: (s.planned_start[o], o)):
             if s.machine[o] != NO_MACHINE:
                 s.order_on[s.machine[o]].append(o)
-        s.batch = list(planned_batches(ci, s.machine, s.planned_start, s.start, self.planned))
+        s.batch = list(planned_batches(ci, s.machine, s.planned_start, s.start, self.planned, s.batch_id))
+        for ops in {b for b in s.batch if len(b) > 1 and ci.s_setup[b[0]] is not None}:
+            length = self._realized_s_batch(ops)  # batch availability: every member ends with the batch
+            for q in ops:
+                self.duration[q], self.share_len[q] = length, [length] * len(ci.shares[q])  # whole shares only
         s.next_pos = [sum(s.end[o] is not None for o in ops) for ops in s.order_on]
         # a batch's shares are carried by its first operation (planned, or started)
         carriers = [o for o in sorted(self.planned) if o not in s.followers and s.batch[o][0] == o]
@@ -426,8 +436,20 @@ class Simulation:
         return p, [min(n, p) for n in lengths]
 
     def _planned_duration(self, o: int) -> int:
-        m = self.state.machine[o]
+        """Planned duration of o; for a member of an s-batch the batch's length (expected end, shift fit)."""
+        m, batch = self.state.machine[o], self.state.batch[o]
+        if len(batch) > 1 and self.ci.s_setup[o] is not None:
+            return s_batch_length(self.ci, batch, None if m == NO_MACHINE else m)
         return self.ci.fixed_duration[o] if m == NO_MACHINE else dict(self.ci.options[o])[m]
+
+    def _realized_s_batch(self, ops: tuple[int, ...]) -> int:
+        """Realized length of an s-batch: the setup with the factor of its first member, plus each member's duration
+        without the setup with its own factor (math/22)."""
+        ci, m = self.ci, self.state.machine[ops[0]]
+        setup = ci.s_setup[ops[0]]
+        own = [ci.fixed_duration[q] if m == NO_MACHINE else dict(ci.options[q])[m] for q in ops]
+        return realized_duration(setup, self.factor[ops[0]]) + sum(
+            realized_duration(p - setup, self.factor[q]) for q, p in zip(ops, own, strict=True))
 
     def _suffix(self, o: int) -> int | None:
         return next((i for i, sh in enumerate(self.ci.shares[o]) if sh.kind == "suffix"), None)
@@ -565,14 +587,19 @@ class Simulation:
 
 def planned_batches(
     ci: CompiledInstance, machine: Sequence[int], planned_start: Sequence[int], start: Sequence[int | None],
-    planned: Iterable[int] | None = None,
+    planned: Iterable[int] | None = None, batch_id: Sequence[str | None] = (),
 ) -> list[tuple[int, ...]]:
-    """Per operation its batch: not started operations of a batch step with the same machine and planned start;
-    `planned`: the operations that have a plan (default: all)."""
-    groups: dict[tuple[int, int], list[int]] = {}
+    """Per operation its batch: not started operations of one p-batch step with the same machine and planned start,
+    or of an s-batch step with the same batch id (math/08); `planned`: the operations that have a plan (default:
+    all); `batch_id`: the plan's s-batch id per operation (empty: none)."""
+    groups: dict[tuple, list[int]] = {}
     for o in range(ci.n_ops) if planned is None else sorted(planned):
-        if ci.batch_capacity[o] > 1 and start[o] is None:
-            groups.setdefault((machine[o], planned_start[o]), []).append(o)
+        if start[o] is not None:
+            continue
+        if ci.batch_capacity[o] > 1:
+            groups.setdefault((ci.step[o], machine[o], planned_start[o]), []).append(o)
+        elif batch_id and batch_id[o] is not None and ci.s_setup[o] is not None:
+            groups.setdefault(("s-batch", batch_id[o]), []).append(o)
     batch = [(o,) for o in range(ci.n_ops)]
     for ops in groups.values():
         for o in ops:

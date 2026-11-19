@@ -8,9 +8,9 @@ planned processing time, never from the scenario. Operations that have not start
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, NonNegativeInt
+from pydantic import BaseModel, ConfigDict, NonNegativeInt, model_serializer
 
-from simulation.model.compiled import CompiledInstance
+from simulation.model.compiled import CompiledInstance, s_batch_length
 from simulation.model.schedule import Assignment, Break
 
 if TYPE_CHECKING:  # the DES uses snapshots itself, so its module is imported for type checking only
@@ -30,6 +30,14 @@ class FrozenOperation(BaseModel):
     # length per share: realized if the share is done (observed), expected if it runs (a running prefix at least
     # until t + 1), planned if not started; empty: the planned lengths (math/04_workers.md)
     share_lengths: tuple[int, ...] = ()
+    batch: str | None = None  # s-batch id of the plan (math/08); the members of a started batch keep it
+
+    @model_serializer(mode="wrap")
+    def _omit_batch(self, handler):
+        data = handler(self)
+        if self.batch is None:
+            data.pop("batch", None)
+        return data
 
 
 class Snapshot(BaseModel):
@@ -48,6 +56,7 @@ def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
     lengths of the DES, read only for shares that are done (the past)."""
     machine = {(a.order_id, a.op_id): a.machine for a in plan}
     workers = {(a.order_id, a.op_id): a.workers for a in plan}
+    batch = {(a.order_id, a.op_id): a.batch for a in plan}
     leader = {q: batch[0] for batch in state.started_batch.values() for q in batch}
     frozen = []
     for o, (order_id, op_id) in enumerate(ci.op_keys):
@@ -62,7 +71,10 @@ def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
             # expected end from the planned duration; an overrunning operation ends at t + 1 at the earliest, one
             # whose removal (suffix) has not started at t + its planned length, one whose removal started at that
             # start + its planned length
-            planned = ci.fixed_duration[o] if m is None else dict(ci.options[o])[ci.machine_index[m]]
+            m_idx = None if m is None else ci.machine_index[m]
+            planned = ci.fixed_duration[o] if m is None else dict(ci.options[o])[m_idx]
+            if batch[order_id, op_id] is not None and ci.s_setup[o] is not None:  # an s-batch: its whole length
+                planned = s_batch_length(ci, next(b for b in state.started_batch.values() if o in b), m_idx)
             rest = next((sh.length for sh, s in zip(ci.shares[o], started, strict=True)
                          if sh.kind == "suffix" and not s), 1)
             end = max(start + planned, state.t + rest)
@@ -81,7 +93,7 @@ def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
         frozen.append(FrozenOperation(
             order_id=order_id, op_id=op_id, machine=m, start=start, end=end, running=state.end[o] is None,
             workers=tuple(w if done else None for w, done in zip(workers[order_id, op_id], started, strict=True)),
-            share_lengths=tuple(lengths) if ci.shares[o] else (),
+            share_lengths=tuple(lengths) if ci.shares[o] else (), batch=batch[order_id, op_id],
         ))
     taken = tuple(Break(worker=b.worker, start=s) for b, s in zip(breaks, state.break_start, strict=True)
                   if s is not None)

@@ -210,6 +210,40 @@ class Calendar(BaseModel):
         return self
 
 
+class SBatchStep(BaseModel):
+    """A step whose operations the planner may group into s-batches across orders or carriers (math/08): one worker
+    share per batch, setup once per batch. The duration of each operation is its singleton time with the setup
+    inside, so every further member adds its duration minus the setup."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    setup: NonNegativeInt  # p^su_s, inside the duration of every operation of the step
+    capacity: int | None = Field(default=None, ge=2)  # c_s: members per batch (a carrier counts 1); None: no limit
+
+    @model_serializer(mode="wrap")
+    def _omit_capacity(self, handler):
+        data = handler(self)
+        if self.capacity is None:
+            data.pop("capacity", None)
+        return data
+
+
+def units(order: Order, op: Operation) -> int:
+    """n_o: what operation op of `order` counts against an s-batch capacity (user 2026-11-18: parts). A part
+    operation covers the order's parts of its type; an order operation counts the order as 1 and a carrier operation
+    its carrier as 1 (the 4-plate limit of clean and blast). The same factor the generator multiplies the per-unit
+    time with, so units and durations agree."""
+    if op.scope in (CARRIER, ORDER):
+        return 1
+    return sum(p.type == op.scope for p in order.parts)
+
+
+def longest_share(cal: Calendar) -> int:
+    """Longest worker share that C13 and C14 allow on one day: before the latest break start, or from the earliest
+    possible end of the break (a share starting at the latest break start needs no break) to the end of overtime."""
+    return max(cal.break_latest - cal.shift_start,
+               cal.shift_end + cal.max_overtime - min(cal.break_latest, cal.break_earliest + cal.break_length))
+
+
 class Instance(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     schema_version: Literal["0.8"]
@@ -222,6 +256,15 @@ class Instance(BaseModel):
     runs: tuple[Run, ...] = ()
     calendar: Calendar | None = None  # without: no shifts, tardiness in minutes
     workers: tuple[str, ...] = ()  # individual workers (math/04_workers.md)
+    s_batch_steps: dict[str, SBatchStep] = {}  # step -> s-batches decided by the planner (math/08)
+
+    @model_serializer(mode="wrap")
+    def _omit_s_batch_steps(self, handler):
+        # left out when empty, so instance files and digests from before stay unchanged
+        data = handler(self)
+        if not self.s_batch_steps:
+            data.pop("s_batch_steps", None)
+        return data
 
     @model_validator(mode="after")
     def check_references(self):
@@ -336,7 +379,42 @@ class Instance(BaseModel):
             TopologicalSorter({k: n.predecessors for k, n in operation_graph(self).items()}).prepare()
         except CycleError as e:
             raise ValueError(f"[V2] cycle across orders and carriers: {' -> '.join(map(str, e.args[1]))}") from e
+        self._check_s_batch_steps()
         return self
+
+    def _check_s_batch_steps(self):
+        """V23: an s-batch step is a step of the instance without runs or p-batch; each of its operations has one whole
+        worker share, or a machine and no worker (user 2026-11-18: machines allowed, no prefix or suffix: unattended
+        time makes it a run); every duration is longer than the setup and, with a worker and a calendar, no longer
+        than the longest share (math/08)."""
+        for step, sb in self.s_batch_steps.items():
+            if (cs := self.carrier_steps.get(step)) is not None:
+                if cs.runs != "none" or cs.batch_capacity is not None:
+                    raise ValueError(f"[V23] s-batch step {step}: a run step or p-batch step (runs {cs.runs!r}, "
+                                     f"batch_capacity {cs.batch_capacity})")
+                ops = [(cs.options, cs.duration, cs.worker)]
+            else:
+                ops = [(op.options, op.duration, op.worker) for o in self.orders for op in o.operations
+                       if op.step == step and op.scope != CARRIER]
+                if not ops:
+                    raise ValueError(f"[V23] s-batch step {step}: no operation of this step")
+                for o in self.orders:
+                    for op in o.operations:
+                        if op.step == step and sb.capacity is not None and (n := units(o, op)) > sb.capacity:
+                            raise ValueError(f"[V23] s-batch step {step}: {o.id}/{op.id} covers {n} parts, more than "
+                                             f"the capacity {sb.capacity}")
+            for options, duration, worker in ops:
+                if (worker is None and not options) or (worker is not None and not worker.whole):
+                    raise ValueError(f"[V23] s-batch step {step}: needs operations with one whole worker share, or a "
+                                     "machine without worker")
+                durations = list(options.values()) if options else [duration]
+                if min(durations) <= sb.setup:
+                    raise ValueError(f"[V23] s-batch step {step}: setup {sb.setup} not shorter than an operation "
+                                     f"({min(durations)})")
+                # one machine where it fits is enough; the planner avoids the others (C13)
+                if worker is not None and self.calendar and min(durations) > (n := longest_share(self.calendar)):
+                    raise ValueError(f"[V23] s-batch step {step}: an operation of {min(durations)} does not fit one "
+                                     f"shift part ({n})")
 
     def _check_share(self, where: str, share: WorkerShare | None, shortest: int, machine_less: int | None = None):
         """machine_less: the shortest duration of an operation without machine (None: it has a machine)."""
@@ -523,6 +601,7 @@ class Node(NamedTuple):
     group: tuple[tuple[str, str], ...] | None
     shares: tuple[WorkerShare, ...] = ()  # worker shares (math/04_workers.md)
     duration: int | None = None  # operations without machine (options empty)
+    step: str = ""  # process step (setup and removal of a run: the run's step); batches only within one step
 
 
 def _shares(share: WorkerShare | None, duration: int | None = None) -> tuple[WorkerShare, ...]:
@@ -571,12 +650,13 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
             keys = [(cid, op.id)]
         return keys[0], keys[-1]
 
-    def add_run(keys: list[tuple[str, str]], step: CarrierStep, main: int | None, entry: list, orders: list,
+    def add_run(keys: list[tuple[str, str]], step_id: str, main: int | None, entry: list, orders: list,
                 main_key: tuple[str, str], carriers: int = 1) -> None:
+        step = inst.carrier_steps[step_id]
         if not step.options:  # without a machine: one plain operation (V22: no setup, removal), no machine group
             d = step.duration if main is None else main
             nodes[main_key] = Node({}, list(dict.fromkeys(entry)), list(dict.fromkeys(orders)), None,
-                                   _shares(step.worker, d), d)
+                                   _shares(step.worker, d), d, step_id)
             return
         for i, key in enumerate(keys):
             if key != main_key:
@@ -588,7 +668,7 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
                 options = dict(step.options) if main is None else dict.fromkeys(step.options, main)
                 shares = _shares(step.worker)
             ps = list(dict.fromkeys(entry)) if i == 0 else [keys[i - 1]]
-            nodes[key] = Node(options, ps, list(dict.fromkeys(orders)), tuple(keys), shares)
+            nodes[key] = Node(options, ps, list(dict.fromkeys(orders)), tuple(keys), shares, None, step_id)
 
     def preds(k: str, op: Operation, cid: str | None = None) -> list[tuple[str, str]]:
         out = []
@@ -606,7 +686,7 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
         for op in o.operations:
             if op.scope != CARRIER:
                 nodes[o.id, op.id] = Node(dict(op.options or {}), preds(o.id, op), [o.id], None,  # {}: no machine
-                                          _shares(op.worker, op.duration), op.duration)
+                                          _shares(op.worker, op.duration), op.duration, op.step)
     runs: dict[str, tuple[list, list]] = {r.id: ([], []) for r in inst.runs}  # entry predecessors, orders
     for c in inst.carriers:
         # same IDs and steps for all orders on a carrier
@@ -618,13 +698,13 @@ def operation_graph(inst: Instance) -> dict[tuple[str, str], Node]:
                 runs[r.id][0].extend(ps)
                 runs[r.id][1].extend(members[c.id])
             elif step.runs == "per_carrier":  # the carrier is the run's load: no nesting needed
-                add_run(keys_of(c.id, op.step, op.id, f"{op.id}/"), step, _estimate(inst, op.step, c.parts), ps,
+                add_run(keys_of(c.id, op.step, op.id, f"{op.id}/"), op.step, _estimate(inst, op.step, c.parts), ps,
                         members[c.id], (c.id, op.id))
             else:
                 nodes[c.id, op.id] = Node(dict(step.options), ps, members[c.id], None,
-                                          _shares(step.worker, step.duration), step.duration)
+                                          _shares(step.worker, step.duration), step.duration, op.step)
     for r in inst.runs:
         entry, orders = runs[r.id]
-        add_run(run_keys(r), inst.carrier_steps[r.step], run_duration(inst, r), entry, orders, (r.id, r.step),
+        add_run(run_keys(r), r.step, run_duration(inst, r), entry, orders, (r.id, r.step),
                 len(r.carriers))
     return nodes

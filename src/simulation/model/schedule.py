@@ -1,6 +1,6 @@
 from typing import NamedTuple
 
-from pydantic import BaseModel, ConfigDict, NonNegativeInt, model_validator
+from pydantic import BaseModel, ConfigDict, NonNegativeInt, model_serializer, model_validator
 
 
 class Assignment(BaseModel):
@@ -15,6 +15,16 @@ class Assignment(BaseModel):
     workers: tuple[str, ...] = ()  # one worker per share of the operation, in the order of CompiledInstance.shares
     # realized share lengths (set by the DES, whose shares scale with the disturbance); empty: the planned lengths
     share_lengths: tuple[int, ...] = ()
+    # s-batch id (math/08): members of one batch carry the same id; explicit, since worker-only members have no
+    # machine to key by and two batches of one step may run at the same time on two workers. None: a singleton
+    batch: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_batch(self, handler):
+        data = handler(self)
+        if self.batch is None:
+            data.pop("batch", None)
+        return data
 
     @model_validator(mode="after")
     def check_interval(self):

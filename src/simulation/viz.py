@@ -19,7 +19,7 @@ from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Patch
 
 from simulation.calendar import DAY, day_index, day_start, is_working_day, minute_of_day
 from simulation.check.feasibility import worker_intervals
-from simulation.model.compiled import CompiledInstance
+from simulation.model.compiled import CompiledInstance, batch_key
 from simulation.model.instance import Instance
 from simulation.model.schedule import Assignment, Break
 
@@ -91,10 +91,12 @@ def plot_gantt(ci: CompiledInstance, assignments: Iterable[Assignment], ax: Axes
         _, ax = plt.subplots(figsize=(12, 0.45 * ci.n_machines + 1.2))
     horizon = max((a.end for a in assignments), default=1)
     orders, in_run = set(ci.order_ids), {o for g in ci.machine_groups for o in g}
-    bars: dict[tuple[str, int, int], list[Assignment]] = {}  # a batch (same machine and times) is one bar
+    bars: dict[tuple, list[Assignment]] = {}  # a p- or s-batch is one bar
     for a in assignments:
-        batched = ci.batch_capacity[ci.op_index[a.order_id, a.op_id]] > 1
-        bars.setdefault((a.machine, a.start, a.end) if batched else (a.order_id, a.op_id, -1), []).append(a)
+        if a.machine is None:  # worker-only operations have no machine row (plot_shifts shows them)
+            continue
+        key = batch_key(ci, ci.op_index[a.order_id, a.op_id], a)
+        bars.setdefault(key or (a.order_id, a.op_id, -1), []).append(a)
     for members in bars.values():
         a, o = members[0], ci.op_index[members[0].order_id, members[0].op_id]
         # an operation of a carrier or run serves several orders: shared colors instead of one order's color
@@ -149,6 +151,13 @@ def shift_bars(ci: CompiledInstance, schedule: Iterable[Assignment], breaks: Ite
     by_op = {ci.op_index[a.order_id, a.op_id]: a for a in schedule}
     shares = worker_intervals(ci, by_op)
     bars: list[Bar] = []
+    # a batch's worker time is carried by one member (worker_intervals): every member shows it, labels name all
+    members: dict[tuple, list[int]] = {}
+    for o, a in sorted(by_op.items()):
+        if (key := batch_key(ci, o, a)) is not None:
+            members.setdefault(key, []).append(o)
+    lead = {o: ops[0] for ops in members.values() for o in ops}
+    orders_of = {ops[0]: "+".join(dict.fromkeys(by_op[q].order_id for q in ops)) for ops in members.values()}
 
     def attended(row, s, e, label, op, inner=False, machine=""):  # split at the shift end of the share's day
         cut = e if cal is None else max(s, min(e, day_start(cal, day_index(cal, s)) + cal.shift_end))
@@ -165,14 +174,14 @@ def shift_bars(ci: CompiledInstance, schedule: Iterable[Assignment], breaks: Ite
         label = f"{a.op_id} {'+'.join(dict.fromkeys(a.workers))}" if rows == "orders" else f"{a.order_id} {a.op_id}"
         if unattended:
             bars.append(Bar(row, a.start, a.end, "unattended", label, a.op_id, machine=a.machine or ""))
-        for s, e, _ in (iv for w in shares.values() for iv in w if iv[2] == o):
+        for s, e, _ in (iv for w in shares.values() for iv in w if iv[2] == lead.get(o, o)):
             attended(row, s, e, "" if unattended else label, a.op_id, inner=unattended, machine=a.machine or "")
     if rows in ("resources", "workers"):
         for w, intervals in shares.items():
             for s, e, o in intervals:
                 a = by_op[o]
                 at = f"@{a.machine}" if rows == "workers" and a.machine else ""
-                attended(w, s, e, f"{a.order_id} {a.op_id}{at}", a.op_id, machine=a.machine or "")
+                attended(w, s, e, f"{orders_of.get(o, a.order_id)} {a.op_id}{at}", a.op_id, machine=a.machine or "")
         bars += [Bar(b.worker, b.start, b.start + cal.break_length, "break", "", "") for b in breaks]
     present = {b.row for b in bars}
     if rows == "orders":

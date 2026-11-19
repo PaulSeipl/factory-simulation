@@ -168,6 +168,14 @@ the end of `run`) writes the CSV of a configuration from the rows whose configur
 missing or stale runs. Tests in `tests/test_experiment.py` (task by Slurm index, merge with a missing run, stale rows
 after a configuration change, index out of range, unknown configuration).
 
+**Continuing** (2026-11-19, user): a run counts as done on a machine when its row file exists with the current
+configuration hash and `host` equal to that machine's host name (`simulation.experiment.done`). `run` only runs
+what is not done there (`--restart`: all), `list --missing` shows those runs with their unchanged index, and
+`list`/`run` take `--policy` and `--seed` (repeatable) to select runs by name instead of index (`select`). A row of
+another host counts as missing because its timings come from other hardware; running it here overwrites that row
+file. The commit is not part of "done": after a code change, rerun with `--restart`. Test in
+`tests/test_experiment.py` (continue, row of another host, restart, unknown policy and seed).
+
 ## 6. Assumptions and open points
 
 - Arrival = end of a nesting batch; when nesting runs (daily, on given weekdays) is a sampler setting (step 4), not
@@ -198,6 +206,7 @@ after a configuration change, index out of range, unknown configuration).
 | 2026-11-16 | uncommitted | Wall limit per CP-SAT call 30 s → 120 s ($N_C^{\mathrm{wall}} = 22$ of 189 with 30 s). |
 | 2026-11-16 | uncommitted | Which limit stopped CP-SAT (`wall_limited`); plan metrics in the history; commit read at the run start. |
 | 2026-11-13 | uncommitted | Command line `experiment` (list, run, task, merge); one row file per run; host column. |
+| 2026-11-19 | uncommitted | `run` continues the runs this host has not done (`--restart`), `list --missing`, `--policy`/`--seed`. |
 | 2026-11-18 | uncommitted | §3a: with a norm the arrival comes from the run ([33](33_order-release-interface.md) step B3). |
 | 2026-11-17 | uncommitted | §3a: with a release quota the arrival is the first nesting time the rule binds the order ([33](33_order-release-interface.md) (N4)). |
 | 2026-11-12 | c72a018 | Step 4: arrival process (§3a) and `arrival_generator`. |

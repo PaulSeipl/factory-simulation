@@ -1,0 +1,8968 @@
+{
+ "digest": "5e7a520c8702",
+ "value": {
+  "rows": [
+   [
+    "without",
+    "rule",
+    30790,
+    0,
+    0,
+    "0/0",
+    8830,
+    0,
+    0,
+    0,
+    ""
+   ],
+   [
+    "without",
+    "cpsat",
+    23080,
+    0,
+    762,
+    "447/315",
+    8830,
+    0,
+    0,
+    0,
+    "FEASIBLE bound 14355"
+   ],
+   [
+    "with",
+    "rule",
+    30730,
+    0,
+    0,
+    "0/0",
+    8155,
+    38,
+    99,
+    675,
+    ""
+   ],
+   [
+    "with",
+    "cpsat",
+    24500,
+    0,
+    916,
+    "543/373",
+    8365,
+    25,
+    68,
+    465,
+    "FEASIBLE bound 13816"
+   ]
+  ],
+  "plans": {
+   "without/rule": {
+    "assignments": [
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 45,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 60,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 45,
+      "end": 105,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 60,
+      "end": 135,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 105,
+      "end": 195,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 135,
+      "end": 225,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 195,
+      "end": 315,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 300,
+      "end": 390,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 300,
+      "end": 390,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 390,
+      "end": 410,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 390,
+      "end": 510,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 410,
+      "end": 530,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 435,
+      "end": 555,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 480,
+      "end": 600,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 525,
+      "end": 545,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 530,
+      "end": 545,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 545,
+      "end": 917,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 1440,
+      "end": 1450,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1440,
+      "end": 1460,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1450,
+      "end": 1470,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 1460,
+      "end": 1510,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1470,
+      "end": 1590,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1495,
+      "end": 1615,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 1515,
+      "end": 1635,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1540,
+      "end": 1660,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1585,
+      "end": 1705,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1630,
+      "end": 1650,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1635,
+      "end": 1655,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 1650,
+      "end": 1665,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 1665,
+      "end": 2025,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1660,
+      "end": 1680,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1740,
+      "end": 1760,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1740,
+      "end": 1860,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1760,
+      "end": 1880,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "setup",
+      "machine": "print1",
+      "start": 1785,
+      "end": 1885,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "print",
+      "machine": "print1",
+      "start": 1885,
+      "end": 3787,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "removal",
+      "machine": "print1",
+      "start": 4320,
+      "end": 4345,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1860,
+      "end": 1880,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1880,
+      "end": 1900,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "separate",
+      "machine": null,
+      "start": 2880,
+      "end": 2950,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 2880,
+      "end": 2895,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 2895,
+      "end": 4135,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 4320,
+      "end": 4330,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 2950,
+      "end": 3060,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 4330,
+      "end": 4450,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "clean",
+      "machine": null,
+      "start": 4345,
+      "end": 4370,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "clean",
+      "machine": null,
+      "start": 4370,
+      "end": 4395,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "setup",
+      "machine": "print1",
+      "start": 4395,
+      "end": 4490,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "print",
+      "machine": "print1",
+      "start": 4490,
+      "end": 5576,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "removal",
+      "machine": "print1",
+      "start": 5760,
+      "end": 5780,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 4435,
+      "end": 4655,
+      "workers": [
+       "A",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 4435,
+      "end": 4655,
+      "workers": [
+       "A",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 4455,
+      "end": 4470,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 4470,
+      "end": 5670,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "blast",
+      "machine": null,
+      "start": 4655,
+      "end": 4665,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "blast",
+      "machine": null,
+      "start": 4655,
+      "end": 4665,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "separate",
+      "machine": null,
+      "start": 5760,
+      "end": 5970,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "clean",
+      "machine": null,
+      "start": 5780,
+      "end": 5805,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 5805,
+      "end": 5820,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 5820,
+      "end": 6270,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 6270,
+      "end": 6275,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 5860,
+      "end": 6080,
+      "workers": [
+       "B",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 6060,
+      "end": 6130,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "blast",
+      "machine": null,
+      "start": 6080,
+      "end": 6090,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 6090,
+      "end": 6180,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 6130,
+      "end": 6240,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 6275,
+      "end": 6290,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 6290,
+      "end": 6740,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 10080,
+      "end": 10085,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 10080,
+      "end": 10230,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 10085,
+      "end": 10100,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 10100,
+      "end": 10580,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 10580,
+      "end": 10585,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 10585,
+      "end": 10600,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 10600,
+      "end": 11840,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 11840,
+      "end": 11850,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "qm",
+      "machine": null,
+      "start": 11820,
+      "end": 12075,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 11850,
+      "end": 11970,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 11970,
+      "end": 11985,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 11985,
+      "end": 13185,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "separate",
+      "machine": null,
+      "start": 13260,
+      "end": 13470,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 13260,
+      "end": 13280,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 13280,
+      "end": 14400,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 13470,
+      "end": 13520,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14400,
+      "end": 14470,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14400,
+      "end": 14510,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14470,
+      "end": 14580,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14700,
+      "end": 14850,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "qm",
+      "machine": null,
+      "start": 14700,
+      "end": 14940,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 14940,
+      "end": 14960,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 14960,
+      "end": 16010,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "qm",
+      "machine": null,
+      "start": 15840,
+      "end": 16080,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 16140,
+      "end": 16380,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 16140,
+      "end": 16395,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 16380,
+      "end": 16400,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 16400,
+      "end": 17450,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 20160,
+      "end": 20400,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 20160,
+      "end": 20180,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 20180,
+      "end": 21230,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 21600,
+      "end": 21840,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 21600,
+      "end": 21620,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 21620,
+      "end": 22670,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 21900,
+      "end": 21930,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 21900,
+      "end": 21940,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 21930,
+      "end": 21990,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 21940,
+      "end": 22000,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "saw",
+      "machine": null,
+      "start": 21990,
+      "end": 22065,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 22065,
+      "end": 22095,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 22065,
+      "end": 22095,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 22095,
+      "end": 22125,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 22095,
+      "end": 22125,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "grind",
+      "machine": null,
+      "start": 23040,
+      "end": 23095,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "grind",
+      "machine": null,
+      "start": 23040,
+      "end": 23095,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "steam",
+      "machine": null,
+      "start": 23095,
+      "end": 23110,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "steam",
+      "machine": null,
+      "start": 23095,
+      "end": 23110,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 23110,
+      "end": 23140,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 23110,
+      "end": 23140,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 23140,
+      "end": 23160,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 23140,
+      "end": 23160,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "document",
+      "machine": null,
+      "start": 23160,
+      "end": 23180,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "document",
+      "machine": null,
+      "start": 23160,
+      "end": 23180,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23180,
+      "end": 23200,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23180,
+      "end": 23200,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "grind",
+      "machine": null,
+      "start": 23200,
+      "end": 23255,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "grind",
+      "machine": null,
+      "start": 23200,
+      "end": 23255,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "steam",
+      "machine": null,
+      "start": 23255,
+      "end": 23270,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "steam",
+      "machine": null,
+      "start": 23255,
+      "end": 23270,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 23340,
+      "end": 23370,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 23340,
+      "end": 23370,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 23370,
+      "end": 23390,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 23370,
+      "end": 23390,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "document",
+      "machine": null,
+      "start": 23390,
+      "end": 23410,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "document",
+      "machine": null,
+      "start": 23390,
+      "end": 23410,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23410,
+      "end": 23430,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23410,
+      "end": 23430,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 23430,
+      "end": 23450,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 23450,
+      "end": 24570,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 24480,
+      "end": 24720,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 24780,
+      "end": 24820,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 24780,
+      "end": 24840,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "saw",
+      "machine": null,
+      "start": 24820,
+      "end": 24880,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 24840,
+      "end": 24920,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 24880,
+      "end": 24910,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 24910,
+      "end": 24940,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 24920,
+      "end": 24950,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "grind",
+      "machine": null,
+      "start": 24940,
+      "end": 24995,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "grind",
+      "machine": null,
+      "start": 24950,
+      "end": 25005,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "steam",
+      "machine": null,
+      "start": 24995,
+      "end": 25010,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "steam",
+      "machine": null,
+      "start": 25005,
+      "end": 25020,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 25010,
+      "end": 25040,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 25020,
+      "end": 25050,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 25920,
+      "end": 25940,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 25920,
+      "end": 25940,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "document",
+      "machine": null,
+      "start": 25940,
+      "end": 25960,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "document",
+      "machine": null,
+      "start": 25940,
+      "end": 25960,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "pack",
+      "machine": null,
+      "start": 25960,
+      "end": 25980,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "pack",
+      "machine": null,
+      "start": 25960,
+      "end": 25980,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "grind",
+      "machine": null,
+      "start": 25980,
+      "end": 26035,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "steam",
+      "machine": null,
+      "start": 26035,
+      "end": 26050,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 26050,
+      "end": 26080,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 26080,
+      "end": 26100,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "document",
+      "machine": null,
+      "start": 26100,
+      "end": 26120,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "pack",
+      "machine": null,
+      "start": 26120,
+      "end": 26140,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 26220,
+      "end": 26475,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 30240,
+      "end": 30290,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 30240,
+      "end": 30300,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "saw",
+      "machine": null,
+      "start": 30290,
+      "end": 30350,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 30300,
+      "end": 30380,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 30350,
+      "end": 30380,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 30380,
+      "end": 30410,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 30380,
+      "end": 30410,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "grind",
+      "machine": null,
+      "start": 30410,
+      "end": 30465,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "grind",
+      "machine": null,
+      "start": 30410,
+      "end": 30465,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "steam",
+      "machine": null,
+      "start": 30465,
+      "end": 30480,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "steam",
+      "machine": null,
+      "start": 30465,
+      "end": 30480,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 30540,
+      "end": 30570,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 30540,
+      "end": 30570,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 30570,
+      "end": 30590,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 30570,
+      "end": 30590,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "document",
+      "machine": null,
+      "start": 30590,
+      "end": 30610,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "document",
+      "machine": null,
+      "start": 30590,
+      "end": 30610,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "pack",
+      "machine": null,
+      "start": 30610,
+      "end": 30630,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "pack",
+      "machine": null,
+      "start": 30610,
+      "end": 30630,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "grind",
+      "machine": null,
+      "start": 30630,
+      "end": 30685,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "steam",
+      "machine": null,
+      "start": 30685,
+      "end": 30700,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 30700,
+      "end": 30730,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 30730,
+      "end": 30750,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "document",
+      "machine": null,
+      "start": 30750,
+      "end": 30770,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "pack",
+      "machine": null,
+      "start": 30770,
+      "end": 30790,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     }
+    ],
+    "breaks": [
+     {
+      "worker": "A",
+      "start": 240
+     },
+     {
+      "worker": "A",
+      "start": 1680
+     },
+     {
+      "worker": "A",
+      "start": 3120
+     },
+     {
+      "worker": "A",
+      "start": 4560
+     },
+     {
+      "worker": "A",
+      "start": 6000
+     },
+     {
+      "worker": "A",
+      "start": 10320
+     },
+     {
+      "worker": "A",
+      "start": 11760
+     },
+     {
+      "worker": "A",
+      "start": 13200
+     },
+     {
+      "worker": "A",
+      "start": 14640
+     },
+     {
+      "worker": "A",
+      "start": 16080
+     },
+     {
+      "worker": "A",
+      "start": 20400
+     },
+     {
+      "worker": "A",
+      "start": 21840
+     },
+     {
+      "worker": "A",
+      "start": 23280
+     },
+     {
+      "worker": "A",
+      "start": 24720
+     },
+     {
+      "worker": "A",
+      "start": 26160
+     },
+     {
+      "worker": "A",
+      "start": 30480
+     },
+     {
+      "worker": "B",
+      "start": 240
+     },
+     {
+      "worker": "B",
+      "start": 1680
+     },
+     {
+      "worker": "B",
+      "start": 3120
+     },
+     {
+      "worker": "B",
+      "start": 4560
+     },
+     {
+      "worker": "B",
+      "start": 6000
+     },
+     {
+      "worker": "B",
+      "start": 10320
+     },
+     {
+      "worker": "B",
+      "start": 11760
+     },
+     {
+      "worker": "B",
+      "start": 13200
+     },
+     {
+      "worker": "B",
+      "start": 14640
+     },
+     {
+      "worker": "B",
+      "start": 16080
+     },
+     {
+      "worker": "B",
+      "start": 20400
+     },
+     {
+      "worker": "B",
+      "start": 21840
+     },
+     {
+      "worker": "B",
+      "start": 23280
+     },
+     {
+      "worker": "B",
+      "start": 24720
+     },
+     {
+      "worker": "B",
+      "start": 26160
+     },
+     {
+      "worker": "B",
+      "start": 30480
+     }
+    ]
+   },
+   "without/cpsat": {
+    "assignments": [
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 45,
+      "end": 165,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 390,
+      "end": 410,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 22090,
+      "end": 22120,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "grind",
+      "machine": null,
+      "start": 22170,
+      "end": 22225,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "steam",
+      "machine": null,
+      "start": 22225,
+      "end": 22240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 22240,
+      "end": 22270,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 90,
+      "end": 180,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 3221,
+      "end": 3331,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 21915,
+      "end": 21975,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 22270,
+      "end": 22290,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "document",
+      "machine": null,
+      "start": 23040,
+      "end": 23060,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23060,
+      "end": 23080,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 0,
+      "end": 120,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 525,
+      "end": 545,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 21990,
+      "end": 22020,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "grind",
+      "machine": null,
+      "start": 22070,
+      "end": 22125,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "steam",
+      "machine": null,
+      "start": 22125,
+      "end": 22140,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 22140,
+      "end": 22170,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 120,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 3341,
+      "end": 3491,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 21990,
+      "end": 22070,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 22170,
+      "end": 22190,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "document",
+      "machine": null,
+      "start": 22190,
+      "end": 22210,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23040,
+      "end": 23060,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 435,
+      "end": 555,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 555,
+      "end": 575,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 21960,
+      "end": 21990,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "grind",
+      "machine": null,
+      "start": 22020,
+      "end": 22075,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "steam",
+      "machine": null,
+      "start": 22075,
+      "end": 22090,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 22210,
+      "end": 22240,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 120,
+      "end": 195,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 3181,
+      "end": 3271,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 22120,
+      "end": 22170,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 22240,
+      "end": 22260,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "document",
+      "machine": null,
+      "start": 22260,
+      "end": 22280,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23060,
+      "end": 23080,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 390,
+      "end": 510,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 526,
+      "end": 546,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 16200,
+      "end": 16230,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "grind",
+      "machine": null,
+      "start": 16230,
+      "end": 16285,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "steam",
+      "machine": null,
+      "start": 16285,
+      "end": 16300,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 16340,
+      "end": 16370,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 195,
+      "end": 255,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 6060,
+      "end": 6130,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 16300,
+      "end": 16340,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 20160,
+      "end": 20180,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "document",
+      "machine": null,
+      "start": 20220,
+      "end": 20240,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "pack",
+      "machine": null,
+      "start": 20260,
+      "end": 20280,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 315,
+      "end": 435,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 481,
+      "end": 501,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 16415,
+      "end": 16445,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "grind",
+      "machine": null,
+      "start": 20505,
+      "end": 20560,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "steam",
+      "machine": null,
+      "start": 20560,
+      "end": 20575,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 20575,
+      "end": 20605,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 180,
+      "end": 270,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 11520,
+      "end": 11630,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 16350,
+      "end": 16410,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 20605,
+      "end": 20625,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "document",
+      "machine": null,
+      "start": 20625,
+      "end": 20645,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "pack",
+      "machine": null,
+      "start": 20645,
+      "end": 20665,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 345,
+      "end": 465,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 546,
+      "end": 566,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 16265,
+      "end": 16295,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "grind",
+      "machine": null,
+      "start": 16295,
+      "end": 16350,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "steam",
+      "machine": null,
+      "start": 16370,
+      "end": 16385,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 16385,
+      "end": 16415,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 1515,
+      "end": 1635,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 10490,
+      "end": 10640,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 16185,
+      "end": 16265,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 20180,
+      "end": 20200,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "document",
+      "machine": null,
+      "start": 20200,
+      "end": 20220,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "pack",
+      "machine": null,
+      "start": 20240,
+      "end": 20260,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1485,
+      "end": 1605,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1655,
+      "end": 1675,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 20665,
+      "end": 20695,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "grind",
+      "machine": null,
+      "start": 21640,
+      "end": 21695,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "steam",
+      "machine": null,
+      "start": 21695,
+      "end": 21710,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 21710,
+      "end": 21740,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 1955,
+      "end": 2000,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 10450,
+      "end": 10500,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 14700,
+      "end": 14730,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 21740,
+      "end": 21760,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "document",
+      "machine": null,
+      "start": 21760,
+      "end": 21780,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "pack",
+      "machine": null,
+      "start": 21780,
+      "end": 21800,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1850,
+      "end": 1970,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1970,
+      "end": 1990,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 14835,
+      "end": 14865,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "grind",
+      "machine": null,
+      "start": 20507,
+      "end": 20562,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "steam",
+      "machine": null,
+      "start": 20562,
+      "end": 20577,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 20577,
+      "end": 20607,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 1895,
+      "end": 1955,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 10380,
+      "end": 10450,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 14970,
+      "end": 15010,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 20607,
+      "end": 20627,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "document",
+      "machine": null,
+      "start": 20627,
+      "end": 20647,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "pack",
+      "machine": null,
+      "start": 20695,
+      "end": 20715,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1440,
+      "end": 1560,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1635,
+      "end": 1655,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 14820,
+      "end": 14850,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "grind",
+      "machine": null,
+      "start": 14850,
+      "end": 14905,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "steam",
+      "machine": null,
+      "start": 14905,
+      "end": 14920,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 14920,
+      "end": 14950,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 436,
+      "end": 526,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 10380,
+      "end": 10490,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 14700,
+      "end": 14760,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 14950,
+      "end": 14970,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "document",
+      "machine": null,
+      "start": 16080,
+      "end": 16100,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "pack",
+      "machine": null,
+      "start": 16100,
+      "end": 16120,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1760,
+      "end": 1880,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1880,
+      "end": 1900,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 14805,
+      "end": 14835,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "grind",
+      "machine": null,
+      "start": 14865,
+      "end": 14920,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "steam",
+      "machine": null,
+      "start": 14920,
+      "end": 14935,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 14935,
+      "end": 14965,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 1740,
+      "end": 1830,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 5760,
+      "end": 5870,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 14760,
+      "end": 14820,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 15860,
+      "end": 15880,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "document",
+      "machine": null,
+      "start": 15880,
+      "end": 15900,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "pack",
+      "machine": null,
+      "start": 15900,
+      "end": 15920,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "clean",
+      "machine": null,
+      "start": 3040,
+      "end": 3065,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 3090,
+      "end": 3310,
+      "workers": [
+       "A",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "blast",
+      "machine": null,
+      "start": 3321,
+      "end": 3331,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 3435,
+      "end": 3450,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 3840,
+      "end": 4320,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 4320,
+      "end": 4325,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "qm",
+      "machine": null,
+      "start": 4325,
+      "end": 4580,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 15840,
+      "end": 15860,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 19025,
+      "end": 20145,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 20160,
+      "end": 20415,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 20415,
+      "end": 20435,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 20435,
+      "end": 21555,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 21600,
+      "end": 21855,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "saw",
+      "machine": null,
+      "start": 21900,
+      "end": 21960,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "clean",
+      "machine": null,
+      "start": 3015,
+      "end": 3040,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 3090,
+      "end": 3310,
+      "workers": [
+       "A",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "blast",
+      "machine": null,
+      "start": 3331,
+      "end": 3341,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 10095,
+      "end": 10110,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 10130,
+      "end": 10580,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 10645,
+      "end": 10650,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "qm",
+      "machine": null,
+      "start": 11820,
+      "end": 12060,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 12060,
+      "end": 12080,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 12080,
+      "end": 13130,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 13260,
+      "end": 13500,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 14400,
+      "end": 14420,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 14535,
+      "end": 15585,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 15840,
+      "end": 16080,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "saw",
+      "machine": null,
+      "start": 16140,
+      "end": 16200,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "clean",
+      "machine": null,
+      "start": 4660,
+      "end": 4685,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 4715,
+      "end": 4935,
+      "workers": [
+       "B",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "blast",
+      "machine": null,
+      "start": 5760,
+      "end": 5770,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 5965,
+      "end": 5980,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 5980,
+      "end": 6430,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 6430,
+      "end": 6435,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "qm",
+      "machine": null,
+      "start": 10500,
+      "end": 10740,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 10740,
+      "end": 10760,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 10770,
+      "end": 11820,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 11820,
+      "end": 12060,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 13130,
+      "end": 13150,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 13150,
+      "end": 14200,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 14400,
+      "end": 14640,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "saw",
+      "machine": null,
+      "start": 14730,
+      "end": 14805,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 270,
+      "end": 285,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 290,
+      "end": 1530,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 1530,
+      "end": 1540,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 1540,
+      "end": 1660,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 1660,
+      "end": 1675,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 1675,
+      "end": 2875,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "separate",
+      "machine": null,
+      "start": 2880,
+      "end": 3090,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 4700,
+      "end": 4715,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 4715,
+      "end": 5955,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 5955,
+      "end": 5965,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 6315,
+      "end": 6435,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 6435,
+      "end": 6450,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 8895,
+      "end": 10095,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "separate",
+      "machine": null,
+      "start": 10110,
+      "end": 10320,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 3000,
+      "end": 3015,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 3015,
+      "end": 3387,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 3387,
+      "end": 3397,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 3491,
+      "end": 3541,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 4325,
+      "end": 4340,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 4340,
+      "end": 4700,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "separate",
+      "machine": null,
+      "start": 4735,
+      "end": 4805,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "setup",
+      "machine": "print1",
+      "start": 576,
+      "end": 676,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "print",
+      "machine": "print1",
+      "start": 978,
+      "end": 2880,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "removal",
+      "machine": "print1",
+      "start": 2880,
+      "end": 2905,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "setup",
+      "machine": "print1",
+      "start": 2905,
+      "end": 3000,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "print",
+      "machine": "print1",
+      "start": 3000,
+      "end": 4086,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "removal",
+      "machine": "print1",
+      "start": 4580,
+      "end": 4600,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     }
+    ],
+    "breaks": [
+     {
+      "worker": "B",
+      "start": 255
+     },
+     {
+      "worker": "A",
+      "start": 285
+     },
+     {
+      "worker": "A",
+      "start": 1680
+     },
+     {
+      "worker": "B",
+      "start": 1681
+     },
+     {
+      "worker": "A",
+      "start": 3120
+     },
+     {
+      "worker": "B",
+      "start": 3120
+     },
+     {
+      "worker": "A",
+      "start": 4560
+     },
+     {
+      "worker": "B",
+      "start": 4600
+     },
+     {
+      "worker": "A",
+      "start": 6000
+     },
+     {
+      "worker": "B",
+      "start": 6000
+     },
+     {
+      "worker": "A",
+      "start": 10320
+     },
+     {
+      "worker": "B",
+      "start": 10320
+     },
+     {
+      "worker": "A",
+      "start": 11760
+     },
+     {
+      "worker": "B",
+      "start": 11760
+     },
+     {
+      "worker": "A",
+      "start": 13200
+     },
+     {
+      "worker": "B",
+      "start": 13200
+     },
+     {
+      "worker": "A",
+      "start": 14640
+     },
+     {
+      "worker": "B",
+      "start": 14640
+     },
+     {
+      "worker": "A",
+      "start": 16080
+     },
+     {
+      "worker": "B",
+      "start": 16125
+     },
+     {
+      "worker": "A",
+      "start": 20400
+     },
+     {
+      "worker": "B",
+      "start": 20445
+     },
+     {
+      "worker": "B",
+      "start": 21840
+     },
+     {
+      "worker": "A",
+      "start": 21855
+     },
+     {
+      "worker": "A",
+      "start": 23280
+     },
+     {
+      "worker": "B",
+      "start": 23280
+     },
+     {
+      "worker": "A",
+      "start": 24720
+     },
+     {
+      "worker": "B",
+      "start": 24720
+     },
+     {
+      "worker": "A",
+      "start": 26160
+     },
+     {
+      "worker": "B",
+      "start": 26160
+     },
+     {
+      "worker": "A",
+      "start": 30480
+     },
+     {
+      "worker": "B",
+      "start": 30480
+     },
+     {
+      "worker": "A",
+      "start": 31920
+     },
+     {
+      "worker": "B",
+      "start": 31920
+     }
+    ]
+   },
+   "with/rule": {
+    "assignments": [
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 195,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O3/data_prep_pri"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 195,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O3/data_prep_pri"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 195,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O3/data_prep_pri"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 195,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O3/data_prep_pri"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/data_prep_pri"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/data_prep_pri"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/data_prep_pri"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 195,
+      "end": 315,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 300,
+      "end": 495,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O2/data_prep_pri"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 300,
+      "end": 495,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O2/data_prep_pri"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 300,
+      "end": 420,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 345,
+      "end": 365,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 365,
+      "end": 485,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 410,
+      "end": 530,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 455,
+      "end": 475,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 475,
+      "end": 595,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 495,
+      "end": 515,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 515,
+      "end": 635,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 520,
+      "end": 640,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1440,
+      "end": 1460,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1440,
+      "end": 1460,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1460,
+      "end": 1480,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1460,
+      "end": 1480,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 1480,
+      "end": 1600,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1480,
+      "end": 1600,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1525,
+      "end": 1645,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1570,
+      "end": 1690,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1600,
+      "end": 1620,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 1615,
+      "end": 1630,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 1630,
+      "end": 2002,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 2880,
+      "end": 2890,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1645,
+      "end": 1665,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1740,
+      "end": 1760,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "setup",
+      "machine": "print1",
+      "start": 1740,
+      "end": 1840,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "print",
+      "machine": "print1",
+      "start": 1840,
+      "end": 3742,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "removal",
+      "machine": "print1",
+      "start": 4320,
+      "end": 4345,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 2890,
+      "end": 2940,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 2890,
+      "end": 2905,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 2905,
+      "end": 4145,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 4320,
+      "end": 4330,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 4330,
+      "end": 4450,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "clean",
+      "machine": null,
+      "start": 4345,
+      "end": 4380,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "C1/clean"
+     },
+     {
+      "order_id": "C2",
+      "op_id": "clean",
+      "machine": null,
+      "start": 4345,
+      "end": 4380,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "C1/clean"
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 4380,
+      "end": 4395,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 4395,
+      "end": 4755,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "setup",
+      "machine": "print1",
+      "start": 4395,
+      "end": 4490,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "print",
+      "machine": "print1",
+      "start": 4490,
+      "end": 5576,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "removal",
+      "machine": "print1",
+      "start": 5760,
+      "end": 5780,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 4435,
+      "end": 4655,
+      "workers": [
+       "A",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 4435,
+      "end": 4655,
+      "workers": [
+       "A",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "blast",
+      "machine": null,
+      "start": 4655,
+      "end": 4670,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "C1/blast"
+     },
+     {
+      "order_id": "C2",
+      "op_id": "blast",
+      "machine": null,
+      "start": 4655,
+      "end": 4670,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "C1/blast"
+     },
+     {
+      "order_id": "B3",
+      "op_id": "separate",
+      "machine": null,
+      "start": 4755,
+      "end": 4825,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 4755,
+      "end": 4770,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 4770,
+      "end": 5220,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 5760,
+      "end": 5765,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 5765,
+      "end": 5875,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "clean",
+      "machine": null,
+      "start": 5780,
+      "end": 5805,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 5805,
+      "end": 5820,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 5820,
+      "end": 6300,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 6300,
+      "end": 6305,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 5860,
+      "end": 6080,
+      "workers": [
+       "B",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "blast",
+      "machine": null,
+      "start": 6080,
+      "end": 6090,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 6305,
+      "end": 6320,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 6320,
+      "end": 6770,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 10080,
+      "end": 10085,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 10085,
+      "end": 10100,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 10100,
+      "end": 11300,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "separate",
+      "machine": null,
+      "start": 11520,
+      "end": 11730,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 11520,
+      "end": 11535,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 11535,
+      "end": 12775,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 12960,
+      "end": 12970,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 11820,
+      "end": 12070,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_pri"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 11820,
+      "end": 12070,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_pri"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 11820,
+      "end": 12070,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_pri"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 11820,
+      "end": 11970,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 12970,
+      "end": 13090,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 13090,
+      "end": 13105,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 13105,
+      "end": 14305,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "qm",
+      "machine": null,
+      "start": 13260,
+      "end": 13515,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "separate",
+      "machine": null,
+      "start": 14400,
+      "end": 14610,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 14400,
+      "end": 14420,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 14420,
+      "end": 15540,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14700,
+      "end": 14910,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O5/polish_pri"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14700,
+      "end": 14910,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O5/polish_pri"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14700,
+      "end": 14910,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O5/polish_pri"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14700,
+      "end": 14950,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O6/polish_pri"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14700,
+      "end": 14950,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O6/polish_pri"
+     },
+     {
+      "order_id": "C2",
+      "op_id": "qm",
+      "machine": null,
+      "start": 15840,
+      "end": 16080,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "qm",
+      "machine": null,
+      "start": 15840,
+      "end": 16080,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 16140,
+      "end": 16395,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 16140,
+      "end": 16160,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 16160,
+      "end": 17210,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 20160,
+      "end": 20400,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 20160,
+      "end": 20180,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 20180,
+      "end": 21230,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 21600,
+      "end": 21840,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 21600,
+      "end": 21620,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 21620,
+      "end": 22670,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 23040,
+      "end": 23280,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 23040,
+      "end": 23060,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 23060,
+      "end": 24110,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 23340,
+      "end": 23500,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/finish_pri"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 23340,
+      "end": 23500,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/finish_pri"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 23340,
+      "end": 23500,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/finish_pri"
+     },
+     {
+      "order_id": "C2",
+      "op_id": "saw",
+      "machine": null,
+      "start": 23340,
+      "end": 23400,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 23400,
+      "end": 23460,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O4/support_removal"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 23400,
+      "end": 23460,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O4/support_removal"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 23400,
+      "end": 23460,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O4/support_removal"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "grind",
+      "machine": null,
+      "start": 23460,
+      "end": 23605,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O4/grind"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "grind",
+      "machine": null,
+      "start": 23460,
+      "end": 23605,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O4/grind"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "grind",
+      "machine": null,
+      "start": 23460,
+      "end": 23605,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O4/grind"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "steam",
+      "machine": null,
+      "start": 24480,
+      "end": 24505,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/steam"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "steam",
+      "machine": null,
+      "start": 24480,
+      "end": 24505,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/steam"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "steam",
+      "machine": null,
+      "start": 24480,
+      "end": 24505,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/steam"
+     },
+     {
+      "order_id": "C3",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 24480,
+      "end": 24720,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 24505,
+      "end": 24575,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/polish_sec"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 24505,
+      "end": 24575,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/polish_sec"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 24505,
+      "end": 24575,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/polish_sec"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 24575,
+      "end": 24615,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/inspect"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 24575,
+      "end": 24615,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/inspect"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 24575,
+      "end": 24615,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/inspect"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "document",
+      "machine": null,
+      "start": 24615,
+      "end": 24655,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/document"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "document",
+      "machine": null,
+      "start": 24615,
+      "end": 24655,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/document"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "document",
+      "machine": null,
+      "start": 24615,
+      "end": 24655,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/document"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "pack",
+      "machine": null,
+      "start": 24655,
+      "end": 24695,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/pack"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "pack",
+      "machine": null,
+      "start": 24655,
+      "end": 24695,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/pack"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "pack",
+      "machine": null,
+      "start": 24655,
+      "end": 24695,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/pack"
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 24695,
+      "end": 24715,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 24715,
+      "end": 25835,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 24780,
+      "end": 24940,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O7/finish_pri"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 24780,
+      "end": 24940,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O7/finish_pri"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 24780,
+      "end": 24940,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O7/finish_pri"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 24780,
+      "end": 24940,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O7/finish_pri"
+     },
+     {
+      "order_id": "C3",
+      "op_id": "saw",
+      "machine": null,
+      "start": 24780,
+      "end": 24855,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 24855,
+      "end": 24930,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/support_removal"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 24855,
+      "end": 24930,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/support_removal"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 24855,
+      "end": 24930,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/support_removal"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 24855,
+      "end": 24930,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/support_removal"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "grind",
+      "machine": null,
+      "start": 24930,
+      "end": 25030,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/grind"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "grind",
+      "machine": null,
+      "start": 24930,
+      "end": 25030,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/grind"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "grind",
+      "machine": null,
+      "start": 24940,
+      "end": 25040,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/grind"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "grind",
+      "machine": null,
+      "start": 24940,
+      "end": 25040,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/grind"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "steam",
+      "machine": null,
+      "start": 25030,
+      "end": 25050,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/steam"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "steam",
+      "machine": null,
+      "start": 25030,
+      "end": 25050,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/steam"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "steam",
+      "machine": null,
+      "start": 25920,
+      "end": 25940,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/steam"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "steam",
+      "machine": null,
+      "start": 25920,
+      "end": 25940,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/steam"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 25920,
+      "end": 25970,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/polish_sec"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 25920,
+      "end": 25970,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/polish_sec"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 25940,
+      "end": 25990,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/polish_sec"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 25940,
+      "end": 25990,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/polish_sec"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 25970,
+      "end": 26000,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/inspect"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 25970,
+      "end": 26000,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/inspect"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 25990,
+      "end": 26020,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/inspect"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 25990,
+      "end": 26020,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/inspect"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "document",
+      "machine": null,
+      "start": 26000,
+      "end": 26030,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/document"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "document",
+      "machine": null,
+      "start": 26000,
+      "end": 26030,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/document"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "document",
+      "machine": null,
+      "start": 26020,
+      "end": 26050,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/document"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "document",
+      "machine": null,
+      "start": 26020,
+      "end": 26050,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/document"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "pack",
+      "machine": null,
+      "start": 26030,
+      "end": 26060,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/pack"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "pack",
+      "machine": null,
+      "start": 26030,
+      "end": 26060,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/pack"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "pack",
+      "machine": null,
+      "start": 26050,
+      "end": 26080,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/pack"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "pack",
+      "machine": null,
+      "start": 26050,
+      "end": 26080,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O9/pack"
+     },
+     {
+      "order_id": "C1",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 26220,
+      "end": 26475,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 30240,
+      "end": 30410,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/finish_pri"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 30240,
+      "end": 30410,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/finish_pri"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 30240,
+      "end": 30410,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/finish_pri"
+     },
+     {
+      "order_id": "C1",
+      "op_id": "saw",
+      "machine": null,
+      "start": 30240,
+      "end": 30300,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 30300,
+      "end": 30360,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/support_removal"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 30300,
+      "end": 30360,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/support_removal"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 30300,
+      "end": 30360,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/support_removal"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "grind",
+      "machine": null,
+      "start": 30360,
+      "end": 30460,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/grind"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "grind",
+      "machine": null,
+      "start": 30360,
+      "end": 30460,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/grind"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "grind",
+      "machine": null,
+      "start": 30410,
+      "end": 30465,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "steam",
+      "machine": null,
+      "start": 30460,
+      "end": 30480,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/steam"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "steam",
+      "machine": null,
+      "start": 30460,
+      "end": 30480,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/steam"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "steam",
+      "machine": null,
+      "start": 30465,
+      "end": 30480,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 30540,
+      "end": 30610,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_sec"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 30540,
+      "end": 30610,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_sec"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 30540,
+      "end": 30610,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_sec"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 30610,
+      "end": 30650,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/inspect"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 30610,
+      "end": 30650,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/inspect"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 30610,
+      "end": 30650,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/inspect"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "document",
+      "machine": null,
+      "start": 30650,
+      "end": 30690,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/document"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "document",
+      "machine": null,
+      "start": 30650,
+      "end": 30690,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/document"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "document",
+      "machine": null,
+      "start": 30650,
+      "end": 30690,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/document"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "pack",
+      "machine": null,
+      "start": 30690,
+      "end": 30730,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/pack"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "pack",
+      "machine": null,
+      "start": 30690,
+      "end": 30730,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/pack"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "pack",
+      "machine": null,
+      "start": 30690,
+      "end": 30730,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/pack"
+     }
+    ],
+    "breaks": [
+     {
+      "worker": "A",
+      "start": 240
+     },
+     {
+      "worker": "A",
+      "start": 1680
+     },
+     {
+      "worker": "A",
+      "start": 3120
+     },
+     {
+      "worker": "A",
+      "start": 4560
+     },
+     {
+      "worker": "A",
+      "start": 6000
+     },
+     {
+      "worker": "A",
+      "start": 11760
+     },
+     {
+      "worker": "A",
+      "start": 13200
+     },
+     {
+      "worker": "A",
+      "start": 14640
+     },
+     {
+      "worker": "A",
+      "start": 16080
+     },
+     {
+      "worker": "A",
+      "start": 20400
+     },
+     {
+      "worker": "A",
+      "start": 21840
+     },
+     {
+      "worker": "A",
+      "start": 23280
+     },
+     {
+      "worker": "A",
+      "start": 24720
+     },
+     {
+      "worker": "A",
+      "start": 26160
+     },
+     {
+      "worker": "A",
+      "start": 30480
+     },
+     {
+      "worker": "B",
+      "start": 240
+     },
+     {
+      "worker": "B",
+      "start": 1680
+     },
+     {
+      "worker": "B",
+      "start": 3120
+     },
+     {
+      "worker": "B",
+      "start": 4560
+     },
+     {
+      "worker": "B",
+      "start": 6000
+     },
+     {
+      "worker": "B",
+      "start": 10320
+     },
+     {
+      "worker": "B",
+      "start": 11760
+     },
+     {
+      "worker": "B",
+      "start": 13200
+     },
+     {
+      "worker": "B",
+      "start": 14640
+     },
+     {
+      "worker": "B",
+      "start": 16080
+     },
+     {
+      "worker": "B",
+      "start": 20400
+     },
+     {
+      "worker": "B",
+      "start": 21840
+     },
+     {
+      "worker": "B",
+      "start": 23280
+     },
+     {
+      "worker": "B",
+      "start": 24720
+     },
+     {
+      "worker": "B",
+      "start": 26160
+     },
+     {
+      "worker": "B",
+      "start": 30480
+     }
+    ]
+   },
+   "with/cpsat": {
+    "assignments": [
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 345,
+      "end": 465,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 480,
+      "end": 500,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O1",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 11926,
+      "end": 11986,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/support_removal"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "grind",
+      "machine": null,
+      "start": 11986,
+      "end": 12086,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/grind"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "steam",
+      "machine": null,
+      "start": 12086,
+      "end": 12106,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/steam"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 22075,
+      "end": 22165,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_sec"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/data_prep_pri"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 4620,
+      "end": 5010,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_pri"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 20600,
+      "end": 20730,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/finish_pri"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 23070,
+      "end": 23100,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/inspect"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "document",
+      "machine": null,
+      "start": 23100,
+      "end": 23160,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/document"
+     },
+     {
+      "order_id": "O1",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23160,
+      "end": 23240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/pack"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 300,
+      "end": 420,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 520,
+      "end": 540,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 11926,
+      "end": 11986,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/support_removal"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "grind",
+      "machine": null,
+      "start": 11987,
+      "end": 12042,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O2",
+      "op_id": "steam",
+      "machine": null,
+      "start": 12086,
+      "end": 12106,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/steam"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 22075,
+      "end": 22165,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_sec"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/data_prep_pri"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 4620,
+      "end": 5010,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_pri"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 20600,
+      "end": 20730,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/finish_pri"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 22165,
+      "end": 22205,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O2/inspect"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "document",
+      "machine": null,
+      "start": 23100,
+      "end": 23160,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/document"
+     },
+     {
+      "order_id": "O2",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23160,
+      "end": 23240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/pack"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 390,
+      "end": 510,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 530,
+      "end": 550,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 11926,
+      "end": 11986,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/support_removal"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "grind",
+      "machine": null,
+      "start": 11986,
+      "end": 12086,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/grind"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "steam",
+      "machine": null,
+      "start": 13075,
+      "end": 13090,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 23040,
+      "end": 23070,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 1645,
+      "end": 1720,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O3",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 4620,
+      "end": 5010,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_pri"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 21940,
+      "end": 22010,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O3/finish_pri"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 23070,
+      "end": 23100,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/inspect"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "document",
+      "machine": null,
+      "start": 23100,
+      "end": 23160,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/document"
+     },
+     {
+      "order_id": "O3",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23160,
+      "end": 23240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/pack"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 345,
+      "end": 465,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 500,
+      "end": 520,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 23400,
+      "end": 23445,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O4/support_removal"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "grind",
+      "machine": null,
+      "start": 23445,
+      "end": 23545,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/grind"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "steam",
+      "machine": null,
+      "start": 23545,
+      "end": 23565,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/steam"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 23570,
+      "end": 23620,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/polish_sec"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/data_prep_pri"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 4620,
+      "end": 5010,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_pri"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 23445,
+      "end": 23555,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O4/finish_pri"
+     },
+     {
+      "order_id": "O4",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 23620,
+      "end": 23640,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "document",
+      "machine": null,
+      "start": 23640,
+      "end": 23660,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O4",
+      "op_id": "pack",
+      "machine": null,
+      "start": 24480,
+      "end": 24500,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 435,
+      "end": 555,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 555,
+      "end": 575,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 23400,
+      "end": 23445,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O4/support_removal"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "grind",
+      "machine": null,
+      "start": 23445,
+      "end": 23545,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/grind"
+     },
+     {
+      "order_id": "O5",
+      "op_id": "steam",
+      "machine": null,
+      "start": 23555,
+      "end": 23570,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 23630,
+      "end": 23660,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 1510,
+      "end": 1600,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14951,
+      "end": 15061,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 23570,
+      "end": 23630,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 23660,
+      "end": 23680,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "document",
+      "machine": null,
+      "start": 23680,
+      "end": 23700,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O5",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23700,
+      "end": 23720,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 240,
+      "end": 360,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 390,
+      "end": 410,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 23340,
+      "end": 23370,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "grind",
+      "machine": null,
+      "start": 23390,
+      "end": 23445,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "steam",
+      "machine": null,
+      "start": 23545,
+      "end": 23565,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/steam"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 23570,
+      "end": 23620,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O4/polish_sec"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 410,
+      "end": 530,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14801,
+      "end": 14951,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 23445,
+      "end": 23555,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O4/finish_pri"
+     },
+     {
+      "order_id": "O6",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 23660,
+      "end": 23680,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "document",
+      "machine": null,
+      "start": 23680,
+      "end": 23700,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O6",
+      "op_id": "pack",
+      "machine": null,
+      "start": 24480,
+      "end": 24500,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1440,
+      "end": 1560,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1805,
+      "end": 1825,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 20586,
+      "end": 20631,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/support_removal"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "grind",
+      "machine": null,
+      "start": 21600,
+      "end": 21745,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O7/grind"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "steam",
+      "machine": null,
+      "start": 21920,
+      "end": 21945,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O7/steam"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 22075,
+      "end": 22165,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_sec"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 0,
+      "end": 45,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14610,
+      "end": 14660,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O7",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 21940,
+      "end": 22010,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O3/finish_pri"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 22197,
+      "end": 22227,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/inspect"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "document",
+      "machine": null,
+      "start": 23100,
+      "end": 23160,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/document"
+     },
+     {
+      "order_id": "O7",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23160,
+      "end": 23240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/pack"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1760,
+      "end": 1880,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1880,
+      "end": 1900,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 21785,
+      "end": 21815,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "grind",
+      "machine": null,
+      "start": 21945,
+      "end": 22000,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "steam",
+      "machine": null,
+      "start": 22010,
+      "end": 22025,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 22025,
+      "end": 22075,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O8/polish_sec"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 1825,
+      "end": 1885,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14720,
+      "end": 14790,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 21745,
+      "end": 21785,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O8",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 22165,
+      "end": 22205,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O2/inspect"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "document",
+      "machine": null,
+      "start": 23100,
+      "end": 23160,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/document"
+     },
+     {
+      "order_id": "O8",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23160,
+      "end": 23240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/pack"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1620,
+      "end": 1740,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1795,
+      "end": 1815,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 20586,
+      "end": 20631,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/support_removal"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "grind",
+      "machine": null,
+      "start": 21600,
+      "end": 21745,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O7/grind"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "steam",
+      "machine": null,
+      "start": 21920,
+      "end": 21945,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O7/steam"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 22075,
+      "end": 22165,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/polish_sec"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 45,
+      "end": 135,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 14700,
+      "end": 14810,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 20540,
+      "end": 20600,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O9",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 22197,
+      "end": 22227,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O7/inspect"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "document",
+      "machine": null,
+      "start": 22251,
+      "end": 22281,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O9/document"
+     },
+     {
+      "order_id": "O9",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23160,
+      "end": 23240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/pack"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_sec",
+      "machine": null,
+      "start": 1600,
+      "end": 1720,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_sec_mill",
+      "machine": null,
+      "start": 1740,
+      "end": 1760,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "support_removal",
+      "machine": null,
+      "start": 20556,
+      "end": 20586,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "grind",
+      "machine": null,
+      "start": 21600,
+      "end": 21745,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O7/grind"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "steam",
+      "machine": null,
+      "start": 21920,
+      "end": 21945,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O7/steam"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "polish_sec",
+      "machine": null,
+      "start": 22025,
+      "end": 22075,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O8/polish_sec"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "data_prep_pri",
+      "machine": null,
+      "start": 135,
+      "end": 225,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "polish_pri",
+      "machine": null,
+      "start": 1510,
+      "end": 1620,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "finish_pri",
+      "machine": null,
+      "start": 20480,
+      "end": 20540,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "O10",
+      "op_id": "inspect",
+      "machine": null,
+      "start": 22165,
+      "end": 22205,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O2/inspect"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "document",
+      "machine": null,
+      "start": 22251,
+      "end": 22281,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": [],
+      "batch": "O9/document"
+     },
+     {
+      "order_id": "O10",
+      "op_id": "pack",
+      "machine": null,
+      "start": 23160,
+      "end": 23240,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "O1/pack"
+     },
+     {
+      "order_id": "C1",
+      "op_id": "clean",
+      "machine": null,
+      "start": 4345,
+      "end": 4390,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "C1/clean"
+     },
+     {
+      "order_id": "C1",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 4435,
+      "end": 4655,
+      "workers": [
+       "B",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "blast",
+      "machine": null,
+      "start": 4875,
+      "end": 4890,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "C1/blast"
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 4890,
+      "end": 4905,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 5010,
+      "end": 5490,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 5760,
+      "end": 5765,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "qm",
+      "machine": null,
+      "start": 5770,
+      "end": 6025,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 6235,
+      "end": 6255,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 6261,
+      "end": 7381,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 10080,
+      "end": 10335,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 10380,
+      "end": 10400,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 10400,
+      "end": 11520,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 11535,
+      "end": 11790,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C1",
+      "op_id": "saw",
+      "machine": null,
+      "start": 11850,
+      "end": 11910,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "clean",
+      "machine": null,
+      "start": 4345,
+      "end": 4390,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "C1/clean"
+     },
+     {
+      "order_id": "C2",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 4655,
+      "end": 4875,
+      "workers": [
+       "B",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "blast",
+      "machine": null,
+      "start": 5760,
+      "end": 5770,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 14400,
+      "end": 14415,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 14500,
+      "end": 14950,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 15050,
+      "end": 15055,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "qm",
+      "machine": null,
+      "start": 15840,
+      "end": 16080,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 20460,
+      "end": 20480,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 20480,
+      "end": 21530,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 21600,
+      "end": 21840,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 21900,
+      "end": 21920,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 21920,
+      "end": 22970,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 23040,
+      "end": 23280,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C2",
+      "op_id": "saw",
+      "machine": null,
+      "start": 23280,
+      "end": 23340,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "clean",
+      "machine": null,
+      "start": 4345,
+      "end": 4390,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "C1/clean"
+     },
+     {
+      "order_id": "C3",
+      "op_id": "oven",
+      "machine": "oven1",
+      "start": 4435,
+      "end": 4655,
+      "workers": [
+       "B",
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "blast",
+      "machine": null,
+      "start": 4875,
+      "end": 4890,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": [],
+      "batch": "C1/blast"
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier/setup",
+      "machine": "mill1",
+      "start": 5765,
+      "end": 5780,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier",
+      "machine": "mill1",
+      "start": 5780,
+      "end": 6230,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "mill_carrier/removal",
+      "machine": "mill1",
+      "start": 6230,
+      "end": 6235,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "qm",
+      "machine": null,
+      "start": 14810,
+      "end": 15050,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework1/setup",
+      "machine": "mill1",
+      "start": 15062,
+      "end": 15082,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework1",
+      "machine": "mill1",
+      "start": 15082,
+      "end": 16132,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "recheck1",
+      "machine": null,
+      "start": 16140,
+      "end": 16380,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework2/setup",
+      "machine": "mill1",
+      "start": 16380,
+      "end": 16400,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "rework2",
+      "machine": "mill1",
+      "start": 16400,
+      "end": 17450,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "recheck2",
+      "machine": null,
+      "start": 20160,
+      "end": 20400,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "C3",
+      "op_id": "saw",
+      "machine": null,
+      "start": 20480,
+      "end": 20555,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 1720,
+      "end": 1735,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 1735,
+      "end": 2975,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 2975,
+      "end": 2985,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 2985,
+      "end": 3105,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 3105,
+      "end": 3120,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 3120,
+      "end": 4320,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B1",
+      "op_id": "separate",
+      "machine": null,
+      "start": 4320,
+      "end": 4530,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 11520,
+      "end": 11535,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 11565,
+      "end": 12805,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 12960,
+      "end": 12970,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 12970,
+      "end": 13090,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 13090,
+      "end": 13105,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 13105,
+      "end": 14305,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B2",
+      "op_id": "separate",
+      "machine": null,
+      "start": 14400,
+      "end": 14610,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank/setup",
+      "machine": "mill1",
+      "start": 225,
+      "end": 240,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank",
+      "machine": "mill1",
+      "start": 240,
+      "end": 612,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_blank/removal",
+      "machine": "mill1",
+      "start": 612,
+      "end": 622,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "gegenbetten",
+      "machine": null,
+      "start": 622,
+      "end": 672,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_flipped/setup",
+      "machine": "mill1",
+      "start": 672,
+      "end": 687,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "mill_flipped",
+      "machine": "mill1",
+      "start": 687,
+      "end": 1047,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "B3",
+      "op_id": "separate",
+      "machine": null,
+      "start": 1440,
+      "end": 1510,
+      "workers": [
+       "A"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "setup",
+      "machine": "print1",
+      "start": 575,
+      "end": 675,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "print",
+      "machine": "print1",
+      "start": 978,
+      "end": 2880,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R1",
+      "op_id": "removal",
+      "machine": "print1",
+      "start": 2880,
+      "end": 2905,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "setup",
+      "machine": "print1",
+      "start": 2905,
+      "end": 3000,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "print",
+      "machine": "print1",
+      "start": 3165,
+      "end": 4251,
+      "workers": [],
+      "share_lengths": []
+     },
+     {
+      "order_id": "R2",
+      "op_id": "removal",
+      "machine": "print1",
+      "start": 4320,
+      "end": 4340,
+      "workers": [
+       "B"
+      ],
+      "share_lengths": []
+     }
+    ],
+    "breaks": [
+     {
+      "worker": "B",
+      "start": 240
+     },
+     {
+      "worker": "A",
+      "start": 285
+     },
+     {
+      "worker": "B",
+      "start": 1680
+     },
+     {
+      "worker": "A",
+      "start": 1735
+     },
+     {
+      "worker": "A",
+      "start": 3120
+     },
+     {
+      "worker": "B",
+      "start": 3120
+     },
+     {
+      "worker": "A",
+      "start": 4560
+     },
+     {
+      "worker": "B",
+      "start": 4560
+     },
+     {
+      "worker": "B",
+      "start": 6000
+     },
+     {
+      "worker": "A",
+      "start": 6025
+     },
+     {
+      "worker": "A",
+      "start": 10320
+     },
+     {
+      "worker": "B",
+      "start": 10335
+     },
+     {
+      "worker": "A",
+      "start": 11760
+     },
+     {
+      "worker": "B",
+      "start": 11790
+     },
+     {
+      "worker": "A",
+      "start": 13200
+     },
+     {
+      "worker": "B",
+      "start": 13200
+     },
+     {
+      "worker": "A",
+      "start": 14640
+     },
+     {
+      "worker": "B",
+      "start": 14660
+     },
+     {
+      "worker": "A",
+      "start": 16080
+     },
+     {
+      "worker": "B",
+      "start": 16080
+     },
+     {
+      "worker": "A",
+      "start": 20400
+     },
+     {
+      "worker": "B",
+      "start": 20400
+     },
+     {
+      "worker": "A",
+      "start": 21840
+     },
+     {
+      "worker": "B",
+      "start": 21840
+     },
+     {
+      "worker": "B",
+      "start": 23280
+     },
+     {
+      "worker": "A",
+      "start": 23340
+     },
+     {
+      "worker": "A",
+      "start": 24720
+     },
+     {
+      "worker": "B",
+      "start": 24720
+     },
+     {
+      "worker": "A",
+      "start": 26160
+     },
+     {
+      "worker": "B",
+      "start": 26160
+     },
+     {
+      "worker": "A",
+      "start": 30480
+     },
+     {
+      "worker": "B",
+      "start": 30480
+     },
+     {
+      "worker": "A",
+      "start": 31920
+     },
+     {
+      "worker": "B",
+      "start": 31920
+     }
+    ]
+   }
+  }
+ }
+}

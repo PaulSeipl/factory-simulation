@@ -190,7 +190,10 @@ Carriers: `simulation.carrier_generator.CarrierGeneratorParams` (route as `Route
   them; how is open):** in the MES many worker steps run as batches over parts of several orders with one setup
   (`max_batch`, [32](32_target-data-model.md) §2). Until they exist the order and part operations of the Fidentis
   case pay the full setup per order (`base_durations`), the pessimistic side; the former amortized times (setup
-  $/ B$ per part) were optimistic, since no operation waited for a batch to fill.
+  $/ B$ per part) were optimistic, since no operation waited for a batch to fill. **Done 2026-11-19**
+  ([08](08_serial-batches.md)): `data/generator/fidentis.json` lists `s_batch_steps`, the ten order and part steps
+  with their `base_durations` as setup, `clean` (setup 15) and `blast` (setup 5) with at most 4 plates; the
+  durations are unchanged (setup inside), the planners form the batches.
 - **Volume:** one mill at about 1268 minutes for an order of 4 telescopes alone (setups not shared) bounds the case
   at about one order per working day; arrival rates of experiments with this route must follow from it, not from
   the 4–8 per day of the configurations of 2026-11-13. Due rule of the company case: 10 working days after the
@@ -217,5 +220,6 @@ Own design. Benchmark generators from the literature (e.g. the generation of the
 | 2026-11-17 | see protocol (64) | Fidentis worker-only carrier steps without a machine (`hand` removed); `no_machine` also for carrier steps (not the run step or batch steps). |
 | 2026-11-17 | see protocol (63) | `PerCarrierStep.base` (base inside the main operation); Fidentis carrier-bound steps without a separate setup operation. |
 | 2026-11-17 | see protocol (62) | `PerCarrierStep.part_base`; Fidentis carrier-bound steps (QM, recheck, sawing, Gegenbetten, separation) with the base once per carrier as run setup, cleaning and blasting with the full base per plate (user). |
+| 2026-11-19 | uncommitted | Option `s_batch_steps` (pass-through, omitted when empty); Fidentis case with 12 s-batch steps ([08](08_serial-batches.md)). |
 | 2026-11-17 | uncommitted | Option `base_durations`; Fidentis order and part operations with the full setup per order. |
 | 2026-11-16 | uncommitted | Options `count_lognormal`, `run_capacity`, `unit_base`, `no_machine` (unset: instances and configuration hashes unchanged); Fidentis route and parameter file from the MES seed times with the user's corrections. |

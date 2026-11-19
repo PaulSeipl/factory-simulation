@@ -213,7 +213,9 @@ def run(configs: list[ExperimentConfig], out: Path, processes: int | None = None
     todo = select(configs, policies, seeds, None if restart else out)
     print(f"{len(todo)} runs to do", file=sys.stderr)  # noqa: T201
     with Pool(processes) as pool:
-        pool.starmap(run_task, [(c, p, s, out) for _, c, p, s in todo])
+        # chunksize=1: the default hands each worker a block of ~len/(4*processes) neighbouring runs, so the
+        # hindsight runs (neighbours in `tasks`) queue behind one worker while the others idle
+        pool.starmap(run_task, [(c, p, s, out) for _, c, p, s in todo], chunksize=1)
     merge(configs, out)
 
 

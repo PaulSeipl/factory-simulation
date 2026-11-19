@@ -109,3 +109,17 @@ def test_color_by_machine_uses_three_validated_hues_and_a_neutral():
     plt.close(ax.figure)
     with pytest.raises(ValueError, match="color_by"):
         plot_shifts(WORKSHOP, [PRINT], color_by="order")
+
+
+def test_an_s_batch_is_one_worker_bar_and_shows_on_every_order():
+    # math/08: the hand batch of test_s_batch_checker, polishings of O1 and O2 [6, 61) by A
+    from test_s_batch_checker import CI as S_CI
+    from test_s_batch_checker import plan as s_plan
+
+    from simulation.viz import plot_gantt, shift_bars
+
+    _, bars = shift_bars(S_CI, s_plan(), rows="workers")
+    assert [(b.row, b.start, b.end, b.label) for b in bars if b.op == "polish"] == [("A", 6, 61, "O1+O2 polish")]
+    _, bars = shift_bars(S_CI, s_plan(), rows="orders")
+    assert {(b.row, b.start, b.end) for b in bars if b.op == "polish"} == {("O1", 6, 61), ("O2", 6, 61)}
+    plot_gantt(S_CI, s_plan())  # worker-only operations have no machine row: skipped, no error

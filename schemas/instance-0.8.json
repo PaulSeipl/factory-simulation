@@ -474,6 +474,35 @@
       "title": "RunEstimator",
       "type": "object"
     },
+    "SBatchStep": {
+      "additionalProperties": false,
+      "description": "A step whose operations the planner may group into s-batches across orders or carriers (math/08): one worker\nshare per batch, setup once per batch. The duration of each operation is its singleton time with the setup\ninside, so every further member adds its duration minus the setup.",
+      "properties": {
+        "setup": {
+          "minimum": 0,
+          "title": "Setup",
+          "type": "integer"
+        },
+        "capacity": {
+          "anyOf": [
+            {
+              "minimum": 2,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capacity"
+        }
+      },
+      "required": [
+        "setup"
+      ],
+      "title": "SBatchStep",
+      "type": "object"
+    },
     "WorkerShare": {
       "additionalProperties": false,
       "description": "Worker time of an operation (math/04_workers.md): the whole operation, or a prefix and/or a suffix of it\n(e.g. oven: loading and removal around a fixed program); the rest runs without a worker. Prefix and suffix\nmay be served by different workers. qualified: allowed workers, None = every worker of the instance.\nrest: attended from the start except an unattended rest of this length at the end (e.g. Gegenbetten: work on\nthe parts, then curing); only without a machine, where the duration is one number, so the compilation turns it\ninto the prefix duration - rest (2026-11-17).",
@@ -599,6 +628,14 @@
       },
       "title": "Workers",
       "type": "array"
+    },
+    "s_batch_steps": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SBatchStep"
+      },
+      "default": {},
+      "title": "S Batch Steps",
+      "type": "object"
     }
   },
   "required": [

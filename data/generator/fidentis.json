@@ -25,6 +25,12 @@
     "support_removal": 15, "grind": 10, "steam": 10, "polish_sec": 10, "data_prep_pri": 15, "polish_pri": 10,
     "finish_pri": 10, "inspect": 10, "document": 10, "pack": 10
   },
+  "s_batch_steps": {
+    "support_removal": {"setup": 15}, "grind": {"setup": 10}, "steam": {"setup": 10}, "polish_sec": {"setup": 10},
+    "data_prep_pri": {"setup": 15}, "polish_pri": {"setup": 10}, "finish_pri": {"setup": 10},
+    "inspect": {"setup": 10}, "document": {"setup": 10}, "pack": {"setup": 10},
+    "clean": {"setup": 15, "capacity": 4}, "blast": {"setup": 5, "capacity": 4}
+  },
   "carried_type": "secondary",
   "counted_type": "primary",
   "count_range": [2, 8],

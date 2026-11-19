@@ -97,8 +97,8 @@ Gaalman (1996, `ZNV6S3HF`, p. 535) name for the release function. The budget is 
 capacity minus the reserve (N1), here a fixed number per weekday, set by Fidentis or by the experiment, user); the
 load unit is a parameter of the function (telescopes in step A, mill minutes in step B).
 
-(N5) Budget against the work still to be milled (decided by the user 2026-11-18, own formulation, not
-implemented). The workload norm is the average daily mill capacity times a window, and the work counted against it
+(N5) Budget against the work still to be milled (decided by the user 2026-11-18, own formulation; implemented
+in step B3, `Nesting.budget`, §5). The workload norm is the average daily mill capacity times a window, and the work counted against it
 is what the shop floor still has to mill; part of the norm is held back for the orders forecast for the next
 nesting day:
 $$\text{budget}(\gamma) = n^{\mathrm{win}}\,\overline{\mathrm{cap}}_{\mathrm{mill}} - \mathrm{wip}_{\mathrm{mill}}(\gamma)
@@ -198,6 +198,13 @@ State of the code against the rest of this note:
 
 ## 6. Assumptions and open points
 
+- **Parametrization of the norm** (first run 2026-11-19, notebook `08_s_batches_and_forecast`, Fidentis case, rule
+  planner, 2 seeds): with $n^{\mathrm{win}} = 2$ and a forecast of one default order a working day the reserve
+  (1268 minutes) exceeds the mill's capacity ($\overline{\mathrm{cap}} = 970$ minutes, 0.76 orders a day); the
+  budget $1940 - 1268 - \mathrm{wip}$ is negative once more than half a default order is on the mill, so mostly the
+  timing override binds. Result: pool times up to about 13 days, longer makespan, no fewer tardy days (rate 1.0,
+  seed 1: 22 → 41). To try in the sweep: a reserve below capacity and a longer window; the rate-0.6 episodes (4
+  and 7 orders) are too short to conclude.
 - **Out of scope:** forming carriers by the planning tool (integrated nesting and scheduling); the closed loop of
   (N1) in the DES. The title's "persistent batch dependency" covers scheduling given carriers; it does not exclude
   forming them, but that exceeds scope and time budget (user 2026-11-16).
@@ -241,3 +248,4 @@ Checked in Zotero (collection MA), 2026-11-16; full references in [references.md
 | 2026-11-16 | uncommitted | Created: placement of forecast and reserve, capacity signal (N1), toy model (N2), (N3), sources, scope. |
 | 2026-11-17 | uncommitted | Step A: release rule (N4) with timing and balancing, quota per weekday in the arrival generator. |
 | 2026-11-17 | uncommitted | (N4): overtaking allowed, quota in default orders of 4 telescopes, a large order takes the whole budget when alone at the front (user). |
+| 2026-11-19 | uncommitted | First run on the Fidentis case (notebook `08_s_batches_and_forecast`): with a reserve of one default order a day (above the mill's 0.76) and a 2-day window the norm holds orders for days and does not reduce tardiness; next: a reserve below capacity, a longer window (open point). |
