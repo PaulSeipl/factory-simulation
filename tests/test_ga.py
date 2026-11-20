@@ -16,7 +16,7 @@ from simulation.model.instance import Instance
 from simulation.objectives import MAKESPAN, OVERTIME, overtime
 from simulation.planners.cpsat import solve
 from simulation.planners.dispatching import dispatch_plan, ect, spt
-from simulation.planners.ga import N_KEYS, GaParams, decode, delay_unit, encode, ga_planner, rule_plans, solve_ga
+from simulation.planners.ga import N_KEYS, GaParams, decode, delay, encode, ga_planner, rule_plans, solve_ga
 from simulation.sim.des import replay
 
 DATA = Path(__file__).parents[1] / "data"
@@ -78,13 +78,13 @@ def test_hand_chromosome_waits_and_batches():
     ci = wait_for_batch()
     seq = {("J1", "a"): 0.1, ("J2", "a"): 0.2, ("J2", "b"): 0.3, ("J1", "b"): 0.4}
     genes = [seq[k] for k in ci.op_keys] + [0.5] * ci.n_ops + [0.5] * ci.n_ops + [0.0] * ci.n_ops
-    plan = decode(ci, genes, delay_unit(ci, 1.5))
+    plan = decode(ci, genes, 100)
     by_key = {(a.order_id, a.op_id): a for a in plan.assignments}
     j1, j2 = by_key["J1", "b"], by_key["J2", "b"]
     assert (j1.start, j1.end) == (2, 10) == (j2.start, j2.end)
     assert by_key["J1", "b"].batch == by_key["J2", "b"].batch is not None
     assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
-    without_delay = decode(ci, genes[:2 * ci.n_ops] + [0.0] * (2 * ci.n_ops), delay_unit(ci, 1.5))
+    without_delay = decode(ci, genes[:2 * ci.n_ops] + [0.0] * (2 * ci.n_ops), 100)
     assert MAKESPAN.evaluate(ci, without_delay.assignments) == 11
 
 
@@ -117,7 +117,7 @@ def test_random_chromosomes_decode_to_feasible_plans(name):
     ci, rng = INSTANCES[name](), random.Random(3)
     planned_overtime = 0
     for _ in range(10):
-        plan = decode(ci, [rng.random() for _ in range(N_KEYS * ci.n_ops)], delay_unit(ci, 1.5))
+        plan = decode(ci, [rng.random() for _ in range(N_KEYS * ci.n_ops)], 100)
         assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
         planned_overtime += overtime(ci, plan.assignments)
     assert planned_overtime > 0 or ci.calendar is None or name == "toy-workers"  # the overtime keys are used
@@ -137,7 +137,7 @@ def test_machine_key_picks_the_machine():
     for key, machine in ((0.2, names[0]), (0.7, names[1])):
         genes = [0.5] * ci.n_ops + [0.5] * ci.n_ops + [0.0] * (2 * ci.n_ops)
         genes[ci.n_ops + o] = key
-        plan = decode(ci, genes, delay_unit(ci, 1.5))
+        plan = decode(ci, genes, 100)
         assert next(a.machine for a in plan.assignments if (a.order_id, a.op_id) == ("J1", "1")) == machine
 
 
@@ -253,7 +253,7 @@ def test_warm_start_decodes_the_current_plan_first():
     tiny = GaParams(population=10, time_limit=1e-9)  # out of time after the first decode
     result = solve_ga(ci, MAKESPAN, tiny, current=current)
     assert result.evaluations == 1 and result.generations == 0
-    assert result.plan == decode(ci, encode(ci, current), delay_unit(ci, 1.5))
+    assert result.plan == decode(ci, encode(ci, current), 100)
     # without a current plan the first rule plan is the fallback
     assert solve_ga(ci, MAKESPAN, tiny).evaluations == 1
 
@@ -264,3 +264,9 @@ def test_encode_puts_operations_missing_from_the_plan_last():
     late = ("J3", "2")
     genes = encode(ci, [a for a in plan if (a.order_id, a.op_id) != late])
     assert genes[ci.op_index[late]] == max(genes[:ci.n_ops])
+
+
+def test_delay_map_by_hand():
+    # D = round(101^key - 1): 0 at key 0, 100 at key 1, sqrt(101) - 1 = 9.05 at the median, 101^0.9 - 1 = 62.6
+    assert [delay(k, 100) for k in (0.0, 0.5, 0.9, 1.0)] == [0, 9, 63, 100]
+    assert delay(0.7, 0) == 0  # D^max 0: non-delay

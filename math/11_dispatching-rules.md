@@ -180,6 +180,23 @@ Results on the Brandimarte instances (makespan, own computation; LL = least load
 
 ECT gives the best or a tied makespan of the three assignment variants in 28 of 30 (sequencing rule, instance) cases; the exceptions are FIFO on mk08 (joint 1 unit better) and MWKR on mk05 (least load 1 unit better). No comparison with best-known values from the literature yet; these must be taken from a cited source, not from memory.
 
+**Speed (2026-11-20; plans unchanged).** The rule is also the GA's decoder ([14](14_genetic-algorithm.md)), so its run time bounds the GA. Three changes, none changes a plan:
+1. *Worker gap search by bisection.* `busy_clash` finds a booking of worker $z$ that overlaps the share interval `[s, s + n)` by bisecting the sorted bookings to those starting before `s + n` and walking back only while a start lies within the longest booking of $z$ before `s`; that bound keeps it exact even where frozen bookings overlap. The break is tested on its own instead of being appended to a copy of the list, and the give-up limit of `worker_start` keeps the latest booked end instead of rescanning all bookings. `free_from` may jump to the end of any overlapping booking: no start before that end is free, so it returns the same earliest free start.
+2. *Cached candidate starts.* `worker_start` returns the least fixpoint, not before the base time `base` $= \max(\underline{S}_o, \phi_m)$, of a map that grows with the time and with the bookings. The cached start `start` of a candidate $(o, m)$ therefore stays exact while two things hold. First, the current base lies between the base it was computed from and `start`; $\underline{S}_o$ is fixed once $o$ is ready, and $\phi_m$ only grows. Second, no booking made since overlaps a share of $o$ started at `start` for a worker qualified for that share. Otherwise the start is recomputed from the base, exactly as before. Operations without shares take the base directly. Code names only, no new symbols. Not cached: the sequencing keys (they read the state), the s-batch join check `worker_start(o, t, n)` and the parts of a run.
+3. *Fewer calls per gap search.* `part_fits` depends only on the share length and the overtime allowance, so it is cached (`free_from` asks it on every call). `free_from` calls `calendar.shift_window` directly, without the old wrapper. `shift_window` inlines `day_index`, `day_start` and `is_working_day` and carries the day's 00:00 forward from day to day: the same loop over the same days, with the same results and errors. It was checked against the old version on 200,000 random calendars and arguments. The repair and the objectives use it too.
+
+Equality check `notebooks/dispatch_speed.py` against a copy of the previous version. Instances: 5 toys, mk01–mk10, both dental examples, the s-batch instance of `tests/test_ga.py`. Plans per instance: all 15 rule combinations and 20 random chromosomes (all four key types), plus 15 rules and 5 chromosomes from each of 3 disturbed DES snapshots, 95 plans in all. Every plan is identical, and so is every `ValueError`. Time per decode (ms, one process, minimum of 7 interleaved rounds of 5 random chromosomes, all three changes). The machine was loaded by other work, so only the ratio within a row is reliable; the absolute values varied up to twofold between runs:
+
+| Instance | ops | before | after | speed-up |
+|---|---|---|---|---|
+| mk01 / mk10 | 55 / 240 | 1.0 / 12.9 | 0.6 / 7.2 | 1.5× / 1.8× |
+| dental example | 293 | 14.5 | 7.4 | 2.0× |
+| dental workers | 287 | 247 | 51 | 4.9× |
+| s-batches (`tests/test_ga.py`) | 36 | 3.8 | 2.1 | 1.8× |
+| Fidentis (10 orders) | 189 | 39.3 | 16.7 | 2.4× |
+
+Measured one change at a time: the bisection alone gives dental workers 2.2× and Fidentis 1.7×. The cache adds 1.8× and 1.2× on top of that, and change 3 another 1.2× and 1.3× (about 1.1× of that from `part_fits`). `map` instead of the comprehensions would not help: each loop calls Python functions, and with a Python function `list(map(f, xs))` was slower than `[f(x) for x in xs]` on Python 3.14 (59 µs against 50 µs per 1000 elements). On the dental example with four workers almost every booking touches every candidate's workers. A cache that a candidate's worker bookings invalidated as a whole hit almost never there; the overlap test above is what makes it pay off.
+
 ## 6. Assumptions and open points
 
 - ECT with backlog $\phi_m + V^{\mathrm{q}}_m$ is an estimate and an own choice; alternatives (only $\phi_m$, or the queue simulated in sequencing order) are not compared.
@@ -218,3 +235,5 @@ ECT gives the best or a tied makespan of the three assignment variants in 28 of 
 | 2026-11-19 | uncommitted | Optional overtime allowance per operation in `dispatch_plan` (GA decoder); rule plans unchanged without it. |
 | 2026-11-19 | uncommitted | Optional delay per iteration in `dispatch_plan` (GA decoder, [14](14_genetic-algorithm.md)); rule plans unchanged without it. |
 | 2026-11-09 | uncommitted | Shift-window search moved to `calendar.shift_window` (shared with the repair, [05](05_rescheduling-frozen-part.md)); behaviour unchanged. |
+| 2026-11-20 | uncommitted | Speed-up (§5 "Speed"): worker gap search by bisection, cached candidate starts; every plan unchanged (equality check `notebooks/dispatch_speed.py`), dental workers 4.1×, Fidentis 2.0× faster per decode. |
+| 2026-11-20 | uncommitted | `part_fits` cached, `calendar.shift_window` with its helpers inlined (same results, 200,000 random calls compared); with both, dental workers 4.9× and Fidentis 2.4× faster than before the speed-up. |

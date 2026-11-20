@@ -119,7 +119,7 @@
   Used for: worker set $W = \{1, \dots, w\}$, worker index $s$, total working time $F_s$ of a worker and $F_k$ of a machine (PDF p. 7, Table 2) ([notation.md](notation.md)).
 
 - Wu, S. D., Storer, R. H., & Chang, P.-C. (1993). One-machine rescheduling heuristics with efficiency and stability as criteria. *Computers & Operations Research*, 20(1), 1–14. https://doi.org/10.1016/0305-0548(93)90091-V (Zotero `TLCUQTJ9`)
-  Used for: start-time deviation and sequence deviation (against the right-shift schedule) as stability measures (p. 4) ([23](23_metrics.md)).
+  Used for: start-time deviation and sequence deviation (against the right-shift schedule) as stability measures (p. 4) ([23](23_metrics.md)); efficient frontier of makespan against deviation (p. 4), weighted-sum, bicriterion descent and GA heuristics (pp. 5–7), stability gained at little makespan cost (abstract) ([14](14_genetic-algorithm.md) §3a).
 
 
 - Zhou, Y., Tan, H., & Li, J. (2026). Adaptive Lagrangian penalty-enhanced proximal policy optimization for flexible job shop rescheduling with worker workload constraints under concurrent dynamic disturbances. *Processes*, 14(15), 2519. https://doi.org/10.3390/pr14152519 (Zotero `EA8QC55F`)

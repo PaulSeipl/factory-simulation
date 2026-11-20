@@ -6,8 +6,9 @@ of non-dominated plans: no plan in it is at least as good in every objective and
 
 One generation (Deb et al. 2002, pp. 185-186): binary tournaments by the crowded-comparison operator (lower front
 first, then larger crowding distance) pick parents; children by uniform crossover and key mutation (own choice for
-random keys: the source uses real-coded and binary operators); parents and children together (2N) are sorted into
-fronts, and the next N are filled front by front, the last front cut by crowding distance.
+random keys; the source runs real- and binary-coded variants on continuous test functions, math/14); parents and
+children together (2N) are sorted into fronts, and the next N are filled front by front, the last front cut by
+crowding distance.
 """
 
 import random
@@ -19,7 +20,7 @@ from typing import TYPE_CHECKING
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Plan
 from simulation.objectives import Objective
-from simulation.planners.ga import N_KEYS, Chromosome, decode, delay_unit, encode, rule_plans
+from simulation.planners.ga import N_KEYS, Chromosome, decode, encode, rule_plans
 
 if TYPE_CHECKING:
     from simulation.sim.snapshot import Snapshot
@@ -32,7 +33,7 @@ class NsgaParams:
     population: int = 100  # N (own choice)
     crossover: float = 0.9  # probability that a child is a crossover of its parents, else a copy of the first (own)
     mutation: float | None = None  # probability per key of a new random key; None: 1 / number of keys (own)
-    delay_factor: float = 1.5  # α^del, as in the BRKGA
+    delay_max: int = 100  # D^max, as in the BRKGA
     generations: int | None = None
     time_limit: float | None = 60.0  # seconds, checked after every decode
     seed: int = 0
@@ -104,7 +105,7 @@ def nsga2(
     rule plans encoded as keys; the rest is random."""
     start, params = time.perf_counter(), params or NsgaParams()
     rng = random.Random(params.seed)
-    unit, n_keys = delay_unit(ci, params.delay_factor), N_KEYS * ci.n_ops
+    unit, n_keys = params.delay_max, N_KEYS * ci.n_ops
     p_mut = params.mutation if params.mutation is not None else 1 / n_keys
     evaluations = 0
 

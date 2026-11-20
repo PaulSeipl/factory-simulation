@@ -21,8 +21,9 @@ def test_links_point_to_existing_files(note):
 
 @pytest.mark.parametrize("note", NOTES, ids=lambda p: p.name)
 def test_no_control_characters(note):
-    bad = [(n, line) for n, line in enumerate(note.read_text(encoding="utf-8").splitlines(), 1)
-           if any(ord(c) < 32 for c in line)]
+    # raw bytes: read_text and splitlines would turn a lone \r (a mangled "\rvert") into a line break
+    lines = note.read_bytes().decode("utf-8").replace("\r\n", "\n").split("\n")
+    bad = [(n, line) for n, line in enumerate(lines, 1) if any(ord(c) < 32 for c in line)]
     assert not bad, f"{note.name}: control characters (tab, mangled escape) in lines {[n for n, _ in bad]}"
 
 

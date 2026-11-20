@@ -51,8 +51,7 @@ New symbols (registered in [notation.md](notation.md)):
 | $\mathrm{ot}^{\mathrm{al}}_o$ | overtime allowance of $o$: minutes past shift end its new shares may use |
 | $\zeta$ | scheduling iteration of the decoder (one lead operation, with its run or batch, per iteration) |
 | $D_\zeta$ | delay of iteration $\zeta$ in minutes |
-| $p^{\max}$ | longest processing time of any operation on any machine |
-| $\alpha^{\mathrm{del}}$ | delay factor (default 1.5, Gonçalves et al., 2005, p. 81) |
+| $D^{\max}$ | longest delay in minutes (default 100, user 2026-11-20) |
 | $N^{\mathrm{pop}}$, $N^{\mathrm{el}}$, $N^{\mathrm{mut}}$ | population size, number of elite chromosomes, number of mutants per generation |
 | $\alpha^{\mathrm{in}}$ | probability that a child takes a key from its elite parent |
 
@@ -65,10 +64,13 @@ New symbols (registered in [notation.md](notation.md)):
   $M_o$ (Lunardi et al., 2021, p. 420, use one real array for the assignment and one for the sequencing);
 - delay of iteration $\zeta$:
 
-$$D_\zeta = \operatorname{round}\left(\upsilon^{\mathrm{del}}_\zeta \cdot \alpha^{\mathrm{del}} \cdot p^{\max}\right)$$
+$$D_\zeta = \operatorname{round}\left((D^{\max} + 1)^{\upsilon^{\mathrm{del}}_\zeta} - 1\right)$$
 
-(Gonçalves et al., 2005, p. 81: $\mathrm{Delay}_g = \mathrm{gene}_g \cdot 1.5 \cdot \mathrm{MaxDur}$, one delay per
-scheduling iteration $g$.) In iteration $\zeta$ let $t$ be the earliest possible start over all candidates. Every
+The delay per scheduling iteration and its key follow Gonçalves et al. (2005, p. 81), who scale linearly:
+$\mathrm{Delay}_g = \mathrm{gene}_g \cdot 1.5 \cdot \mathrm{MaxDur}$. On our durations that window reached 2853
+minutes (MaxDur is a 1902-minute print run) and made the GA worse (§5a). The logarithmic map is own (user
+2026-11-20): key 0 gives 0, the median key 0.5 gives 9 minutes, key 0.9 gives 63, key 1 gives $D^{\max} = 100$; most
+iterations wait a few minutes, few wait long. $D^{\max} = 0$ is the non-delay decoder. In iteration $\zeta$ let $t$ be the earliest possible start over all candidates. Every
 candidate that can start by $t + D_\zeta$ competes, the smallest priority key wins, and the winner starts at its
 own earliest start. Batch partners join if they are ready by that start ([11](11_dispatching-rules.md) §3), so a
 later lead can collect more partners. With $D_\zeta = 0$ for all $\zeta$ the decoder is the non-delay dispatcher.
@@ -135,13 +137,22 @@ One generation (Deb et al., 2002, pp. 183–186):
 3. $N^{\mathrm{pop}}$ children: two binary tournaments by the crowded-comparison operator (lower front first, then
    larger crowding distance) pick the parents; with probability 0.9 uniform crossover (each key from either parent
    with probability 0.5), else a copy of the first parent; then each key is replaced by a random key with
-   probability $1 / (4\lvert O \rvert)$ (own choice for random keys; the source uses real-coded and binary
-   operators);
+   probability $1 / (4\lvert O \rvert)$ (own choice for random keys: the source runs a real-coded and a
+   binary-coded variant, 30 bits per variable, on continuous test functions SCH, FON, POL, KUR and ZDT, pp. 187–189;
+   its crossover and mutation operators are not legible in the extracted text **[uncertain]**);
 4. parents and children together ($2N^{\mathrm{pop}}$) are sorted into fronts, and the next population is filled
    front by front; the front that does not fit completely is cut by crowding distance (elitism).
 
 The initial population holds the rule plans encoded as keys, the rest is random. The front returned holds one plan
 per distinct objective vector.
+
+**Stability as an objective.** `start_deviation(reference)` evaluates a plan by its total absolute start deviation
+from a reference plan, $\sum_{o} \lvert S_o - S^{\mathrm{ref}}_o \rvert$ over the reference's operations
+($\lvert O \rvert \cdot D_S$ of [23](23_metrics.md) when the reference is the start plan). Wu et al. (1993, pp. 4–5)
+define this deviation and the "efficient frontier" of makespan against it for one-machine rescheduling, and report
+that stability "can be increased significantly with little or no sacrifice in makespan" (abstract). With
+(makespan, start deviation) NSGA-II gives that frontier for our case. The objective has no CP-SAT model (analysis
+only).
 
 ### 3b. Rescheduling planner
 
@@ -176,11 +187,12 @@ level (second hand example in §5).
 - `planners/ga.py`:
   - `solve_ga(ci, objective, params, snapshot, current, change_budget)`, `ga_planner` (§3b; `planner.last`: generations,
     evaluations, value, machine changes over the budget);
-  - `GaParams`: $N^{\mathrm{pop}}$, elite and mutant shares, $\alpha^{\mathrm{in}}$, $\alpha^{\mathrm{del}}$,
+  - `GaParams`: $N^{\mathrm{pop}}$, elite and mutant shares, $\alpha^{\mathrm{in}}$, $D^{\max}$ (`delay_max`),
     generation and time limits, seed (validated: at least one elite and one child);
-  - `N_KEYS = 4`, `delay_unit` ($\alpha^{\mathrm{del}} p^{\max}$), `decode`, `encode`, `rule_plans`;
+  - `N_KEYS = 4`, `delay` (the map above), `decode`, `encode`, `rule_plans`;
   - `solve_ga(ci, objective, params) -> GaResult` (plan, value, generations, evaluations, best value per
     generation).
+- `objectives.py`, `start_deviation(reference)` (§3a; test `test_start_deviation_by_hand`).
 - `planners/nsga2.py` (§3a): `NsgaParams`, `dominates`, `non_dominated_fronts`, `crowding_distances`,
   `nsga2(ci, objectives, params, snapshot) -> NsgaResult` (front as (values, plan) pairs, generations,
   evaluations). Tests `tests/test_nsga2.py`: fronts and crowding by hand; on the late pack (hand example 2) the front
@@ -214,13 +226,88 @@ every plan is accepted, while the rule plans are rejected in the same setting ([
 tests). Ignoring the budget in the ranking fails that test (mutation check). Zero disturbance: the DES realizes GA
 plans exactly (toy, toy-workers, s-batch instance; Definition of Done).
 
+## 5a. First comparison on the Fidentis case (2026-11-19)
+
+`notebooks/ga_compare.py`, results in `notebooks/results/ga_compare.json`. Fidentis case with 10 orders (189
+operations), static, makespan, 60 s per GA run, 6 seeds, default parameters with the linear delay of that day
+($1.5 \cdot$ the longest duration, since replaced by the logarithmic map of §3); "no-delay" is the same GA without
+delay. Rule (SPT/ECT) and CP-SAT (60 s, 12 threads, with the rule plan as hint) from notebook
+08's stored run. Every GA plan passes the checker.
+
+| s-batches | planner | makespan best / mean / worst | overtime | batches | setups saved |
+|---|---|---|---|---|---|
+| without | rule SPT/ECT | 30790 | 0 | – | – |
+| without | best rule (LRP) | 25980 | 0 | – | – |
+| without | CP-SAT | 23080 | 762 | – | – |
+| without | GA | 24570 / 24580 / 24590 | 743 | – | – |
+| without | GA no-delay | 23100 / 23527 / 24540 | 707 | – | – |
+| with | rule SPT/ECT | 30730 | 0 | 38 | 675 |
+| with | best rule (MWKR) | 24850 | 0 | – | – |
+| with | CP-SAT | 24500 | 916 | 25 | 465 |
+| with | GA | 23190 / 23952 / 24570 | 435 | 31 | 610 |
+| with | GA no-delay | 23100 / 23210 / 23460 | 881 | 33 | 515 |
+
+Findings:
+
+- **With s-batches the GA beats CP-SAT** at equal wall time: 23100 to 23460 (no-delay, all 6 seeds) against 24500,
+  on one core against 12 threads. Without s-batches the best GA run (23100) is about level with CP-SAT (23080), the
+  mean is worse. The s-batch slots make the CP-SAT model larger ([08](08_serial-batches.md) §7a); for the GA the
+  decoder forms the batches and the chromosome does not grow.
+- **The delay window as scaled hurts.** With a window of up to 2853 minutes the GA is worse than
+  without delay in both variants (means 24580 against 23527, 23952 against 23210). A random delay key looks up to
+  two days ahead, so most decodes wait far too long. This confirms the open point on the delay scale (§6); waiting
+  helps in the hand example, but needs a range that fits our durations.
+- **The makespan moves in steps of about a working day** (24540 → 23100 = 1440 minutes): the plan ends when the last
+  attended operation fits into a shift, so many plans share a value and improvements come in jumps. The histories
+  show long plateaus and one or two jumps per run.
+- **The GA was still improving at the end** (jumps in the last generations of several runs), after only 3 to 5
+  generations (without s-batches) and 9 to 11 (with). The 12 runs in parallel slowed each decode about threefold (40 ms
+  and 20 ms per decode alone; about 125 ms and 60 ms in the pool), so each run had roughly 20 s of single-core time.
+- **The starting population is already strong:** the best of 15 rules and 85 random chromosomes is 23500 to 24930.
+  SPT/ECT, the rule of notebook 08, is the worst of the 15 rules (best: LRP 25980, MWKR 24850); random chromosomes
+  can use overtime, the rules cannot.
+
+Limits: 6 seeds, wall-clock limits (not reproducible), CPU contention between the GA runs, CP-SAT values from one
+earlier run; with one thread CP-SAT gave 22055 without and 26020 with s-batches in that run (protocol (75)), so
+"one core against one thread" without s-batches favours CP-SAT. Makespan is not the thesis objective; the
+comparison under the lexicographic objective and in the DES is part of the experiments.
+
+## 5b. Notebook 09: two instances, the faster decoder, fronts (2026-11-20)
+
+`notebooks/09_ga.ipynb` (built by `notebooks/build_09_ga.py`, runs in `notebooks/ga_runs.py`, results in
+`notebooks/results/09/`). Instances: **fidentis** (two workers: workers 12.2 calendar days of work, mill 9.5) and
+**balanced** (a third worker: workers 8.1, mill 9.5, no clear bottleneck), each with and without s-batches.
+Makespan, 60 s per run; the best of the 15 rule plans; CP-SAT on 12 threads hinted with that plan; the GA with the
+logarithmic delay ($D^{\max} = 100$) and without delay, 6 seeds, 6 runs in parallel; decoder 2 to 4 times faster
+([11](11_dispatching-rules.md) §5, protocol (83)), so 14 to 25 generations.
+
+| instance | s-batches | best rule | CP-SAT | GA best / mean | GA no-delay best / mean |
+|---|---|---|---|---|---|
+| fidentis | without | 25980 | 23060 | 23130 / 23230 | 23100 / 23228 |
+| fidentis | with | 24850 | 23110 | 23100 / 23140 | 23100 / 23155 |
+| balanced | without | 24540 | 22170 | 22190 / 22918 | 22180 / 22482 |
+| balanced | with | 24640 | 23270 | 23080 / 23090 | 23070 / 23082 |
+
+Findings (details in the notebook):
+
+- The GA is level with CP-SAT on fidentis and better on balanced with s-batches (every seed); CP-SAT is better on
+  balanced without s-batches.
+- **CP-SAT depends on its hint:** with the best rule plan it reaches 23110 with s-batches, with SPT/ECT (§5a,
+  notebook 08) 24500. The §5a statement "the GA beats CP-SAT with s-batches" came mostly from that weak hint.
+- **s-batches lengthen the balanced instance's makespan** for both planners (CP-SAT 22170 to 23270, GA 22180 to
+  23070) while saving about 600 worker minutes; on fidentis they leave it unchanged. For the GA the greedy join
+  couples orders (§6); CP-SAT may leave slots empty, so its worse value is search.
+- **Delay:** the logarithmic window no longer hurts on fidentis but brings no gain under makespan.
+- **Fronts (NSGA-II, 120 s, with s-batches):** on fidentis 10 minutes of overtime save a working day (24640 to
+  23200). Against start deviation from the best rule plan, deviation falls to almost nothing within one day step
+  (24660 at 18590 summed minutes, 24850 at 0), while the next day step moves most operations (about 400000).
+
+Limits: 6 seeds, wall-clock limits, makespan only, static instances, one NSGA-II run per front.
+
 ## 6. Assumptions and open points
 
-- **Delay scale.** $\alpha^{\mathrm{del}} p^{\max}$ is 2853 minutes on the Fidentis case ($p^{\max} = 1902$, a
-  print run), so a random delay key lets an iteration look up to two days ahead, while most operations take 10 to
-  60 minutes. Gonçalves et al. tuned 1.5 on job-shop instances with similar durations. Alternatives: a scale per
-  step or per machine, or a logarithmic map of the key (user 2026-11-19) so that most keys give short delays; to
-  be measured in the experiments.
+- **Delay scale.** Now logarithmic up to $D^{\max} = 100$ minutes (§3), chosen by judgement (user: median about
+  10, maximum about 100), not tuned. A scale per step or per machine remains an alternative.
 - **Waiting reaches only ready operations.** A lead can wait for partners that are already ready (all predecessors
   placed) but become available later; an operation whose predecessor is not placed yet cannot join. A join key or a
   look-ahead would be needed for that (later, if the experiments show it).
@@ -271,3 +358,5 @@ plans exactly (toy, toy-workers, s-batch instance; Definition of Done).
 | 2026-11-19 | uncommitted | Step 2: overtime key (allowance per operation) in `dispatch_plan` and the chromosome ($4\lvert O \rvert$ keys); hand example 2; s-batches with overtime tested. |
 | 2026-11-19 | uncommitted | Step 3: `solve_ga` from a snapshot with warm start, change budget (rank by excess) and a time check after every decode; `ga_planner`; tests in the DES, budget mutation-checked, zero disturbance. |
 | 2026-11-19 | uncommitted | Step 4: `planners/nsga2.py` over the same keys and decoder; `tests/test_nsga2.py`. |
+| 2026-11-19 | uncommitted | §5a: first comparison with rule and CP-SAT on the Fidentis case (`notebooks/ga_compare.py`). |
+| 2026-11-20 | uncommitted | Logarithmic delay map ($D^{\max} = 100$) instead of the linear one; `start_deviation` objective for NSGA-II; §5b notebook 09. |

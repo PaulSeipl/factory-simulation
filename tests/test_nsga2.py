@@ -59,3 +59,29 @@ def test_same_seed_same_front():
 def test_invalid_params_rejected(params, message):
     with pytest.raises(ValueError, match=message):
         NsgaParams(**params)
+
+
+def test_start_deviation_by_hand():
+    from simulation.model.schedule import Assignment
+    from simulation.objectives import start_deviation
+
+    ref = [Assignment(order_id="k", op_id=i, machine="M", start=s, end=s + 1) for i, s in (("a", 0), ("b", 5))]
+    moved = [ref[0].model_copy(update={"start": 3, "end": 4}), ref[1].model_copy(update={"start": 1, "end": 2}),
+             Assignment(order_id="new", op_id="a", machine="M", start=9, end=10)]  # not in the reference: ignored
+    objective = start_deviation(ref)
+    assert objective.evaluate(None, ref) == 0 and objective.evaluate(None, moved) == 3 + 4
+    with pytest.raises(NotImplementedError, match="offline analysis"):
+        objective.cpsat()
+
+
+def test_stability_front_starts_at_the_reference():
+    # makespan against deviation from the encoded SPT/ECT plan: the deviation-0 end of the front is a plan that keeps
+    # every start of the reference (the decoded warm start reproduces it here), the other end shortens the makespan
+    from simulation.objectives import start_deviation
+    from simulation.planners.dispatching import dispatch_plan, ect, spt
+
+    ci = INSTANCES["toy-dag-3x4"]()
+    ref = dispatch_plan(ci, spt, ect).assignments
+    result = nsga2(ci, [MAKESPAN, start_deviation(ref)], FAST)
+    assert all(check_schedule(ci, p.assignments, breaks=p.breaks) == [] for _, p in result.front)
+    assert min(v[1] for v, _ in result.front) == 0

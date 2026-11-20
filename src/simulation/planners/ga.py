@@ -3,7 +3,8 @@
 A chromosome is a vector of 4|O| keys in [0, 1) (Bean 1994): per operation a priority key, a machine key, a delay key
 and an overtime key. `decode` turns any vector into a feasible plan through `dispatch_plan`: the priority key is the
 sequencing rule (smaller first), the machine key picks the machine from M_o, delay key ζ lets scheduling iteration ζ
-look D_ζ = key · α^del · p^max past the earliest start (parameterized active schedules, Gonçalves et al. 2005), and
+look D_ζ = (D^max + 1)^key - 1 minutes past the earliest start (parameterized active schedules, Gonçalves et al. 2005;
+the logarithmic map is own: most keys give a few minutes), and
 the overtime key lets o's shares run up to key · max overtime past shift end (own). So no operator needs repair:
 every child is a valid vector and decodes to a feasible plan. From a snapshot the decoder keeps the frozen part.
 
@@ -40,7 +41,7 @@ class GaParams:
     elite: float = 0.1  # N^el / N^pop (Gonçalves et al. 2011, p. 478: TOP 10 %)
     mutants: float = 0.2  # N^mut / N^pop (ibid.: BOT 20 %)
     inherit: float = 0.7  # α^in, probability of a key from the elite parent (ibid.: CProb 0.7)
-    delay_factor: float = 1.5  # α^del (Gonçalves et al. 2005, p. 81)
+    delay_max: int = 100  # D^max, minutes of the longest delay (user 2026-11-20; median key 0.5 gives 9 minutes)
     generations: int | None = None  # stop after this many generations; None: only the time limit
     time_limit: float | None = 10.0  # seconds, checked after every decode; None: only the generation limit
     seed: int = 0
@@ -72,13 +73,12 @@ class GaResult:
     over_budget: int = 0  # machine changes beyond the change budget (0 unless no plan within it was decoded)
 
 
-def delay_unit(ci: CompiledInstance, factor: float) -> float:
-    """α^del · p^max: the delay of a key 1 (p^max over all options and machine-free operations)."""
-    return factor * max(max((p for _, p in opts), default=ci.fixed_duration[o])
-                        for o, opts in enumerate(ci.options))
+def delay(key: float, delay_max: int) -> int:
+    """D_ζ = round((D^max + 1)^key - 1): 0 at key 0, D^max at key 1, logarithmic in between."""
+    return round((delay_max + 1) ** key - 1)
 
 
-def decode(ci: CompiledInstance, genes: Sequence[float], unit: float, snapshot: Snapshot | None = None) -> Plan:
+def decode(ci: CompiledInstance, genes: Sequence[float], delay_max: int, snapshot: Snapshot | None = None) -> Plan:
     """The feasible plan of a chromosome (module docstring); from a snapshot with its frozen part."""
     n = ci.n_ops
     seq, mach = genes[:n], genes[n:2 * n]
@@ -91,7 +91,7 @@ def decode(ci: CompiledInstance, genes: Sequence[float], unit: float, snapshot: 
         return opts[int(mach[o] * len(opts))][0]
 
     max_ot = ci.calendar.max_overtime if ci.calendar is not None else 0
-    return dispatch_plan(ci, sequencing, assignment, snapshot, delay=[round(g * unit) for g in genes[2 * n:3 * n]],
+    return dispatch_plan(ci, sequencing, assignment, snapshot, delay=[delay(g, delay_max) for g in genes[2 * n:3 * n]],
                          overtime=[round(g * max_ot) for g in genes[3 * n:]])
 
 
@@ -126,7 +126,7 @@ def solve_ga(
     start) and the reference of `change_budget` (machine changes of operations it plans that are not frozen)."""
     start, params = time.perf_counter(), params or GaParams()
     rng = random.Random(params.seed)
-    unit, n_keys = delay_unit(ci, params.delay_factor), N_KEYS * ci.n_ops
+    unit, n_keys = params.delay_max, N_KEYS * ci.n_ops
     frozen = {(f.order_id, f.op_id) for f in snapshot.frozen} if snapshot else set()
     before = {(a.order_id, a.op_id): a.machine for a in current or ()}
     evaluations = 0

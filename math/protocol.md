@@ -8,6 +8,108 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-20 (85) — Decoder: fewer calls in the gap search — uncommitted
+
+- **Decided (user):** try both follow-ups from (83): `part_fits` called less often, and a fast path for
+  `calendar.shift_window` (the user approved the change outside `dispatching.py`).
+- **Done:**
+  - `planners/dispatching.py`: `part_fits` cached; the `window` wrapper removed.
+  - `calendar.shift_window`: `day_index`, `day_start` and `is_working_day` inlined, the day's 00:00 carried
+    forward; the same loop, results and errors.
+  - `notebooks/dispatch_speed.py`: also loads the old calendar and compares 200,000 random `shift_window` calls.
+  - [11](11_dispatching-rules.md) §5 "Speed" item 3, timing table and change log.
+- **Found:**
+  - All 1710 plans are still identical to the version before (83), and the 200,000 calls to the old
+    `shift_window`; 1798 tests pass.
+  - Gain over (83): about 1.2× on dental workers and 1.3× on Fidentis, of which about 1.1× comes from `part_fits`.
+    Against the version before (83): dental workers 4.9×, Fidentis 2.4×, Brandimarte 1.5–1.8×.
+  - Absolute times varied up to twofold between runs (machine loaded), ratios within a run did not.
+  - `map` would not help: every hot loop calls a Python function, and there `map` is slower than a comprehension
+    on Python 3.14.
+- **Open:** nothing for the decoder. Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-20 (84) — Delay map, stability objective, balanced instance, notebook 09 — uncommitted
+
+- **Decided (user):** decoder speed-up in its own session (done there, (83)); a delay of median about 10 and maximum
+  about 100 minutes; an instance without one clear bottleneck; a notebook with convergence and Pareto fronts.
+  **Decided (Claude, stated to the user):** $D_\zeta = \operatorname{round}((D^{\max}+1)^{\upsilon^{\mathrm{del}}_\zeta}
+  - 1)$ with $D^{\max} = 100$ (median key 9 minutes); the balanced instance as the Fidentis case with a third
+  worker, built in the notebook (no new data file); stability for NSGA-II as `start_deviation(reference)`.
+- **Done:** `ga.delay`, `GaParams.delay_max`, `NsgaParams.delay_max` (replace `delay_unit` and the factor);
+  `objectives.start_deviation`; tests (delay map by hand, start deviation by hand, stability front);
+  `tests/test_math_notes.py` reads raw bytes (a lone `\r` from a mangled `\rvert` slipped through `read_text`;
+  mutation-checked); `notebooks/ga_runs.py`, `notebooks/build_09_ga.py`, `notebooks/09_ga.ipynb`. Deb et al.
+  (2002) checked: test functions SCH, FON, POL, KUR, ZDT, real- and binary-coded variants (pp. 187–189); their
+  operators still not legible. Wu et al. (1993) read (efficient frontier, pp. 4–7). [14](14_genetic-algorithm.md)
+  §3, §3a, §5b, §6; [08](08_serial-batches.md) (bottleneck claim corrected, CP-SAT hint); notation ($D^{\max}$
+  replaces $\alpha^{\mathrm{del}}$, $p^{\max}$); references. 1798 tests pass.
+- **Found:** the mill is not the only bottleneck of the Fidentis case: the workers need more calendar days (12.2
+  against 9.5); the earlier reason in [08](08_serial-batches.md) came from SPT/ECT, the weakest rule. CP-SAT with
+  s-batches depends on its hint (23110 with the best rule plan, 24500 with SPT/ECT). GA level with CP-SAT on fidentis,
+  better on balanced with s-batches, worse on balanced without. s-batches lengthen the balanced makespan for both
+  planners. The logarithmic delay no longer hurts, but gains nothing under makespan.
+- **Open:** the greedy join (a join key, or declining partners) on instances like balanced; GA and CP-SAT under the
+  lexicographic objective and in the DES; overlapping labels in `plot_days`; `shift_window` as the next decoder
+  cost ((83)). Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-20 (83) — Faster dispatching rule and GA decoder, plans unchanged — uncommitted
+
+- **Decided (user, via the GA session):** make `dispatch_plan` faster without changing any plan it produces.
+  **Decided (Claude):** two changes, measured one at a time. A cached start is reused only where the
+  monotonicity argument in [11](11_dispatching-rules.md) §5 "Speed" shows it to be exact; otherwise it is
+  recomputed.
+- **Done:** `planners/dispatching.py`:
+  - `busy_clash` (bisection, bounded by the longest booking per worker);
+  - the break tested on its own;
+  - a running latest end for `worker_start`'s limit;
+  - `earliest` caches each candidate's start and recomputes it when its base leaves the range from the cached base
+    to the cached start, or when a new booking of a qualified worker overlaps one of its shares at the cached start.
+
+  Also `notebooks/dispatch_speed.py`, the equality check and timing against a copy of the old module, and
+  [11](11_dispatching-rules.md) §5 (paragraph, timing table) and its change log.
+- **Found:** all 1710 compared plans are identical, and so are the errors. They cover 18 instances: toys, mk01–mk10,
+  both dental examples, the s-batch instance; each with the rules, random chromosomes, and 3 disturbed DES
+  snapshots. Per decode, dental workers went from 143 to 35 ms (4.1×), Fidentis from 38.6 to 19.0 ms (2.0×),
+  Brandimarte 1.6–1.9×. A cache invalidated by any booking of a candidate's workers barely hit on the dental
+  example (4 workers shared by nearly all operations). Only the overlap test pays off.
+- **Open:** `calendar.shift_window` is now the largest single cost on worker instances (about a quarter of the
+  decode on dental workers). Not touched: it is shared with the repair. Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-20 (82) — GA questions answered; one source claim corrected — uncommitted
+
+- **Found (Claude):** the claim in [14](14_genetic-algorithm.md) §3a and `planners/nsga2.py` that Deb et al.
+  (2002) use real-coded and binary operators was written from memory; Zotero was offline, so it could not be
+  checked. Now marked **[uncertain]**.
+- **Decided:** nothing new; the answers (change budget, Pareto front, decoder speed, operators, stability objective,
+  delay scale) are in the session. Proposals for the user: incremental candidate starts in the decoder; a
+  logarithmic delay map with a shorter maximum.
+- **Open:** check Deb et al.'s operators in the text when Zotero runs; decision on decoder speed-up and delay map.
+
+---
+
+## 2026-11-19 (81) — GA against rule and CP-SAT on the Fidentis case — uncommitted
+
+- **Decided (user):** compare GA, rule and CP-SAT on the Fidentis case. **Decided (Claude):** static, makespan,
+  10 orders, 60 s per GA run as CP-SAT in notebook 08, 6 seeds in parallel, with and without the delay window;
+  results stored in `notebooks/results/ga_compare.json` (digest, `RECOMPUTE=1`), CP-SAT and SPT/ECT from notebook
+  08's stored run.
+- **Done:** `notebooks/ga_compare.py`; [14](14_genetic-algorithm.md) §5a (table, findings, limits), change log.
+- **Found:** with s-batches the GA without delay reaches 23100–23460 on all 6 seeds against CP-SAT's 24500 (one
+  core against 12 threads); without s-batches its best run (23100) is level with CP-SAT (23080). The delay window
+  with $\alpha^{\mathrm{del}} p^{\max}$ = 2853 minutes makes the GA worse in both variants. The makespan moves in
+  steps of about a working day. Only 3–11 generations ran (12 parallel runs slowed each decode about threefold),
+  and several runs were still improving. SPT/ECT is the worst of the 15 rules (best LRP 25980, MWKR 24850).
+- **Open:** delay scale (logarithmic or per step) before the experiments; longer runs or fewer parallel runs;
+  the comparison under the lexicographic objective and in the DES. Thesis sections affected: none written yet.
+
+---
+
 ## 2026-11-19 (80) — GA steps 3 and 4: rescheduling planner, NSGA-II — uncommitted
 
 - **Decided (user):** do steps 3 and 4, then summarize. **Decided (Claude, stated in the summary):** the change

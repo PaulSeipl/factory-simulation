@@ -41,7 +41,7 @@ overstay; computed as the checker does, with overtime and blocked only by the fr
 started by t are kept (C7^b); a break of the snapshot's day not yet started is planned anew.
 """
 
-from bisect import insort
+from bisect import bisect_left, insort
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import cache
@@ -167,14 +167,14 @@ def dispatch_plan(
     fixed: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # frozen shares, started breaks, removals
     frozen_time: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # started shares of the frozen part only
     worker_load = [0] * len(ci.worker_ids)
+    longest = [0] * len(ci.worker_ids)  # per worker: longest interval in busy, bounds the clash search
+    max_end = 0  # latest end in busy over all workers (worker_start's give-up limit)
+    log: list[tuple[int, int, int]] = []  # every booking (w, s, e) in order: what a cached earliest start has seen
 
     cal = ci.calendar
     snap_day = day_index(cal, t0) if cal is not None and snapshot else None
     taken = ({(ci.worker_ids.index(b.worker), day_index(cal, b.start)): b.start for b in snapshot.breaks}
              if cal is not None and snapshot else {})
-
-    def window(s: int, n: int, latest: int) -> int:
-        return shift_window(cal, s, n, latest)
 
     def clash_end(intervals, s: int, n: int) -> int | None:
         return next((e for a, e in intervals if a < s + n and s < e), None)
@@ -205,10 +205,23 @@ def dispatch_plan(
         """Overtime allowance of o's new shares: minutes past shift end (0 for the rules)."""
         return overtime[o] if overtime is not None else 0
 
+    @cache  # pure in (n, ot); free_from asks it on every call
     def part_fits(n: int, ot: int) -> bool:
         """A share of n minutes fits one part of the shift, the second extended by ot minutes of overtime."""
         return any(n <= b - a for a, b in ((cal.shift_start, cal.break_earliest),
                                            (cal.break_earliest + cal.break_length, cal.shift_end + ot)))
+
+    def busy_clash(w: int, s: int, n: int) -> int | None:
+        """End of an interval of busy[w] that overlaps [s, s + n), None if none: bisect to the intervals starting
+        before s + n, then back while a start lies within the longest interval of s (only those can reach past s).
+        Any clashing interval does: free_from may jump to the end of any, no start before it is free."""
+        iv, lo = busy[w], s - longest[w]
+        i = bisect_left(iv, (s + n,)) - 1
+        while i >= 0 and iv[i][0] > lo:
+            if iv[i][1] > s:
+                return iv[i][1]
+            i -= 1
+        return None
 
     def free_from(w: int, s: int, n: int, ot: int = 0) -> int:
         """Earliest s' >= s at which a new share [s', s' + n) is free for worker w: clear of its bookings and, with a
@@ -216,18 +229,19 @@ def dispatch_plan(
         if cal is not None and not part_fits(n, ot):
             raise ValueError(f"share of {n} minutes longer than both parts of the shift")
         while True:
-            intervals = busy[w]
+            b = None
             if cal is not None:
-                s = window(s, n, cal.shift_end + ot)
-                if (b := break_at(w, day_index(cal, s))) is not None:
-                    intervals = [*busy[w], (b, b + cal.break_length)]
-            if (e := clash_end(intervals, s, n)) is None:
+                s = shift_window(cal, s, n, cal.shift_end + ot)
+                b = break_at(w, day_index(cal, s))
+            if (e := busy_clash(w, s, n)) is None and b is not None and b < s + n and s < b + cal.break_length:
+                e = b + cal.break_length
+            if e is None:
                 return s
             s = e
 
     def worker_start(o: int, t: int, p: int) -> int:
         """Earliest start >= t of o (duration p) at which every share finds a qualified worker free."""
-        spans, limit = _spans(ci.shares[o], p), t + 2 * WEEK + max((b for bs in busy for _, b in bs), default=0)
+        spans, limit = _spans(ci.shares[o], p), t + 2 * WEEK + max_end
         while (later := max((min(free_from(w, t + off, n, ot_of(o)) for w in sh.workers) - off
                              for sh, off, n in spans),
                             default=t)) > t:
@@ -237,7 +251,10 @@ def dispatch_plan(
         return t
 
     def book(w: int, s: int, e: int, part_of_fixed: bool = False, load: bool = True) -> None:
+        nonlocal max_end
         insort(busy[w], (s, e))
+        longest[w], max_end = max(longest[w], e - s), max(max_end, e)
+        log.append((w, s, e))
         if part_of_fixed:
             insort(fixed[w], (s, e))
         if load:
@@ -342,13 +359,31 @@ def dispatch_plan(
         if open_preds[o] == 0 and o not in frozen:
             make_ready(o)
 
+    # cached earliest start r of a candidate (o, m), computed from base time b: worker_start is the least fixpoint >= b
+    # of a map monotone in t and in the bookings (they only grow), so r stays exact while the base lies in [b, r]
+    # (ready_at is fixed once o is ready, machine_free only grows) and no later booking of a qualified worker overlaps
+    # a share of o started at r (each share keeps a free worker at r); otherwise recomputed from the base (same plan)
+    cached: dict[tuple[int, int | None], list] = {}  # (o, m) -> [b, r, bookings seen, spans]
+
+    def earliest(o: int, m: int | None) -> int:
+        base = max(state.ready_at[o], state.machine_free[m] if m is not None else 0)
+        if not ci.shares[o]:  # no worker to wait for: worker_start gives the base
+            return base
+        c = cached.get((o, m))
+        if c is not None and c[0] <= base <= c[1]:
+            r, spans = c[1], c[3]
+            if all(not (w in sh.workers and a < r + off + n and r + off < e)
+                   for i in range(c[2], len(log)) for w, a, e in (log[i],) for sh, off, n in spans):
+                c[2] = len(log)
+                return r
+        # a run's head (setup) waits for its own workers: own[o][m] is its own duration
+        r = worker_start(o, base, own[o][m])
+        cached[o, m] = [base, r, len(log), _spans(ci.shares[o], own[o][m])]
+        return r
+
     zeta = 0  # scheduling iteration
     while ready:
-        candidates = [  # a run's head (setup) waits for its own workers: own[o][m] is its own duration
-            (worker_start(o, max(state.ready_at[o], state.machine_free[m] if m is not None else 0), own[o][m]),
-             o, m, p)
-            for o, mps in ready.items() for m, p in mps
-        ]
+        candidates = [(earliest(o, m), o, m, p) for o, mps in ready.items() for m, p in mps]
         reach = min(c[0] for c in candidates) + (delay[zeta] if delay is not None else 0)
         zeta += 1
         t, o, m, p = min(

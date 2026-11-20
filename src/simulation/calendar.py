@@ -73,10 +73,14 @@ def next_start(cal, t: int, length: int, latest: int) -> int:
 
 def shift_window(cal, s: int, n: int, latest: int) -> int:
     """Earliest s' >= s with [s', s' + n) inside one working day's [shift start, latest] (minutes of the day)."""
-    for d in range(day_index(cal, s), day_index(cal, s) + 8):
-        a = max(s, day_start(cal, d) + cal.shift_start)
-        if is_working_day(cal, d) and a + n <= day_start(cal, d) + latest:
+    # day_index, day_start, is_working_day inlined: the dispatching rule calls this ~10^4 times per plan
+    first = (cal.origin + s) // DAY
+    start = first * DAY - cal.origin  # 00:00 of day d
+    for d in range(first, first + 8):
+        a = max(s, start + cal.shift_start)
+        if d % 7 in cal.working_days and a + n <= start + latest:
             return a
+        start += DAY
     raise ValueError(f"a share of {n} minutes fits in no shift ending at minute {latest}")
 
 

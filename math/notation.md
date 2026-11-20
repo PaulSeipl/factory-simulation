@@ -116,10 +116,10 @@ calendar ([04](04_workers.md)).
 | $m(o)$ | machine assigned to $o$ by the assignment rule | [11](11_dispatching-rules.md) |
 | $\upsilon = (\upsilon^{\mathrm{seq}}, \upsilon^{\mathrm{mach}}, \upsilon^{\mathrm{del}}, \upsilon^{\mathrm{ot}})$ | GA chromosome in $[0,1)^{4\lvert O \rvert}$: priority, machine, delay and overtime key per operation (not $g$: the slot machine $g_{j,m}$; not $\gamma$: a nesting time in [07](07_order-arrivals.md)) | [14](14_genetic-algorithm.md) |
 | $\zeta$ | scheduling iteration of the decoder (not $\ell$: the remaining path $\ell_o$) | [14](14_genetic-algorithm.md) |
-| $D_\zeta$ | delay of iteration $\zeta$ in minutes, $\operatorname{round}(\upsilon^{\mathrm{del}}_\zeta \alpha^{\mathrm{del}} p^{\max})$ (not $\Delta$: the shifts $\Delta_o$) | [14](14_genetic-algorithm.md) |
-| $p^{\max}$ | longest processing time of any operation on any machine | [14](14_genetic-algorithm.md) |
+| $D_\zeta$ | delay of iteration $\zeta$ in minutes, $\operatorname{round}((D^{\max} + 1)^{\upsilon^{\mathrm{del}}_\zeta} - 1)$ (not $\Delta$: the shifts $\Delta_o$) | [14](14_genetic-algorithm.md) |
+| $D^{\max}$ | GA: longest delay in minutes, the delay of key 1 (not $D_S$: the start deviation) | [14](14_genetic-algorithm.md) |
 | $\mathrm{ot}^{\mathrm{al}}_o$ | overtime allowance of $o$ in the GA's decoder, $\operatorname{round}(\upsilon^{\mathrm{ot}}_o \overline{\mathrm{ot}})$ (not $\mathrm{ot}_{z,\nu}$: CP-SAT's overtime per worker and day) | [14](14_genetic-algorithm.md) |
-| $\alpha^{\mathrm{del}}$, $\alpha^{\mathrm{in}}$ | GA delay factor; probability of a key from the elite parent | [14](14_genetic-algorithm.md) |
+| $\alpha^{\mathrm{in}}$ | GA: probability of a key from the elite parent | [14](14_genetic-algorithm.md) |
 | $N^{\mathrm{pop}}$, $N^{\mathrm{el}}$, $N^{\mathrm{mut}}$ | GA population size, elite chromosomes, mutants per generation | [14](14_genetic-algorithm.md) |
 
 ## Correspondence to the sources

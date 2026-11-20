@@ -369,6 +369,23 @@ BREAK_PENALTY = Objective(
 )
 
 
+def start_deviation(reference: Sequence[Assignment]) -> Objective:
+    """Stability against a reference plan: total absolute start deviation over the reference's operations the plan
+    also has (Wu et al. 1993, p. 5; |O| · D_S of math/23). For the offline analysis (NSGA-II, math/14 §3a): it has no
+    CP-SAT model."""
+    ref = {(a.order_id, a.op_id): a.start for a in reference}
+
+    def cpsat(*_args, **_kwargs):
+        raise NotImplementedError("start_deviation is for the offline analysis (NSGA-II), not for CP-SAT")
+
+    return Objective(
+        name="start_deviation",
+        evaluate=lambda _ci, schedule, _breaks=(): sum(abs(a.start - ref[k]) for a in schedule
+                                                        if (k := (a.order_id, a.op_id)) in ref),
+        cpsat=cpsat, spread=lambda ci: ci.n_ops * horizon_bound(ci),  # every start lies within the horizon
+    )
+
+
 OVERTIME = Objective(
     name="overtime", evaluate=lambda ci, schedule, _breaks=(): overtime(ci, schedule),
     # the overtime variables are lower bounds, exact where this level minimizes them (math/12 section 7b)
