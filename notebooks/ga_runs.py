@@ -19,7 +19,8 @@ FIDENTIS = read_model(ROOT / "data/generator/fidentis.json", CarrierGeneratorPar
 # fidentis: one mill, two workers (workers ahead of the mill in days needed); balanced: a third worker, so mill and
 # workers need about the same number of days and neither is a clear bottleneck
 CASES = {"fidentis": {}, "balanced": {"workers": ("A", "B", "C")}}
-SETTINGS = {"GA": {}, "GA no-delay": {"delay_max": 0}}
+# GA: all keys; no-delay: delay keys ignored; greedy join: join keys ignored, every s-batch partner joins (math/14)
+SETTINGS = {"GA": {}, "GA no-delay": {"delay_max": 0}, "GA greedy join": {"join": False}}
 TIME_LIMIT = 60.0  # seconds per GA and CP-SAT run
 FRONT_TIME = 120.0  # seconds per NSGA-II run
 

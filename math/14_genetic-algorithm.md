@@ -47,7 +47,7 @@ New symbols (registered in [notation.md](notation.md)):
 
 | Symbol | Meaning |
 |---|---|
-| $\upsilon = (\upsilon^{\mathrm{seq}}, \upsilon^{\mathrm{mach}}, \upsilon^{\mathrm{del}}, \upsilon^{\mathrm{ot}}) \in [0,1)^{4\lvert O \rvert}$ | chromosome: priority, machine, delay and overtime key per operation |
+| $\upsilon = (\upsilon^{\mathrm{seq}}, \upsilon^{\mathrm{mach}}, \upsilon^{\mathrm{del}}, \upsilon^{\mathrm{ot}}, \upsilon^{\mathrm{join}}) \in [0,1)^{5\lvert O \rvert}$ | chromosome: priority, machine, delay, overtime and join key per operation |
 | $\mathrm{ot}^{\mathrm{al}}_o$ | overtime allowance of $o$: minutes past shift end its new shares may use |
 | $\zeta$ | scheduling iteration of the decoder (one lead operation, with its run or batch, per iteration) |
 | $D_\zeta$ | delay of iteration $\zeta$ in minutes |
@@ -85,8 +85,14 @@ A new share of $o$ must lie in one part of a working day, the second part ending
 the allowance of the operation the decoder chose (the one whose join check passed), not of its first member. With
 $\mathrm{ot}^{\mathrm{al}}_o = 0$ for all $o$ the decoder plans no overtime, as the rules. The allowance only
 permits overtime: an operation uses it only where its earliest start falls there.
+- join key of $o$ (own): $o$ joins another operation's s-batch only if $\upsilon^{\mathrm{join}}_o < 1/2$. A
+  declining $o$ stays ready and may lead a batch of its own later, which others may join; the lead's own key is not
+  asked. Key 0 joins, as the rules do, so encoded rule plans keep their batches. The key exists because a partner
+  costs: every member of an s-batch ends at the batch end, so a partner lengthens the batch and delays the lead's
+  successors (hand example 3, §5). p-batches (oven) are not affected: a p-batch partner adds no length (same
+  duration, [03](03_carriers.md) C10), only a slot.
 
-**Feasibility.** Every vector in $[0,1)^{4|O|}$ decodes to a feasible plan: the decoder chooses only among
+**Feasibility.** Every vector in $[0,1)^{5|O|}$ decodes to a feasible plan: the decoder chooses only among
 candidates it can place, at times where machine and workers are free (C1–C15 as for the rules). Overtime stays
 within C13: a share ends by $h^{\mathrm{E}} + \mathrm{ot}^{\mathrm{al}}_o \le h^{\mathrm{E}} + \overline{\mathrm{ot}}$.
 No repair.
@@ -108,7 +114,7 @@ source uses 10 times the number of activities, p. 478, which would be 1890 on th
 
 **Initial population and incumbent.** All rule plans of [11](11_dispatching-rules.md) (5 sequencing × 3
 assignment variants) are encoded as chromosomes: priority keys rank the operations by start, machine keys point at
-the plan's machine, delay and overtime keys are 0. The rest is random. The best rule plan is the first incumbent, so the GA
+the plan's machine, delay, overtime and join keys are 0. The rest is random. The best rule plan is the first incumbent, so the GA
 result is never worse than the best rule under the objective. An encoded rule plan need not decode to itself
 (ties and the non-delay pass); it is a starting point, not a copy.
 
@@ -137,7 +143,7 @@ One generation (Deb et al., 2002, pp. 183–186):
 3. $N^{\mathrm{pop}}$ children: two binary tournaments by the crowded-comparison operator (lower front first, then
    larger crowding distance) pick the parents; with probability 0.9 uniform crossover (each key from either parent
    with probability 0.5), else a copy of the first parent; then each key is replaced by a random key with
-   probability $1 / (4\lvert O \rvert)$ (own choice for random keys: the source runs a real-coded and a
+   probability $1 / (5\lvert O \rvert)$ (own choice for random keys: the source runs a real-coded and a
    binary-coded variant, 30 bits per variable, on continuous test functions SCH, FON, POL, KUR and ZDT, pp. 187–189;
    its crossover and mutation operators are not legible in the extracted text **[uncertain]**);
 4. parents and children together ($2N^{\mathrm{pop}}$) are sorted into fronts, and the next population is filled
@@ -161,8 +167,9 @@ only).
 
 - **Frozen part:** the decoder starts from the snapshot as the rules do ([11](11_dispatching-rules.md)): frozen
   operations unchanged, machines busy until their (expected) end, nothing new before $t$.
-- **Warm start:** the current (repaired) plan is encoded (priority keys by start, its machines, delay and overtime
-  keys 0) and decoded first. Operations it lacks (arrived since) rank after all others. The last population is not
+- **Warm start:** the current (repaired) plan is encoded (priority keys by start, its machines, delay, overtime and
+  join keys 0) and decoded first. A partner the current plan kept out of a batch may join again in that decode (the
+  encoding does not record declines; own simplification, see §6). Operations it lacks (arrived since) rank after all others. The last population is not
   kept between reschedulings (own choice; the instance and the frozen part change between them).
 - **Change budget $\kappa$:** a plan ranks first by its machine changes beyond $\kappa$ against the current plan
   (operations planned there and not frozen; arrived operations do not count, as in [05](05_rescheduling-frozen-part.md)),
@@ -180,21 +187,22 @@ level (second hand example in §5).
 
 ## 5. Implementation in code
 
-- `planners/dispatching.py`, `dispatch_plan(..., delay=None, overtime=None)`: the delay window and the overtime
-  allowance per operation (`free_from` with the extended shift end, `part_fits`, the s-batch join check); `None`
-  keeps the rule plans unchanged (tests `test_zero_delay_is_the_non_delay_plan`, `overtime=[0]` in
+- `planners/dispatching.py`, `dispatch_plan(..., delay=None, overtime=None, join=None)`: the delay window, the
+  overtime allowance per operation (`free_from` with the extended shift end, `part_fits`, the s-batch join check) and
+  the join flags (a declining partner is left out of the s-batch candidates); `None` keeps the rule plans unchanged (tests `test_zero_delay_is_the_non_delay_plan`, `overtime=[0]` in
   `test_overtime_allowance_by_hand`); an allowance above $\overline{\mathrm{ot}}$ is rejected.
 - `planners/ga.py`:
   - `solve_ga(ci, objective, params, snapshot, current, change_budget)`, `ga_planner` (§3b; `planner.last`: generations,
     evaluations, value, machine changes over the budget);
   - `GaParams`: $N^{\mathrm{pop}}$, elite and mutant shares, $\alpha^{\mathrm{in}}$, $D^{\max}$ (`delay_max`),
-    generation and time limits, seed (validated: at least one elite and one child);
-  - `N_KEYS = 4`, `delay` (the map above), `decode`, `encode`, `rule_plans`;
+    generation and time limits, seed (validated: at least one elite and one child), `join` (False ignores the join
+    keys: the greedy join of the rules, for comparisons);
+  - `N_KEYS = 5`, `delay` (the map above), `decode`, `encode`, `rule_plans`;
   - `solve_ga(ci, objective, params) -> GaResult` (plan, value, generations, evaluations, best value per
     generation).
 - `objectives.py`, `start_deviation(reference)` (§3a; test `test_start_deviation_by_hand`).
 - `planners/nsga2.py` (§3a): `NsgaParams`, `dominates`, `non_dominated_fronts`, `crowding_distances`,
-  `nsga2(ci, objectives, params, snapshot) -> NsgaResult` (front as (values, plan) pairs, generations,
+  `nsga2(ci, objectives, params, snapshot) -> NsgaResult` (`NsgaParams.join` as `GaParams.join`) (front as (values, plan) pairs, generations,
   evaluations). Tests `tests/test_nsga2.py`: fronts and crowding by hand; on the late pack (hand example 2) the front
   is exactly $\{(600, 30), (1530, 0)\}$ in (makespan, overtime); front plans feasible and mutually non-dominated on the
   s-batch instance.
@@ -217,6 +225,16 @@ the Tuesday plan (overtime 0).
 The overtime keys are also tested together with s-batches: random chromosomes on a small instance with polish and
 pack as s-batch steps, one worker and the default calendar plan overtime next to batches, and the checker accepts
 every plan. Booking a batch with its first member's allowance instead of the chosen operation's fails these tests
+(mutation check).
+
+**Hand example 3** (`tests/test_ga.py::join_hurts`): two orders, polish on M2 (5 min, setup 2 inside, an s-batch
+step), J1 then ships on M3 (10 min). Both polishes are ready at 0, so every rule batches them:
+$[0, 2 + 3 + 3) = [0, 8)$, J1 ships $[8, 18)$, makespan 18. If J2 declines, J1 polishes alone $[0, 5)$ and ships
+$[5, 15)$ while J2 polishes $[5, 10)$: makespan 15, optimal (J1 ships after a polish of at least 5). CP-SAT proves
+15; the GA finds 15, with the join keys ignored 18; a hand chromosome with J2 declining gives exactly the plan
+above, and a declining lead changes nothing. Further tests: all partners joining is the greedy plan; all declining
+gives no batch of two, and the DES realizes such a plan unchanged; random join keys change the plan, pass the
+checker and replay unchanged (zero disturbance). Without the filter in the join loop four of these five tests fail
 (mutation check).
 
 **Rescheduling** (`tests/test_ga.py`, toy-dag-3x4 with its hand plan): with b1 twice as long, every complete
@@ -272,47 +290,81 @@ earlier run; with one thread CP-SAT gave 22055 without and 26020 with s-batches 
 "one core against one thread" without s-batches favours CP-SAT. Makespan is not the thesis objective; the
 comparison under the lexicographic objective and in the DES is part of the experiments.
 
-## 5b. Notebook 09: two instances, the faster decoder, fronts (2026-11-20)
+## 5b. Notebook 09: two instances, the join key, fronts (2026-11-20)
 
 `notebooks/09_ga.ipynb` (built by `notebooks/build_09_ga.py`, runs in `notebooks/ga_runs.py`, results in
 `notebooks/results/09/`). Instances: **fidentis** (two workers: workers 12.2 calendar days of work, mill 9.5) and
 **balanced** (a third worker: workers 8.1, mill 9.5, no clear bottleneck), each with and without s-batches.
-Makespan, 60 s per run; the best of the 15 rule plans; CP-SAT on 12 threads hinted with that plan; the GA with the
-logarithmic delay ($D^{\max} = 100$) and without delay, 6 seeds, 6 runs in parallel; decoder 2 to 4 times faster
-([11](11_dispatching-rules.md) §5, protocol (83)), so 14 to 25 generations.
+Makespan, 60 s per run; the best of the 15 rule plans; CP-SAT on 12 threads hinted with that plan; the GA in three
+settings, 6 seeds each, 6 runs in parallel, 15 to 28 generations: all five keys ("GA"), delay keys ignored
+($D^{\max} = 0$), join keys ignored (`GaParams(join=False)`, greedy join as in the rules).
 
-| instance | s-batches | best rule | CP-SAT | GA best / mean | GA no-delay best / mean |
-|---|---|---|---|---|---|
-| fidentis | without | 25980 | 23060 | 23130 / 23230 | 23100 / 23228 |
-| fidentis | with | 24850 | 23110 | 23100 / 23140 | 23100 / 23155 |
-| balanced | without | 24540 | 22170 | 22190 / 22918 | 22180 / 22482 |
-| balanced | with | 24640 | 23270 | 23080 / 23090 | 23070 / 23082 |
+| instance | s-batches | best rule | CP-SAT | GA best / mean | GA no-delay best / mean | GA greedy join best / mean |
+|---|---|---|---|---|---|---|
+| fidentis | without | 25980 | 23060 | 23190 / 23205 | 23080 / 23229 | 23190 / 23208 |
+| fidentis | with | 24850 | 23120 | 23060 / 23443 | 23110 / 23272 | 23100 / 23362 |
+| balanced | without | 24540 | 22170 | 22180 / 22920 | 22180 / 22492 | 22180 / 22920 |
+| balanced | with | 24640 | 23680 | 22170 / 22193 | 22175 / 22209 | 23080 / 23098 |
 
 Findings (details in the notebook):
 
-- The GA is level with CP-SAT on fidentis and better on balanced with s-batches (every seed); CP-SAT is better on
-  balanced without s-batches.
-- **CP-SAT depends on its hint:** with the best rule plan it reaches 23110 with s-batches, with SPT/ECT (§5a,
-  notebook 08) 24500. The §5a statement "the GA beats CP-SAT with s-batches" came mostly from that weak hint.
-- **s-batches lengthen the balanced instance's makespan** for both planners (CP-SAT 22170 to 23270, GA 22180 to
-  23070) while saving about 600 worker minutes; on fidentis they leave it unchanged. For the GA the greedy join
-  couples orders (§6); CP-SAT may leave slots empty, so its worse value is search.
-- **Delay:** the logarithmic window no longer hurts on fidentis but brings no gain under makespan.
-- **Fronts (NSGA-II, 120 s, with s-batches):** on fidentis 10 minutes of overtime save a working day (24640 to
-  23200). Against start deviation from the best rule plan, deviation falls to almost nothing within one day step
-  (24660 at 18590 summed minutes, 24850 at 0), while the next day step moves most operations (about 400000).
+- **The join key removes the cost of s-batches on balanced.** With s-batches every seed of the GA reaches 22170 to
+  22230, a working day below the greedy join (23080 to 23130) and level with the GA without s-batches (22180). The
+  GA forms fewer batches there (20 against 34) and saves fewer setup minutes (335 against 545). Without s-batches
+  the join keys decide nothing (same values as the greedy join). On fidentis no clear effect (one seed of each
+  setting stays a day behind).
+- **s-batches do not shorten the makespan** on either instance (balanced 22170 against 22180, fidentis 23060
+  against 23080); their saving shows in worker minutes (300 to 400 in the GA's best plans), while the makespan moves
+  in working-day steps. The earlier statement "s-batches lengthen the balanced makespan" held for the greedy join.
+- **GA against CP-SAT:** level on fidentis, better on balanced with s-batches (every seed); CP-SAT reaches 22170 on
+  balanced without s-batches, where the GA seeds split one day apart. CP-SAT on 12 threads is not deterministic:
+  balanced with s-batches gave 23270 in the run before and 23680 now.
+- **CP-SAT depends on its hint:** with the best rule plan it reaches 23120 on fidentis with s-batches, with SPT/ECT
+  (§5a, notebook 08) 24500. The §5a statement "the GA beats CP-SAT with s-batches" came mostly from that weak hint.
+- **Delay:** no gain under makespan.
+- **Fronts (NSGA-II, 120 s, with s-batches, five keys):** balanced, makespan against overtime: 22250 at 447 minutes,
+  23100 at 20, 23130 at 0. Fidentis stayed on the slow day (24540 at 50, 24570 at 0), while the run with four keys
+  reached 23200 at 10; checked in §5c: the seed, not the join key.
+  Against start deviation from the best rule plan, deviation falls to almost nothing within one day step (fidentis
+  24720 at 5500 summed minutes, 24840 at 0), a day step moves most operations (balanced 22205 at 452225).
 
 Limits: 6 seeds, wall-clock limits, makespan only, static instances, one NSGA-II run per front.
+
+## 5c. Does the join key hurt NSGA-II? (2026-11-20)
+
+`notebooks/nsga_join_check.py`, results in `notebooks/results/nsga_join_check.json`. Fidentis with s-batches,
+(makespan, overtime), 120 s per run, seeds 1 to 4, join keys used or ignored (`NsgaParams(join=False)`); every front
+plan passes the checker.
+
+| join keys | seed 1 | seed 2 | seed 3 | seed 4 |
+|---|---|---|---|---|
+| used | 24540 at 50 … 24570 at 0 | 24520 at 210 … 24570 at 0 | 24540 at 55 … 24600 at 0 | 24560 at 40 … 24600 at 0 |
+| ignored | 23180 at 70 … 23240 at 0 | 24540 at 150 … 24620 at 0 | 24540 at 190 … 24620 at 0 | 24540 at 175 … 24640 at 0 |
+
+(fastest and overtime-free point of each front, makespan at overtime minutes). Without join keys one of four seeds
+reaches the faster working day (the 23200 of the earlier run was seed 1); with them none does. On the slower day the
+fronts with join keys need less overtime (24570 at 0 against 24620 at 0 for the same seed). One of four against none
+is no evidence that the join key hurts; it shows that NSGA-II at 120 s mostly misses the day the BRKGA reaches in
+60 s (23060 to 23110, §5b). Plausible reason (own reading, not tested): NSGA-II keeps no elite bias and mutates one
+key in $5\lvert O \rvert$, so it explores less than the BRKGA's 20 % random mutants. Seeding NSGA-II with the
+BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 
 ## 6. Assumptions and open points
 
 - **Delay scale.** Now logarithmic up to $D^{\max} = 100$ minutes (§3), chosen by judgement (user: median about
   10, maximum about 100), not tuned. A scale per step or per machine remains an alternative.
 - **Waiting reaches only ready operations.** A lead can wait for partners that are already ready (all predecessors
-  placed) but become available later; an operation whose predecessor is not placed yet cannot join. A join key or a
-  look-ahead would be needed for that (later, if the experiments show it).
-- **s-batch membership stays greedy.** Every ready partner that fits joins; the GA cannot say "do not join". Same as
-  above.
+  placed) but become available later; an operation whose predecessor is not placed yet cannot join. A look-ahead
+  would be needed for that (later, if the experiments show it).
+- **Random vectors decline half the partners.** With the threshold 1/2 a random key vector (every mutant) keeps
+  about half of all partners out of s-batches. The BRKGA copes (§5b); for NSGA-II four seeds show no harm (§5c), so
+  the threshold stays.
+- **Join key: one flag per partner, not per pair.** An operation declines every batch or none; which lead it joins
+  follows from the order of the decoder. The threshold 1/2 is own. The warm start encodes no declines, so a
+  current plan with a partner kept out of a batch does not decode back to itself (it remains a starting point).
+- **Not a model change.** The join key only widens which plans the decoder can reach; instance format, checker, DES
+  and CP-SAT are unchanged (CP-SAT may already leave a batch slot empty), so the Definition of Done for a model
+  feature does not apply.
 - **Overtime per operation, not per worker and day.** The key allows overtime for an operation's shares; a
   worker's overtime on a day follows from the shares placed there. A key per worker and day would be closer to
   CP-SAT's $\mathrm{ot}_{z,\nu}$ ([12](12_cp-sat.md)) but needs the planning horizon in days before decoding (own
@@ -329,7 +381,7 @@ Limits: 6 seeds, wall-clock limits, makespan only, static instances, one NSGA-II
   NSGA-II (Deb et al., 2002) with the same chromosome and decoder is the offline trade-off analysis (§3a).
   Stability is not yet one of its objectives: it needs a reference plan as an `Objective` (machine changes or start
   deviation against it); to add for the analysis when needed.
-- **NSGA-II operators and parameters** (crossover 0.9, key mutation $1/(4|O|)$, $N^{\mathrm{pop}}$ 100) are own
+- **NSGA-II operators and parameters** (crossover 0.9, key mutation $1/(5|O|)$, $N^{\mathrm{pop}}$ 100) are own
   choices, not tuned; no change budget (an offline analysis).
 - **No population carried across reschedulings.** Each rescheduling starts from the current plan, the rule plans and
   random keys.
@@ -348,7 +400,7 @@ Limits: 6 seeds, wall-clock limits, makespan only, static instances, one NSGA-II
 - Defersha & Rooyani (2020): an alternative without machine keys, the machine that finishes soonest (p. 2);
   seeding with the ECT rule plans covers that choice.
 - Own modeling: the decoder is the project's dispatcher; the delay window applied to runs, p- and s-batches and
-  workers; the overtime key; the initial population from the rule plans.
+  workers; the overtime key; the join key; the initial population from the rule plans.
 
 ## 8. Change log
 
@@ -360,3 +412,5 @@ Limits: 6 seeds, wall-clock limits, makespan only, static instances, one NSGA-II
 | 2026-11-19 | uncommitted | Step 4: `planners/nsga2.py` over the same keys and decoder; `tests/test_nsga2.py`. |
 | 2026-11-19 | uncommitted | §5a: first comparison with rule and CP-SAT on the Fidentis case (`notebooks/ga_compare.py`). |
 | 2026-11-20 | uncommitted | Logarithmic delay map ($D^{\max} = 100$) instead of the linear one; `start_deviation` objective for NSGA-II; §5b notebook 09. |
+| 2026-11-20 | uncommitted | Join key ($5\lvert O \rvert$ keys): a partner may decline an s-batch; `dispatch_plan(..., join)`, `GaParams.join`; hand example 3. |
+| 2026-11-20 | uncommitted | `NsgaParams.join`; §5c: the join key does not hurt NSGA-II (4 seeds). |

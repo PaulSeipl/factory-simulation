@@ -3,7 +3,7 @@
 import math
 
 import pytest
-from test_ga import DAY, INSTANCES, late_pack
+from test_ga import DAY, INSTANCES, join_hurts, late_pack
 
 from simulation.check.feasibility import check_schedule
 from simulation.objectives import MAKESPAN, OVERTIME
@@ -85,3 +85,10 @@ def test_stability_front_starts_at_the_reference():
     result = nsga2(ci, [MAKESPAN, start_deviation(ref)], FAST)
     assert all(check_schedule(ci, p.assignments, breaks=p.breaks) == [] for _, p in result.front)
     assert min(v[1] for v, _ in result.front) == 0
+
+
+def test_join_keys_reach_the_declined_batch():
+    # hand example 3 of math/14: with join keys the front holds makespan 15, without (greedy join) only 18
+    ci, fast = join_hurts(), {"population": 10, "generations": 10, "time_limit": None}
+    assert [v for v, _ in nsga2(ci, [MAKESPAN, OVERTIME], NsgaParams(**fast)).front] == [(15, 0)]
+    assert [v for v, _ in nsga2(ci, [MAKESPAN, OVERTIME], NsgaParams(**fast, join=False)).front] == [(18, 0)]

@@ -1,0 +1,182 @@
+[
+ {
+  "join": true,
+  "seed": 1,
+  "front": [
+   [
+    24540,
+    50
+   ],
+   [
+    24570,
+    0
+   ]
+  ],
+  "generations": 45,
+  "feasible": true
+ },
+ {
+  "join": true,
+  "seed": 2,
+  "front": [
+   [
+    24520,
+    210
+   ],
+   [
+    24540,
+    50
+   ],
+   [
+    24570,
+    0
+   ]
+  ],
+  "generations": 44,
+  "feasible": true
+ },
+ {
+  "join": true,
+  "seed": 3,
+  "front": [
+   [
+    24540,
+    55
+   ],
+   [
+    24570,
+    5
+   ],
+   [
+    24600,
+    0
+   ]
+  ],
+  "generations": 45,
+  "feasible": true
+ },
+ {
+  "join": true,
+  "seed": 4,
+  "front": [
+   [
+    24560,
+    40
+   ],
+   [
+    24570,
+    20
+   ],
+   [
+    24590,
+    5
+   ],
+   [
+    24600,
+    0
+   ]
+  ],
+  "generations": 45,
+  "feasible": true
+ },
+ {
+  "join": false,
+  "seed": 1,
+  "front": [
+   [
+    23180,
+    70
+   ],
+   [
+    23190,
+    60
+   ],
+   [
+    23200,
+    10
+   ],
+   [
+    23240,
+    0
+   ]
+  ],
+  "generations": 41,
+  "feasible": true
+ },
+ {
+  "join": false,
+  "seed": 2,
+  "front": [
+   [
+    24540,
+    150
+   ],
+   [
+    24560,
+    90
+   ],
+   [
+    24570,
+    50
+   ],
+   [
+    24620,
+    0
+   ]
+  ],
+  "generations": 45,
+  "feasible": true
+ },
+ {
+  "join": false,
+  "seed": 3,
+  "front": [
+   [
+    24540,
+    190
+   ],
+   [
+    24570,
+    60
+   ],
+   [
+    24600,
+    50
+   ],
+   [
+    24620,
+    0
+   ]
+  ],
+  "generations": 46,
+  "feasible": true
+ },
+ {
+  "join": false,
+  "seed": 4,
+  "front": [
+   [
+    24540,
+    175
+   ],
+   [
+    24570,
+    95
+   ],
+   [
+    24600,
+    85
+   ],
+   [
+    24620,
+    15
+   ],
+   [
+    24640,
+    0
+   ]
+  ],
+  "generations": 45,
+  "feasible": true
+ }
+]
