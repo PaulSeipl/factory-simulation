@@ -75,8 +75,8 @@ baseline a CI error.
 - [x] 1.3 MES: `scheduler` service user (created by `scripts/create_user.py --allow-no-worker`, never seeded; bearer login) and the `schedule` tables (append-only, variant,
   `snapshot_as_of`, steps, breaks) with migration; `PUT` / `GET /planning/schedule`, write restricted to the
   service user. Tests incl. one negative test per validation rule.
-- [x] 1.4 MES: `GET /planning/problem` for the SECONDARY lane (decision 11), one read transaction, reusing the
-  node gathering of `services/planning/plan.py`. Tests.
+- [ ] 1.4 MES: `GET /planning/problem` for the SECONDARY lane (decision 11), one read transaction, reusing the
+  node gathering of `services/planning/plan.py`. Tests. **Reopened 2026-11-23:** add jobs (prints, mill jobs) with their parts and each order's secondary parts (decision 11).
 - [ ] 1.5 Bridge: hand-written models + contract test against a copied `openapi.json`; problem → `Instance`
   (schema of `src/simulation/model/instance.py`) + `Snapshot`; id map instance ids ↔ MES node keys; time epoch
   (decision 17: `Calendar.origin = 0`, the default 480 would shift everything by 8 h without an error). Unit
@@ -140,7 +140,32 @@ baseline a CI error.
 
 ## Blocked
 
-(none)
+### B1 (2026-11-23, task 1.5): how MES steps map onto the thesis `Instance`, carriers or flat operations
+
+**Question:** should the bridge build the thesis's carrier model (plates, runs, carrier steps), or one flat `Operation` per MES plan node?
+
+**Facts (checked):**
+- The thesis models this lane with carriers: `print` is a carrier step with given runs; `clean`, `oven`, `blast`, `mill_carrier` and `rework` are carrier steps (`data/routes/fidentis.json`). Orders couple only through loads (simulation `CLAUDE.md`).
+- The MES plans at another grain. Plate steps (cleaning, heat treatment, blasting) are one node per AM job; mill steps are one node per mill job. A secondary mill job holds parts of exactly one plate (`_reject_mixed_plate_group_for_data_prep_sec_mill`), so it never mixes prints, but one print can have several mill jobs. A published schedule step needs exactly one MES node key.
+- The MES gives exact minutes per node (`base + per_unit × units`, the job's entered print time). The instance format can carry a per-instance duration only through `Run.duration` of a given run. Every other carrier step has one constant per step (`CarrierStep.options` / `duration`, or an estimator from part times). So the MES minutes of clean, oven, blast and mill cannot be expressed exactly.
+
+**Options:**
+- **A. Carriers, with a format extension (thesis-faithful).**
+  - One carrier per AM job; the print is a given run with `Run.duration`.
+  - Add per-carrier step durations to the instance format (e.g. `Carrier.times: {step: minutes}` overriding the step constant). That is a model change in `src/simulation` with the full Definition of Done: schema bump, checker, DES, a rule, CP-SAT, tests, `math/`.
+  - Mill steps: carrier = plate instead of print, or one carrier operation published to all mill-job keys of the print.
+  - Keeps per-order due dates and arrivals, batching across prints and the thesis semantics. Cost: thesis work before slice 1 can finish.
+- **B. Flat operations (MES-faithful).**
+  - Each MES node becomes one `Operation` with its exact minutes: machine `options` with a `WorkerShare` prefix for attended work, or `duration`.
+  - An instance order is a group of MES orders linked by shared job nodes. In the SECONDARY lane that is one group per AM print. It takes the earliest due date and the latest arrival.
+  - No thesis change, exact minutes, 1:1 publish. Cost: due date and tardiness count per print group, not per order; no batching across prints. In slice 3, QM joins both lanes and primary blanks hold many orders, so groups can chain into very large ones.
+- **C. Carriers without a format change.** Model every carrier step as given runs with one `Run.duration` each. Bends the thesis semantics (clean and oven become runs; s-batches and oven batching are lost). Not recommended.
+
+**Recommendation: A**, with carrier = AM job for the print and plate steps and per-plate mill handling decided with it. It is the only option that keeps per-order objectives and the coupling rule. B is the fallback if slice 1 should land first, but slice 3 will hit its group chaining.
+
+**Also reopened (not your call):** 1.4 lacks "jobs (prints, mill jobs) with their parts" from decision 11. It is added whichever option you pick.
+
+**Answer** with A, B or C, or another mapping, as a comment on PaulSeipl/factory-simulation#1. The loop is stopped until then.
 
 ## Log
 
@@ -153,3 +178,4 @@ PR comments read until: 2026-11-22T23:20Z
 | 2026-11-22 | 1.2 | sim f4545d4 | `mes_bridge/` uv project (editable path dep, own `uv.lock`; root `uv.lock` unchanged), `CHANGELOG.md`, AST boundary test + detector self-test. Gates: simulation 1807 passed, bridge 2 passed. No PR comments. |
 | 2026-11-22 | 1.3 | MES 4bdad16 | `orders.schedule` / `schedule_step` / `schedule_break` + migration `af51e148a37c` (round trip and `alembic check` clean on a scratch DB, dropped after); `PUT` (201, scheduler only, else 403) / `GET /planning/schedule` (latest per variant). MES has no roles: publish is restricted by `settings.SCHEDULER_USERNAME`; 422 via `GateError` (house pattern). 19 tests, one negative per rule. Gates: backend 1195 passed, ruff/format/mypy clean; client regenerated, svelte-check 0/0, lint 0 errors, vitest green. Docs: `authentication.md` (service account), `architecture.md` §8a note. Findings: `npm run check` rewrites `src/i18n/*` line endings (restore, not commit); frontend `node_modules` now installed in the worktree. |
 | 2026-11-23 | 1.4 | MES 41bbf81 | `GET /planning/problem` (`services/planning/problem.py`, `schemas/problem.py`): `build_plan` split into `gather` + fill (planning tests 96 green before the export was added); `ARRIVAL` = done `DATA_PREP_SECONDARY` (arrival = its `finished_at`), `SCOPE` = SECONDARY lane `DATA_PREP_SEC_MILL`..`SECONDARY_PLATE_REMOVAL` + `REWORK`; done steps stay in the instance (`done`) with real times in the snapshot, a done step without a task (skipped REWORK) is left out; one REPEATABLE READ read-only transaction via `SnapshotDBSession` (tests override it; isolation checked on a fresh session). 11 tests (shared print node, pre-arrival order excluded, no open predecessor cut off, running / handed-off / finished snapshot, machine options). Gates: backend 1206 passed, ruff/format/mypy clean; client regenerated, svelte-check 0/0, lint 0 errors, vitest 116. Findings: (a) `fill.py` books a job's machine for every job-level step (also powder removal, cleaning); the export uses the step's params `resource` instead, so plan and schedule differ there until 1.7; (b) `_MACHINE_TYPE` maps only AM and MILL, OVEN / COM steps get no machine options; (c) until 3.1 no order finishes inside the instance (QM and tail are out), tardiness from `spt` is meaningless; (d) accepted-not-started tasks set the plan's worker but are not exported yet (needed for bound pins, 6.1); (e) 1.5 needs a recorded response: build it from the `two_nested` test state. |
+| 2026-11-23 | 1.5 (blocked) | — | MES CI green on 41bbf81. Mapping onto `Instance` needs a model decision (Blocked B1): the format carries per-instance durations only via `Run.duration`, MES grains differ (plate steps per print, mill per plate), secondary mill jobs never mix prints. 1.4 reopened: `jobs with their parts` (decision 11) missing from the export. Loop stopped. |
