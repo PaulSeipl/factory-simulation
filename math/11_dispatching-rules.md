@@ -112,6 +112,34 @@ Decision depth with SPT (iterations with more than one candidate):
 | dental-carriers-example | 293 | 211 | 133 | 3.9 / 12 |
 | dental-carriers-workers | 287 | 208 | 174 | 8.8 / 39 |
 
+**Pause and resume** (2026-11-22, for the tree search, [15](15_mcts.md)):
+- `dispatch_until(..., choose, decisions, resume)` runs until `choose` has taken `decisions` decisions. It then
+  returns a `Checkpoint`, the dispatcher's mutable state before the next decision, or the plan if none is left.
+- `dispatch_plan(..., resume=checkpoint)` continues from a copy of it, without the setup (frozen part, started breaks,
+  pending removals, started runs).
+- The state in the checkpoint:
+  - `DispatchState`;
+  - remaining predecessors, ready operations;
+  - worker bookings with the longest interval, worker loads, the latest booked end;
+  - the booking log with the cache of earliest starts;
+  - the plan so far, the iteration $\zeta$.
+
+  The frozen bookings and the frozen shares do not change after the setup and are shared. `break_at` is recomputed on
+  demand from them.
+- A resume must pass the same arguments (identity check, else `ValueError`).
+- The pause lies before the iteration's choice. That iteration runs again on resume: its earliest starts come from
+  the copied cache, and $\zeta$ is counted then.
+
+Checks:
+- `notebooks/dispatch_speed.py` against the version before: all 1710 plans equal (rule combinations, 20 random GA
+  chromosomes per instance, DES snapshots), decode time unchanged.
+- `tests/test_dispatch_choose.py`:
+  - resuming at every decision (toys) or at a spread of them (dental workers) gives the uninterrupted plan, twice
+    from one checkpoint;
+  - a chain of checkpoints every 25 decisions from a DES snapshot with GA delay, overtime and join keys gives the
+    uninterrupted plan;
+  - a resume with other arguments is rejected.
+
 Hand-computed examples (test `test_spt_on_toy_dag_matches_hand_computation`), SPT on `toy-dag-3x4`, one per assignment variant.
 
 **SPT + least load** (makespan 15). Assignments ($W_{M1..M4}$ after each):
@@ -256,3 +284,4 @@ Measured one change at a time: the bisection alone gives dental workers 2.2× an
 | 2026-11-20 | uncommitted | Speed-up (§5 "Speed"): worker gap search by bisection, cached candidate starts; every plan unchanged (equality check `notebooks/dispatch_speed.py`), dental workers 4.1×, Fidentis 2.0× faster per decode. |
 | 2026-11-20 | uncommitted | `part_fits` cached, `calendar.shift_window` with its helpers inlined (same results, 200,000 random calls compared); with both, dental workers 4.9× and Fidentis 2.4× faster than before the speed-up. |
 | 2026-11-22 | uncommitted | Candidate hook `choose(eligible, state)` in `dispatch_plan` (§5); rule plans unchanged without it; decision depth measured. |
+| 2026-11-22 | uncommitted | Pause and resume (§5): `dispatch_until`, `Checkpoint`, `dispatch_plan(..., resume=)`; all 1710 plans of `notebooks/dispatch_speed.py` unchanged. |

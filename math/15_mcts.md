@@ -87,10 +87,15 @@ Any `Objective` ([14](14_genetic-algorithm.md) §4); in the experiments, the wor
 - **Shared with the GA:** `budget_excess` (change budget), `decode(encode(current))` (warm start).
 - **Experiments:** planner `"mcts"` in `PolicyConfig` with the required `iterations`; the configuration's
   `time_limit` is the safety net ([07](07_order-arrivals.md) §6).
-- **Deviations from the formulation:**
-  - A rollout replays the committed prefix from scratch, because `dispatch_plan` keeps no copyable state. One
-    iteration therefore costs one whole decode (dental example about 7 ms, dental workers about 80–130 ms).
-  - The normalization uses $f^{\min}$, $f^{\max}$ of the whole search (own), not per node.
+- **Resuming at the root** (2026-11-22): the root keeps a checkpoint of the dispatcher before its decision
+  (`dispatch_until`, [11](11_dispatching-rules.md) §5). Every rollout resumes from a copy of it, and a commitment
+  advances it by one decision. Before that, every rollout replayed the committed decisions from scratch.
+  - Same plans as before on dental example, Fidentis and dental workers (worker objective); one evaluation fewer,
+    namely the old last rollout, which only found that no decision was left.
+  - 1.9× (dental example), 2.0× (Fidentis) and 2.1× (dental workers) faster, as estimated from the mean share of a
+    decode spent before a decision (70 %, 54 %, 51 %).
+- **Deviation from the formulation:** the normalization uses $f^{\min}$, $f^{\max}$ of the whole search (own), not
+  per node.
 
 Tests (`tests/test_mcts.py`):
 - feasibility on four toy instances and dental example;
@@ -184,8 +189,8 @@ earlier round on a more loaded machine gave the same ranking.
     more control over how loads are composed.
   - M4 adds overtime to the action, if M3 shows the gap.
 - **Budget.** Decision depth is 133 (dental example) and 174 (dental workers) ([11](11_dispatching-rules.md) §5). On
-  dental workers, 60 s gives about 3 iterations per decision. A resumable dispatcher would make a rollout cheaper than
-  a whole decode.
+  dental workers, 60 s gave 1–2 iterations per decision in M3 (§5a). Resuming at the root doubles that; the rest of
+  every rollout still runs to the end of the plan.
 - **Values.** The rollout value of the lexicographic worker objective is one large integer. Its normalization over
   $[f^{\min}, f^{\max}]$ is dominated by the highest level that varies. Whether that suits UCB is open (M3).
 - **Parameters** $N^{\mathrm{it}}$, $N^{\mathrm{wid}}$, $\beta$ are own choices, tuned in M3 at equal wall time against
@@ -208,3 +213,4 @@ earlier round on a more loaded machine gave the same ranking.
 |---|---|---|
 | 2026-11-22 | uncommitted | M2: `planners/mcts.py`, `tests/test_mcts.py`, planner `"mcts"` in the experiments; first numbers. |
 | 2026-11-22 | uncommitted | §5a M3: comparison at 60 s against rule, CP-SAT and three GA variants (`notebooks/mcts_compare.py`). |
+| 2026-11-22 | uncommitted | §5: rollouts resume from the root's checkpoint (`dispatch_until`); same plans, about 2× faster. |

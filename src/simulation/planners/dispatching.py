@@ -127,6 +127,37 @@ def dispatch(
     return dispatch_plan(ci, sequencing, assignment, snapshot).assignments
 
 
+type Chooser = Callable[[list[tuple[int, int, int | None, int]], DispatchState], int]
+
+
+@dataclass(frozen=True, slots=True)
+class Checkpoint:
+    """The dispatcher before a decision (math/11 §5): its mutable state, held as the paused run left it. Every resume
+    works on copies, so one checkpoint can be resumed any number of times. `args`: the arguments it was made with,
+    which a resume must repeat (identity)."""
+    args: tuple
+    state: DispatchState
+    open_preds: list[int]
+    ready: dict
+    busy: list[list[tuple[int, int]]]
+    fixed: list[list[tuple[int, int]]]  # not changed after the setup: shared
+    frozen_time: list[list[tuple[int, int]]]  # likewise
+    worker_load: list[int]
+    longest: list[int]
+    max_end: int
+    log: list[tuple[int, int, int]]
+    cached: dict
+    out: list[Assignment]
+    zeta: int
+
+    def restore(self) -> tuple:
+        s = self.state
+        return (DispatchState(s.ready_at[:], s.machine_free[:], s.load[:], s.backlog[:], s.work_left[:],
+                              s.remaining_path), self.open_preds[:], dict(self.ready), [b[:] for b in self.busy],
+                self.fixed, self.frozen_time, self.worker_load[:], self.longest[:], self.max_end, self.log[:],
+                {k: v[:] for k, v in self.cached.items()}, self.out[:], self.zeta)
+
+
 def dispatch_plan(
     ci: CompiledInstance,
     sequencing: SequencingRule,
@@ -135,7 +166,8 @@ def dispatch_plan(
     delay: Sequence[int] | None = None,
     overtime: Sequence[int] | None = None,
     join: Sequence[bool] | None = None,
-    choose: Callable[[list[tuple[int, int, int | None, int]], DispatchState], int] | None = None,
+    choose: Chooser | None = None,
+    resume: Checkpoint | None = None,
 ) -> Plan:
     """The rule plan with the breaks it booked (empty without a calendar or without workers). `delay[ζ]`: minutes
     iteration ζ may look past the earliest start (one entry per operation is enough: an iteration places at least
@@ -144,7 +176,27 @@ def dispatch_plan(
     keeps q out of another operation's s-batch (q stays ready and may lead its own); None: every partner joins.
     `choose(eligible, state) -> index`: picks the operation of an iteration from its candidates (t, o, m, p) that can
     start by the reach, in place of the sequencing rule (a tree search or a learned policy, math/11 §5); load and
-    s-batch partners are still ranked by `sequencing`. None: the sequencing rule picks."""
+    s-batch partners are still ranked by `sequencing`. None: the sequencing rule picks. `resume`: continue from a
+    checkpoint of `dispatch_until` made with the same arguments, instead of from the snapshot."""
+    plan = _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choose, resume, None)
+    assert isinstance(plan, Plan)
+    return plan
+
+
+def dispatch_until(
+    ci: CompiledInstance, sequencing: SequencingRule, assignment: AssignmentRule | None, snapshot: Snapshot | None,
+    choose: Chooser, decisions: int, resume: Checkpoint | None = None,
+    delay: Sequence[int] | None = None, overtime: Sequence[int] | None = None, join: Sequence[bool] | None = None,
+) -> Checkpoint | Plan:
+    """As dispatch_plan, but pause after `decisions` decisions of `choose` (iterations with more than one candidate)
+    and return the checkpoint before the next one; the plan if no decision is left by then."""
+    return _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choose, resume, decisions)
+
+
+def _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choose, resume, pause) -> Plan | Checkpoint:
+    args = (ci, sequencing, assignment, snapshot, delay, overtime, join)
+    if resume is not None and any(a is not b for a, b in zip(args, resume.args, strict=True)):
+        raise ValueError("resume needs the arguments its checkpoint was made with")
     if overtime is not None and ci.calendar is not None and max(overtime, default=0) > ci.calendar.max_overtime:
         raise ValueError(f"overtime allowance {max(overtime)} exceeds the maximum overtime "
                          f"{ci.calendar.max_overtime}")
@@ -158,24 +210,32 @@ def dispatch_plan(
     for o in reversed(ci.topo_order):
         remaining_path[o] = min_p[o] + max((remaining_path[s] for s in ci.successors[o]), default=0)
     t0 = snapshot.t if snapshot else 0
-    state = DispatchState(
-        [max(r, t0) for r in ci.release], [t0] * ci.n_machines, [0] * ci.n_machines, [0] * ci.n_machines,
-        work_left, remaining_path,
-    )
-    open_preds = [len(preds) for preds in ci.predecessors]
     duration = [dict(d) for d in own]
     run_of = {g[0]: g for g in ci.machine_groups}  # first operation -> the whole run
     for head, group in run_of.items():  # the head stands for the run: duration of the run on each machine
         duration[head] = {m: sum(duration[q][m] for q in group) for m in duration[head]}
-    ready: dict[int, tuple[tuple[int, int], ...]] = {}  # ready operation -> machines it may still use
-
-    busy: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # per worker: everything booked, sorted
-    fixed: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # frozen shares, started breaks, removals
-    frozen_time: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # started shares of the frozen part only
-    worker_load = [0] * len(ci.worker_ids)
-    longest = [0] * len(ci.worker_ids)  # per worker: longest interval in busy, bounds the clash search
-    max_end = 0  # latest end in busy over all workers (worker_start's give-up limit)
-    log: list[tuple[int, int, int]] = []  # every booking (w, s, e) in order: what a cached earliest start has seen
+    # the mutable state (a Checkpoint): fresh, or copied from the checkpoint to resume
+    if resume is None:
+        state = DispatchState(
+            [max(r, t0) for r in ci.release], [t0] * ci.n_machines, [0] * ci.n_machines, [0] * ci.n_machines,
+            work_left, remaining_path,
+        )
+        open_preds = [len(preds) for preds in ci.predecessors]
+        ready: dict[int, tuple[tuple[int, int], ...]] = {}  # ready operation -> machines it may still use
+        busy: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # per worker: everything booked, sorted
+        fixed: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # frozen shares, started breaks, removals
+        frozen_time: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # started shares of the frozen part
+        worker_load = [0] * len(ci.worker_ids)
+        longest = [0] * len(ci.worker_ids)  # per worker: longest interval in busy, bounds the clash search
+        max_end = 0  # latest end in busy over all workers (worker_start's give-up limit)
+        log: list[tuple[int, int, int]] = []  # every booking (w, s, e) in order: what a cached earliest start has seen
+        # cached earliest start of a candidate (o, m): [base b, start r, bookings seen, spans] (see `earliest`)
+        cached: dict[tuple[int, int | None], list] = {}
+        out: list[Assignment] = []
+        zeta = 0  # scheduling iteration
+    else:
+        (state, open_preds, ready, busy, fixed, frozen_time, worker_load, longest, max_end, log, cached, out,
+         zeta) = resume.restore()
 
     cal = ci.calendar
     snap_day = day_index(cal, t0) if cal is not None and snapshot else None
@@ -280,75 +340,75 @@ def dispatch_plan(
         ot = ot_of(o) if ot is None else ot
         return tuple(pick(o, sh, t + off, n, ot) for sh, off, n in _spans(ci.shares[o], p))
 
-    out: list[Assignment] = []
-    frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
-    # worker time of the frozen part: the started shares as in the snapshot (C7), a batch's shares once; then a
-    # worker for every pending share (e.g. the removal of a running oven), the same for all members of a batch
-    workers_of: dict[int, list[str | None]] = {}
-    batch_lead: dict[tuple, int] = {}
-    for o, f in frozen.items():
-        if (key := batch_key(ci, o, f)) is not None and (lead := batch_lead.setdefault(key, o)) != o:
-            workers_of[o] = workers_of[lead]  # the same list: filled once for the whole batch
-            continue
-        workers_of[o] = list(f.workers)
-        for sh, n, w in zip(ci.shares[o], f.share_lengths or [sh.length for sh in ci.shares[o]], f.workers,
-                            strict=True):
-            if w is not None:  # realized or expected share length from the snapshot
-                z, interval = ci.worker_ids.index(w), share_interval(sh._replace(length=n), f.start, f.end)
-                book(z, *interval, part_of_fixed=True)
-                insort(frozen_time[z], interval)
-    for (z, _), s in taken.items():  # started breaks block their worker like the frozen part
-        book(z, s, s + cal.break_length, part_of_fixed=True, load=False)
-    # pending removals in the order of C7^o (forced_removals): before any break and any new share, so only the
-    # frozen part and the removals before block them; each by the free qualified worker with the least load
-    def least_load(o: int, free: list[int]) -> int:
-        w = min(free, key=lambda w: (worker_load[w], w))
-        worker_load[w] += next(sh.length for sh in ci.shares[o] if sh.kind == "suffix")
-        return w
+    if resume is None:  # the setup: the frozen part, started breaks, pending removals, started runs
+        frozen = {ci.op_index[f.order_id, f.op_id]: f for f in snapshot.frozen} if snapshot else {}
+        # worker time of the frozen part: the started shares as in the snapshot (C7), a batch's shares once; then a
+        # worker for every pending share (e.g. the removal of a running oven), the same for all members of a batch
+        workers_of: dict[int, list[str | None]] = {}
+        batch_lead: dict[tuple, int] = {}
+        for o, f in frozen.items():
+            if (key := batch_key(ci, o, f)) is not None and (lead := batch_lead.setdefault(key, o)) != o:
+                workers_of[o] = workers_of[lead]  # the same list: filled once for the whole batch
+                continue
+            workers_of[o] = list(f.workers)
+            for sh, n, w in zip(ci.shares[o], f.share_lengths or [sh.length for sh in ci.shares[o]], f.workers,
+                                strict=True):
+                if w is not None:  # realized or expected share length from the snapshot
+                    z, interval = ci.worker_ids.index(w), share_interval(sh._replace(length=n), f.start, f.end)
+                    book(z, *interval, part_of_fixed=True)
+                    insort(frozen_time[z], interval)
+        for (z, _), s in taken.items():  # started breaks block their worker like the frozen part
+            book(z, s, s + cal.break_length, part_of_fixed=True, load=False)
+        # pending removals in the order of C7^o (forced_removals): before any break and any new share, so only the
+        # frozen part and the removals before block them; each by the free qualified worker with the least load
+        def least_load(o: int, free: list[int]) -> int:
+            w = min(free, key=lambda w: (worker_load[w], w))
+            worker_load[w] += next(sh.length for sh in ci.shares[o] if sh.kind == "suffix")
+            return w
 
-    end_of: dict[int, int] = {}
-    for o, (i, s, _, z) in (forced_removals(ci, snapshot, least_load) if snapshot else {}).items():
-        if workers_of[o][i] is None:  # once per batch: the members share the list
-            workers_of[o][i] = ci.worker_ids[z]
-            book(z, s, s + ci.shares[o][i].length, part_of_fixed=True, load=False)  # load counted in least_load
-        end_of[o] = s + ci.shares[o][i].length
+        end_of: dict[int, int] = {}
+        for o, (i, s, _, z) in (forced_removals(ci, snapshot, least_load) if snapshot else {}).items():
+            if workers_of[o][i] is None:  # once per batch: the members share the list
+                workers_of[o][i] = ci.worker_ids[z]
+                book(z, s, s + ci.shares[o][i].length, part_of_fixed=True, load=False)  # load counted in least_load
+            end_of[o] = s + ci.shares[o][i].length
 
-    def lead(o: int, f) -> int:
-        return o if (key := batch_key(ci, o, f)) is None else batch_lead[key]
+        def lead(o: int, f) -> int:
+            return o if (key := batch_key(ci, o, f)) is None else batch_lead[key]
 
-    for o, f in frozen.items():  # the frozen part: kept unchanged, occupies its machine until its end
-        end = end_of.get(lead(o, f), f.end)
-        out.append(Assignment(order_id=f.order_id, op_id=f.op_id, machine=f.machine, start=f.start, end=end,
-                              workers=tuple(workers_of[o]), share_lengths=f.share_lengths, batch=f.batch))
-        if f.machine is not None:
-            m = ci.machine_index[f.machine]
-            state.machine_free[m] = max(state.machine_free[m], end)
-            state.load[m] += duration[o][m]
-        for k in ci.op_orders[o]:
-            state.work_left[k] -= min_p[o]
-        for s in ci.successors[o]:
-            state.ready_at[s] = max(state.ready_at[s], end)
-            open_preds[s] -= 1
+        for o, f in frozen.items():  # the frozen part: kept unchanged, occupies its machine until its end
+            end = end_of.get(lead(o, f), f.end)
+            out.append(Assignment(order_id=f.order_id, op_id=f.op_id, machine=f.machine, start=f.start, end=end,
+                                  workers=tuple(workers_of[o]), share_lengths=f.share_lengths, batch=f.batch))
+            if f.machine is not None:
+                m = ci.machine_index[f.machine]
+                state.machine_free[m] = max(state.machine_free[m], end)
+                state.load[m] += duration[o][m]
+            for k in ci.op_orders[o]:
+                state.work_left[k] -= min_p[o]
+            for s in ci.successors[o]:
+                state.ready_at[s] = max(state.ready_at[s], end)
+                open_preds[s] -= 1
 
-    for g in ci.machine_groups:  # a partly started run continues on its machine (C8, C9), parts wait for workers
-        if (rest := [q for q in g if q not in frozen]) and len(rest) < len(g):
-            m = ci.machine_index[frozen[g[0]].machine]
-            start = max(t0, state.machine_free[m])
-            for q in rest:
-                start = worker_start(q, start, own[q][m])
-                end = start + own[q][m]
-                owner, op_id = ci.op_keys[q]
-                out.append(Assignment(order_id=owner, op_id=op_id, machine=ci.machine_ids[m], start=start, end=end,
-                                      workers=take_workers(q, start, own[q][m])))
-                state.load[m] += duration[q][m]
-                for k in ci.op_orders[q]:
-                    state.work_left[k] -= min_p[q]
-                for s in ci.successors[q]:
-                    state.ready_at[s] = max(state.ready_at[s], end)
-                    open_preds[s] -= 1
-                start = end
-            state.machine_free[m] = start
-            frozen.update(dict.fromkeys(rest))  # placed: never made ready below
+        for g in ci.machine_groups:  # a partly started run continues on its machine (C8, C9), parts wait for workers
+            if (rest := [q for q in g if q not in frozen]) and len(rest) < len(g):
+                m = ci.machine_index[frozen[g[0]].machine]
+                start = max(t0, state.machine_free[m])
+                for q in rest:
+                    start = worker_start(q, start, own[q][m])
+                    end = start + own[q][m]
+                    owner, op_id = ci.op_keys[q]
+                    out.append(Assignment(order_id=owner, op_id=op_id, machine=ci.machine_ids[m], start=start, end=end,
+                                          workers=take_workers(q, start, own[q][m])))
+                    state.load[m] += duration[q][m]
+                    for k in ci.op_orders[q]:
+                        state.work_left[k] -= min_p[q]
+                    for s in ci.successors[q]:
+                        state.ready_at[s] = max(state.ready_at[s], end)
+                        open_preds[s] -= 1
+                    start = end
+                state.machine_free[m] = start
+                frozen.update(dict.fromkeys(rest))  # placed: never made ready below
 
     def make_ready(o: int) -> None:
         if assignment is None or not ci.options[o]:  # an operation without machine has nothing to assign
@@ -361,15 +421,15 @@ def dispatch_plan(
             state.load[m] += duration[o][m]
             state.backlog[m] += duration[o][m]
 
-    for o in range(ci.n_ops):
-        if open_preds[o] == 0 and o not in frozen:
-            make_ready(o)
+    if resume is None:
+        for o in range(ci.n_ops):
+            if open_preds[o] == 0 and o not in frozen:
+                make_ready(o)
 
     # cached earliest start r of a candidate (o, m), computed from base time b: worker_start is the least fixpoint >= b
     # of a map monotone in t and in the bookings (they only grow), so r stays exact while the base lies in [b, r]
     # (ready_at is fixed once o is ready, machine_free only grows) and no later booking of a qualified worker overlaps
     # a share of o started at r (each share keeps a free worker at r); otherwise recomputed from the base (same plan)
-    cached: dict[tuple[int, int | None], list] = {}  # (o, m) -> [b, r, bookings seen, spans]
 
     def earliest(o: int, m: int | None) -> int:
         base = max(state.ready_at[o], state.machine_free[m] if m is not None else 0)
@@ -387,12 +447,16 @@ def dispatch_plan(
         cached[o, m] = [base, r, len(log), _spans(ci.shares[o], own[o][m])]
         return r
 
-    zeta = 0  # scheduling iteration
+    decided = 0  # decisions (iterations with more than one candidate) taken by `choose` in this call
     while ready:
         candidates = [(earliest(o, m), o, m, p) for o, mps in ready.items() for m, p in mps]
         reach = min(c[0] for c in candidates) + (delay[zeta] if delay is not None else 0)
-        zeta += 1
         eligible = [c for c in candidates if c[0] <= reach]
+        if len(eligible) > 1 and pause is not None and decided == pause:  # before this iteration: it reruns on resume
+            return Checkpoint(args, state, open_preds, ready, busy, fixed, frozen_time, worker_load, longest, max_end,
+                              log, cached, out, zeta)
+        zeta += 1
+        decided += len(eligible) > 1
         t, o, m, p = eligible[choose(eligible, state)] if choose is not None else min(
             eligible, key=lambda c: (*sequencing(ci, state, c[1], c[2], c[3]), c[1], c[2] is None, c[2] or 0))
         batch = [o]

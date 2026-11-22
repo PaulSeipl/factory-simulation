@@ -8,6 +8,32 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-22 (92) — Resumable dispatcher; MCTS resumes at the root — uncommitted
+
+- **Decided (user):** the resumable dispatcher first, then overtime in the MCTS action. Claude had recommended
+  overtime first and measured the expected gain beforehand: about 2× on the worker instances.
+- **Decided (Claude):**
+  - Keep `dispatch_plan`'s nested functions and gather the mutable state in a `Checkpoint`, instead of rewriting
+    the dispatcher as a class; that is the smaller diff.
+  - The pause lies before an iteration's choice, which reruns on resume.
+  - A resume checks that the arguments are identical.
+- **Done:**
+  - `planners/dispatching.py`: `Checkpoint`, `dispatch_until`, `dispatch_plan(..., resume=)`; core `_dispatch`; the
+    setup runs only without `resume`.
+  - `planners/mcts.py`: the root's checkpoint; rollouts resume from it.
+  - Tests in `tests/test_dispatch_choose.py`.
+  - [11](11_dispatching-rules.md) §5, [15](15_mcts.md) §5, both change logs.
+- **Found:**
+  - `notebooks/dispatch_speed.py` against the version before: all 1710 plans equal, decode time unchanged.
+  - Resuming at any decision gives the uninterrupted plan, also from a DES snapshot with GA keys.
+  - MCTS gives the same plans as before on dental example, Fidentis and dental workers, 1.9–2.1× faster. The
+    estimate from the share of a decode spent before a decision was 2.0–3.3×.
+- **Open:**
+  - Overtime in the MCTS action (M4). The overtime list is read when an operation is placed, so the tree can set it
+    per decision; with a checkpoint it must be copied with the state.
+  - Rerunning `notebooks/mcts_compare.py` after M4.
+  - Thesis sections affected: none written yet.
+
 ## 2026-11-22 (91) — MCTS step M3: comparison at equal wall time — uncommitted
 
 - **Decided (user):** do M3.

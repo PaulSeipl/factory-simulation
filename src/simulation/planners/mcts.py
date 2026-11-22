@@ -13,8 +13,8 @@ the result is never worse than the best rule; it is the best plan of all rollout
 over the values seen in this search (own). With a change budget a plan ranks first by its changes beyond it, as in
 the GA. No randomness: ties go to the rollout rule's order, so a run without time limit always gives one plan.
 
-shortcut: a rollout replays the committed prefix from scratch (dispatch_plan keeps no copyable state), so it costs a
-whole decode; a resumable dispatcher would make deep trees cheaper.
+The root keeps a checkpoint of the dispatcher before its decision (`dispatch_until`): every rollout resumes from
+it instead of replaying the committed decisions, and a commitment advances it by one decision (math/11 §5).
 """
 
 import math
@@ -26,7 +26,13 @@ from typing import TYPE_CHECKING
 from simulation.model.compiled import CompiledInstance
 from simulation.model.schedule import Assignment, Plan
 from simulation.objectives import MAKESPAN, Objective
-from simulation.planners.dispatching import ASSIGNMENT_RULES, SEQUENCING_RULES, dispatch_plan
+from simulation.planners.dispatching import (
+    ASSIGNMENT_RULES,
+    SEQUENCING_RULES,
+    Checkpoint,
+    dispatch_plan,
+    dispatch_until,
+)
 from simulation.planners.ga import budget_excess, decode, encode
 
 if TYPE_CHECKING:
@@ -110,8 +116,10 @@ def solve_mcts(
         return sorted(range(len(eligible)), key=lambda i: (
             *seq(ci, state, *eligible[i][1:]), eligible[i][1], eligible[i][2] is None, eligible[i][2] or 0))
 
-    prefix: list[Key] = []  # the committed decisions
+    committed = 0
     root, lo, hi = _Node(), math.inf, -math.inf  # lo, hi: best and worst scalar value seen (normalization)
+    # the dispatcher before the root's decision; a plan: no decision at all
+    at_root = dispatch_until(ci, seq, None, snapshot, lambda _e, _s: 0, 0)
 
     def ucb(parent: _Node, child: _Node) -> float:
         mean = child.total / child.visits
@@ -119,19 +127,15 @@ def solve_mcts(
         return exploit + params.exploration * math.sqrt(math.log(parent.visits) / child.visits)
 
     def iterate() -> bool:
-        """One rollout from the root; False if the root has no decision left (the plan is complete)."""
+        """One rollout from the root's checkpoint."""
         nonlocal lo, hi
-        path, k, expanded, reached = [root], 0, False, False
+        path, expanded = [root], False
 
         def choose(eligible, state) -> int:
-            nonlocal k, expanded, reached
+            nonlocal expanded
             if len(eligible) == 1:
                 return 0
             keys: list[Key] = [(c[1], c[2]) for c in eligible]
-            k += 1
-            if k <= len(prefix):
-                return keys.index(prefix[k - 1])
-            reached = True
             node = path[-1]
             if expanded:
                 return by_rule(eligible, state)[0]  # rollout below the tree
@@ -146,34 +150,33 @@ def solve_mcts(
             path.append(node.children[key])
             return keys.index(key)
 
-        x = evaluate(dispatch_plan(ci, seq, None, snapshot, choose=choose))
+        x = evaluate(dispatch_plan(ci, seq, None, snapshot, choose=choose, resume=at_root))
         lo, hi = min(lo, x), max(hi, x)
         for node in path:
             node.visits += 1
             node.total += x
             node.best = min(node.best, x)
-        return reached
 
     def out_of_time() -> bool:
         return params.time_limit is not None and time.perf_counter() - start >= params.time_limit
 
     wall_limited = False
-    while True:
-        done = False
+    while isinstance(at_root, Checkpoint):
         for _ in range(params.iterations):
             if out_of_time():
                 wall_limited = True
                 break
-            if not iterate():
-                done = True
-                break
-        if done or wall_limited or not root.children:
+            iterate()
+        if wall_limited:
             break
         key = min(root.children, key=lambda c: root.children[c].best)  # first in expansion order on ties
-        prefix.append(key)
-        root = root.children[key]
+        def to_key(eligible, _state, key=key) -> int:  # the committed choice; a lone candidate is no decision
+            return 0 if len(eligible) == 1 else [(c[1], c[2]) for c in eligible].index(key)
+
+        at_root = dispatch_until(ci, seq, None, snapshot, to_key, 1, at_root)
+        root, committed = root.children[key], committed + 1
     assert best is not None  # the rule plans are always evaluated
-    return MctsResult(best[1], best[0][1], evaluations, len(prefix), rollout, wall_limited, best[0][0])
+    return MctsResult(best[1], best[0][1], evaluations, committed, rollout, wall_limited, best[0][0])
 
 
 def mcts_planner(objective: Objective = MAKESPAN, params: MctsParams | None = None, change_budget: int | None = None):
