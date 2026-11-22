@@ -8,10 +8,10 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-22 (93) — Robust start plans with rescheduling — uncommitted
+## 2026-11-22 (98) — Robust start plans with rescheduling — uncommitted
 
 **Decided.** User: test the robust start plans inside the predictive-reactive loop, with the objective the plans are
-measured on (total tardiness) in every planner (after the user pointed out the mismatch of (92): makespan
+measured on (total tardiness) in every planner (after the user pointed out the mismatch of (97): makespan
 optimized, tardiness measured).
 
 **Done.** Scratch comparison on both dental examples: four start plans (plain, buffer 0.7 and 0.8, expected) by the
@@ -25,10 +25,10 @@ rescheduling (8 of 10 seeds, sign test $p \approx 0.11$, not significant). `exec
 dental examples (repair at every time point); this, not the GA, limits the experiments.
 
 **Open.** More seeds and GA seeds on dental workers and on the Fidentis case (experiment); the GA as rescheduler;
-the speed of `execute`; the lexicographic thesis objective; merging `cda44bd`; the (92) tardiness column is not
+the speed of `execute`; the lexicographic thesis objective; merging `cda44bd`; the (97) tardiness column is not
 evidence (makespan objective).
 
-## 2026-11-22 (92) — Buffer, plain and expected GA on stability and tardiness; papers in Zotero — uncommitted
+## 2026-11-22 (97) — Buffer, plain and expected GA on stability and tardiness; papers in Zotero — uncommitted
 
 **Decided.** User: compare the plans on stability and tardiness; the user added the Consensus papers to Zotero.
 
@@ -47,7 +47,7 @@ test of significance.
 **Open.** Tardiness objective in all planners for the due-date comparison; generation budgets instead of seconds;
 the vectorized evaluator; Fidentis case (experiment, not tests); merging `cda44bd`.
 
-## 2026-11-22 (91) — Time-buffer baseline — uncommitted
+## 2026-11-22 (96) — Time-buffer baseline — uncommitted
 
 **Decided.** User: the buffer baseline next (before the vectorized evaluator). Own: inflate, plan, shorten back
 (time buffers at the same starts) instead of executing on the inflated instance, so the DES, checker and objectives
@@ -68,7 +68,7 @@ promised dates). One instance, no test of significance.
 **Open.** Compare on stability ($D_S$, [23](23_metrics.md)) and tardiness, not only makespan; the vectorized
 evaluator; a fair budget (generations); merging `cda44bd`.
 
-## 2026-11-22 (90) — Repeated start step, replay without OVERDUE — uncommitted
+## 2026-11-22 (95) — Repeated start step, replay without OVERDUE — uncommitted
 
 **Decided.** User: adopt the repeated start step (after an example of current and adjusted behavior on dental
 workers, 10 seeds: makespan unchanged, up to 10 of 287 operations up to 11 min earlier, 3 other workers).
@@ -80,14 +80,14 @@ O37's design swaps to C at 612 (both fail with a single pass). 1817 tests pass, 
 takes 5.4 min instead of 9. Docs: [13](13_des.md) §3 step 3, §8, change log; [14](14_genetic-algorithm.md) §4a.
 
 **Found.** Replay now 8 / 17 / 9 ms (dental example / dental workers / Fidentis with 10 orders; Fidentis was 150 ms
-before (89)). The expected GA ($N^{\mathrm{sc}} = 10$, 60 s) runs 6 generations instead of 1, the plain GA 110;
+before (94)). The expected GA ($N^{\mathrm{sc}} = 10$, 60 s) runs 6 generations instead of 1, the plain GA 110;
 the expected GA's plans have a slightly higher realized mean but a lower worst case (one instance, three seeds).
 
-**Open.** Experiment results with workers and disturbances from before (89)/(90) may shift slightly (rerun before
+**Open.** Experiment results with workers and disturbances from before (94)/(95) may shift slightly (rerun before
 they enter the thesis). The vectorized evaluator, the buffer baseline, merging `cda44bd`, a fair budget
 (generations instead of seconds) for the comparison.
 
-## 2026-11-22 (89) — Faster replay; two DES bugs found — uncommitted
+## 2026-11-22 (94) — Faster replay; two DES bugs found — uncommitted
 
 **Decided.** User: continue the stochastic extension where the RL session left off on speed. Own (with a second
 opinion): first make `replay` faster exactly, before any separate vectorized evaluator.
@@ -115,7 +115,7 @@ opinion): first make `replay` faster exactly, before any separate vectorized eva
 to remove the time-point dependence and allow replay without OVERDUE; merging `cda44bd`; then re-measure the
 expected GA.
 
-## 2026-11-22 (88) — Company duration data; expected objective for the GA — uncommitted
+## 2026-11-22 (93) — Company duration data; expected objective for the GA — uncommitted
 
 **Decided.** User (2026-11-20): for the thesis, synthesize duration data from cleaned Fidentis data or generate it,
 instead of using the MES p80 estimates; count the clean samples per step on a backup (not the production database).
@@ -150,6 +150,158 @@ the planner's scenarios have seeds disjoint from the evaluation seeds (no leakag
 **Open.** Step 2: fast evaluator (vectorized forward pass, equality with `replay`); step 3: quantile buffer
 baseline (plan with inflated durations); choice of $N^{\mathrm{sc}}$; snapshot support for the rescheduling planner;
 sensitivity of $\sigma$ to the cutoff; add the Consensus papers to Zotero. Thesis: GA chapter not written yet.
+
+## 2026-11-22 (92) — Resumable dispatcher; MCTS resumes at the root — uncommitted
+
+- **Decided (user):** the resumable dispatcher first, then overtime in the MCTS action. Claude had recommended
+  overtime first and measured the expected gain beforehand: about 2× on the worker instances.
+- **Decided (Claude):**
+  - Keep `dispatch_plan`'s nested functions and gather the mutable state in a `Checkpoint`, instead of rewriting
+    the dispatcher as a class; that is the smaller diff.
+  - The pause lies before an iteration's choice, which reruns on resume.
+  - A resume checks that the arguments are identical.
+- **Done:**
+  - `planners/dispatching.py`: `Checkpoint`, `dispatch_until`, `dispatch_plan(..., resume=)`; core `_dispatch`; the
+    setup runs only without `resume`.
+  - `planners/mcts.py`: the root's checkpoint; rollouts resume from it.
+  - Tests in `tests/test_dispatch_choose.py`.
+  - [11](11_dispatching-rules.md) §5, [15](15_mcts.md) §5, both change logs.
+- **Found:**
+  - `notebooks/dispatch_speed.py` against the version before: all 1710 plans equal, decode time unchanged.
+  - Resuming at any decision gives the uninterrupted plan, also from a DES snapshot with GA keys.
+  - MCTS gives the same plans as before on dental example, Fidentis and dental workers, 1.9–2.1× faster. The
+    estimate from the share of a decode spent before a decision was 2.0–3.3×.
+- **Open:**
+  - Overtime in the MCTS action (M4). The overtime list is read when an operation is placed, so the tree can set it
+    per decision; with a checkpoint it must be copied with the state.
+  - Rerunning `notebooks/mcts_compare.py` after M4.
+  - Thesis sections affected: none written yet.
+
+## 2026-11-22 (91) — MCTS step M3: comparison at equal wall time — uncommitted
+
+- **Decided (user):** do M3.
+- **Decided (Claude, stated to the user):**
+  - 60 s and one core per run.
+  - Makespan on four cases; the worker objective only on dental workers, because Fidentis has no due dates.
+  - GA in three variants (all keys / no overtime / no overtime and no delay), the overtime keys zeroed in the script
+    around `decode`, with no change in `src`, to see whether overtime explains the GA's lead.
+  - MCTS $N^{\mathrm{it}}$ derived from the budget.
+- **Done:** `notebooks/mcts_compare.py`, `notebooks/results/mcts_compare.json`, [15](15_mcts.md) §5a.
+- **Found** (details in [15](15_mcts.md) §5a):
+  - MCTS is best on dental example (1122 against GA 1126–1130).
+  - Overtime explains most of the GA's lead on the worker instances. Without overtime the GA is behind MCTS on
+    dental workers (makespan).
+  - In the same action class the GA stays clearly ahead on balanced: join and partner steering, or the search; this run does not separate them.
+  - MCTS on dental workers gets 1–2 iterations per decision (0.2 s per rollout).
+  - CP-SAT on one thread: no plan for Fidentis in 60 s. On dental workers it does not improve the hinted rule
+    plan; once it was worse than the hint, once a level failed under load.
+  - The first rerun crashed on that failure; the script now records it.
+- **Open:**
+  - M4: overtime as part of the action (this comparison supports it), and/or a resumable dispatcher (cheaper rollouts).
+  - A GA "no overtime, no delay, greedy join" variant would separate join steering from search on balanced.
+  - The CP-SAT hint with lexicographic levels.
+  - Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-22 (90) — MCTS step M2: the planner — uncommitted
+
+- **Decided (user):** do M2.
+- **Decided (Claude, stated to the user):**
+  - Root commitment as in Li et al. 2021 (`7VCTD9GM`, p. 4).
+  - UCB selection on values normalized over the search.
+  - Fixed-width expansion ($N^{\mathrm{wid}}$) in rollout-rule order; rollout with the best joint rule.
+  - Commitment to the child with the best value seen.
+  - Incumbent from the warm start and the 15 rule plans.
+  - No randomness, and the iteration limit decides the result, as with the GA's generations.
+  - Default $\beta = \sqrt 2$ (UCB1 form) after a sweep; the UCB1 source is not in the library, **[uncertain]**.
+- **Done:**
+  - `planners/mcts.py`.
+  - `ga.budget_excess` extracted and shared with the GA.
+  - Planner `"mcts"` with `PolicyConfig.iterations`; the digest leaves it out where unset (all 7 configuration
+    hashes unchanged).
+  - `tests/test_mcts.py` (23 tests) and two more in `tests/test_experiment.py`.
+  - [15](15_mcts.md) new; [notation.md](notation.md) ($\mathcal{U}$, $\vartheta$, $N^{\mathrm{it}}$, $N^{\mathrm{wid}}$,
+    $N^{\mathrm{vis}}$, $\bar f$, $f^{\min}$, $f^{\max}$, $\beta$; $\omega$ and $c$ were taken).
+  - [references.md](references.md) (Lv et al. 2025; Li et al. 2021 usage); README; [07](07_order-arrivals.md) §6.
+- **Found:**
+  - At $\beta = 0.5$ the search never left the rule's first decision on toy-dag-3x4 within 200 iterations: one
+    makespan unit spans the whole normalized range. At $\beta = \sqrt 2$ it found the optimum 11 with 100 iterations.
+  - Hand case: all rule plans 12; 108 non-delay plans enumerated, best 11 = CP-SAT optimum.
+  - On toy-3x3 the optimum 10 needs a delay: the best of all 174 non-delay plans is 11.
+  - Dental example (makespan, $N^{\mathrm{it}} = 10$): MCTS 1122 against the best rule 1138 and CP-SAT 1251 at
+    10 s, in 10 s and 1336 evaluations.
+  - mk01: 42, as the rules (CP-SAT 40).
+- **Open:**
+  - M3, the comparison at equal wall time against the GA and CP-SAT with the worker objective, including tuning
+    $N^{\mathrm{it}}$, $N^{\mathrm{wid}}$, $\beta$.
+  - M4 (overtime in the action) after M3.
+  - Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-22 (89) — MCTS step M1: candidate hook in the dispatcher — uncommitted
+
+- **Decided (user):** merge the main session's branch (`2031859`, join key) into this worktree, then start M1.
+  **Decided (Claude):**
+  - The hook also gets `DispatchState`: the equivalence test needs it for fifo/mwkr/lrp, and a learned policy needs it
+    for its features.
+  - Load and s-batch partners stay with the sequencing rule.
+- **Done:**
+  - Merge with the conflicts in [14](14_genetic-algorithm.md) (change log) and this protocol resolved; (86) of this
+    session renumbered (88).
+  - `dispatch_plan(..., choose=)`.
+  - `tests/test_dispatch_choose.py` (69 tests).
+  - [11](11_dispatching-rules.md) §5 and change log.
+- **Found:**
+  - Decision depth (iterations with more than one candidate) is 133 on dental example and 174 on dental workers, not
+    the about 290 assumed in (88). Mean candidates per decision: 3.9 and 8.8; maximum 12 and 39.
+  - So at about 0.1 s per rollout on dental workers, 60 s gives about 3 iterations per decision and 300 s about 17.
+  - The width cap ω matters there.
+- **Open:**
+  - M2 (`planners/mcts.py`) waits for approval.
+  - The uncommitted changes in the main session's worktree (objectives, DES, `test_expected_objective.py`) are not
+    merged.
+
+## 2026-11-22 (88) — RL/MCTS discussion, GA evaluation cost, planner "ga" in the experiments — uncommitted
+
+- **Decided (user):**
+  - An RL planner should be an alternative to CP-SAT and the GA that builds the plan step by step from the snapshot.
+  - Order: an MCTS planner first, then an RL policy on the same step interface.
+  - Profile the GA before the MCTS step.
+  - Add the GA as a planner to the experiment configuration.
+- **Decided (Claude, stated to the user):**
+  - The MCTS plan:
+    - M1: a candidate hook `choose` in `dispatch_plan`;
+    - M2: `planners/mcts.py`, a root-commit UCT as in Li et al. 2021 (Zotero `7VCTD9GM`, p.4), with the rule plans as incumbent;
+    - M3: a comparison at equal wall time;
+    - M4: overtime in the action, only if M3 needs it.
+  - RL starts only after a dependency decision (PyTorch on Python 3.14) and stores models without pickle.
+  - For the GA in experiments, a generation limit decides the result, so runs are reproducible as with CP-SAT's
+    deterministic limit. `time_limit` is the safety net.
+- **Done:**
+  - `objectives._over`: the weight of a lexicographic level is cached per instance (one entry, by identity).
+  - `PolicyConfig.planner` gains `"ga"`, and `PolicyConfig.generations` is required for it.
+  - `run_one` builds `ga_planner(objective, GaParams(generations, time_limit, seed))`.
+  - `ExperimentConfig.digest` leaves out an unset `generations`.
+  - `ga_planner` reports `wall_limited`.
+  - Tests: `test_lexicographic_weight_follows_the_instance`, `test_ga_policy_runs_and_repeats`,
+    `test_generations_only_and_always_for_ga` (3 negative cases).
+  - Docs: [14](14_genetic-algorithm.md) §3b and change log, [07](07_order-arrivals.md) §6 and change log.
+- **Found:**
+  - On the dental workers instance a 10 s GA spent about 6.7 s recomputing `horizon_bound` / `serial_end` in
+    every `evaluate`. Without the profiler it did 72 evaluations and 0 generations; after the fix, 152
+    evaluations (machine loaded, times vary). That is still 0 generations, because seeding alone needs 100 decodes.
+  - The remaining cost is `dispatch_plan` (worker gap search, `earliest`).
+  - Rollout cost per decision for MCTS on that instance: about 0.2 iterations per decision at 10 s, about 1 at 60 s.
+    So MCTS v1 needs minutes or a faster decoder to beat its rollout rule there.
+  - The digests of all 7 configurations in `experiments/` are unchanged; checked against the version before.
+- **Open:**
+  - The GA's generation limit and time budget for the experiments (start plan vs rescheduling); no configuration uses `"ga"` yet.
+  - MCTS step M1 waits for approval. `"mcts"` joins `PolicyConfig` with M2.
+  - Thesis sections affected: none written yet.
+
+---
 
 ## 2026-11-20 (87) — NSGA-II and the join key: four seeds — uncommitted
 

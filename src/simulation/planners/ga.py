@@ -117,6 +117,15 @@ def encode(ci: CompiledInstance, plan: Sequence[Assignment]) -> Chromosome:
     return [(rank[o] + 0.5) / n for o in range(n)] + mach + [0.0] * (3 * n)
 
 
+def budget_excess(plan: Sequence[Assignment], before: dict, frozen: set, change_budget: int | None) -> int:
+    """Machine changes of `plan` beyond the change budget against `before` ((order, op) -> machine of the current
+    plan); operations not in it (arrived since) and frozen ones do not count (math/05, math/14 §3b)."""
+    if change_budget is None or not before:
+        return 0
+    changed = sum(a.machine != before[k] for a in plan if (k := (a.order_id, a.op_id)) in before and k not in frozen)
+    return max(0, changed - change_budget)
+
+
 def rule_plans(ci: CompiledInstance, snapshot: Snapshot | None = None) -> Iterator[Plan]:
     """All sequencing x (assignment + joint) rule plans, as in best_dispatch; lazily, so a time limit can stop them."""
     return (dispatch_plan(ci, SEQUENCING_RULES[s], ASSIGNMENT_RULES[a] if a else None, snapshot)
@@ -142,12 +151,8 @@ def solve_ga(
     def rank(plan: Plan) -> Rank:
         nonlocal evaluations
         evaluations += 1
-        over = 0
-        if change_budget is not None and current is not None:
-            changed = sum(a.machine != before[k] for a in plan.assignments
-                          if (k := (a.order_id, a.op_id)) in before and k not in frozen)
-            over = max(0, changed - change_budget)
-        return over, objective.evaluate(ci, plan.assignments, plan.breaks)
+        return (budget_excess(plan.assignments, before, frozen, change_budget),
+                objective.evaluate(ci, plan.assignments, plan.breaks))
 
     def scored(genes: Chromosome) -> tuple[Rank, Chromosome, Plan]:
         plan = decode(ci, genes, unit, snapshot, params.join)
@@ -216,7 +221,10 @@ def ga_planner(objective: Objective = MAKESPAN, params: GaParams | None = None, 
     def planner(ci: CompiledInstance, snapshot: Snapshot, current: Sequence[Assignment]) -> Plan:
         result = solve_ga(ci, objective, params, snapshot, current, change_budget)
         planner.last = {"generations": result.generations, "evaluations": result.evaluations,
-                        "value": result.value, "over_budget": result.over_budget}
+                        "value": result.value, "over_budget": result.over_budget,
+                        # as CP-SAT's: the wall clock, not the generation limit, ended the search
+                        "wall_limited": params is not None and params.generations is not None
+                        and result.generations < params.generations}
         return result.plan
 
     return planner

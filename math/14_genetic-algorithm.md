@@ -177,6 +177,14 @@ only).
   within the budget is always in the population and the result stays within it. This is the constraint-domination
   idea of Deb et al. (2002, p. 192: a feasible solution beats an infeasible one, two infeasible ones compare by
   violation) applied to one objective (own transfer).
+- **In the experiments** ([07](07_order-arrivals.md) §6): planner `"ga"`, a generation limit decides the result and
+  the wall clock is a safety net; `planner.last["wall_limited"]` is true if the wall clock ended the search before the
+  generation limit (as for CP-SAT).
+- **Evaluation cost** (2026-11-22): a lexicographic objective now computes its level weights once per instance
+  (`objectives._over`, one cached entry by identity). Before, every `evaluate` recomputed `horizon_bound`
+  (`serial_end` per weekday), about 0.35 s per evaluation on the dental workers instance, two thirds of a 10 s GA
+  run. After it the evaluation takes about 8 ms; what remains is the decoder (`dispatch_plan`, mostly the worker gap
+  search). Values are unchanged (`test_lexicographic_weight_follows_the_instance`).
 
 ## 4. Objective function
 
@@ -580,5 +588,6 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 | 2026-11-20 | uncommitted | Logarithmic delay map ($D^{\max} = 100$) instead of the linear one; `start_deviation` objective for NSGA-II; §5b notebook 09. |
 | 2026-11-20 | uncommitted | Join key ($5\lvert O \rvert$ keys): a partner may decline an s-batch; `dispatch_plan(..., join)`, `GaParams.join`; hand example 3. |
 | 2026-11-20 | uncommitted | `NsgaParams.join`; §5c: the join key does not hurt NSGA-II (4 seeds). |
+| 2026-11-22 | uncommitted | §3b: planner `"ga"` in the experiments, `wall_limited`; lexicographic weights cached per instance (evaluation ~0.35 s → ~8 ms on dental workers). |
 | 2026-11-22 | uncommitted | §4b time-buffer baseline, `planners/buffer.py`; first comparison. |
 | 2026-11-22 | uncommitted | §4a expected objective over the planner's own scenarios, `objectives.expected`. |

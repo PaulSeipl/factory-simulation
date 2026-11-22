@@ -491,8 +491,14 @@ def lexicographic(*objectives: Objective) -> Objective:
 
 
 def _over(primary: Objective, secondary: Objective) -> Objective:
+    last: list = [None, 0]  # (instance, weight) of the last call: the spread depends only on the instance
+
     def weight(ci: CompiledInstance) -> int:
-        return secondary.spread(ci) + 1
+        # one entry, held by identity: a search evaluates one instance many times (horizon_bound is ~0.3 s with
+        # workers and a calendar); CompiledInstance is not hashable, and a dict would pin every instance seen
+        if last[0] is not ci:
+            last[:] = [ci, secondary.spread(ci) + 1]
+        return last[1]
 
     return Objective(
         name=f"{primary.name}>{secondary.name}",

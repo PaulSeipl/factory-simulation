@@ -123,6 +123,10 @@ calendar ([04](04_workers.md)).
 | $\mathrm{ot}^{\mathrm{al}}_o$ | overtime allowance of $o$ in the GA's decoder, $\operatorname{round}(\upsilon^{\mathrm{ot}}_o \overline{\mathrm{ot}})$ (not $\mathrm{ot}_{z,\nu}$: CP-SAT's overtime per worker and day) | [14](14_genetic-algorithm.md) |
 | $\alpha^{\mathrm{in}}$ | GA: probability of a key from the elite parent | [14](14_genetic-algorithm.md) |
 | $N^{\mathrm{pop}}$, $N^{\mathrm{el}}$, $N^{\mathrm{mut}}$ | GA population size, elite chromosomes, mutants per generation | [14](14_genetic-algorithm.md) |
+| $\mathcal{U}$, $\vartheta$ | MCTS search tree; a node (the state after a prefix of decisions) (not $\omega$: the calendar origin) | [15](15_mcts.md) |
+| $N^{\mathrm{it}}$, $N^{\mathrm{wid}}$, $N^{\mathrm{vis}}_\vartheta$ | MCTS iterations per decision, children per node, visits of node $\vartheta$ | [15](15_mcts.md) |
+| $\bar f_\vartheta$, $f^{\min}$, $f^{\max}$ | mean rollout value through $\vartheta$; best and worst rollout value of the search (variants of the objective $f$) | [15](15_mcts.md) |
+| $\beta$ | MCTS exploration weight of the UCB term (not $c$: the batch capacity $c_s$) | [15](15_mcts.md) |
 
 ## Correspondence to the sources
 
