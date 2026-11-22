@@ -75,7 +75,7 @@ baseline a CI error.
 - [x] 1.3 MES: `scheduler` service user (created by `scripts/create_user.py --allow-no-worker`, never seeded; bearer login) and the `schedule` tables (append-only, variant,
   `snapshot_as_of`, steps, breaks) with migration; `PUT` / `GET /planning/schedule`, write restricted to the
   service user. Tests incl. one negative test per validation rule.
-- [ ] 1.4 MES: `GET /planning/problem` for the SECONDARY lane (decision 11), one read transaction, reusing the
+- [x] 1.4 MES: `GET /planning/problem` for the SECONDARY lane (decision 11), one read transaction, reusing the
   node gathering of `services/planning/plan.py`. Tests.
 - [ ] 1.5 Bridge: hand-written models + contract test against a copied `openapi.json`; problem → `Instance`
   (schema of `src/simulation/model/instance.py`) + `Snapshot`; id map instance ids ↔ MES node keys; time epoch
@@ -144,7 +144,7 @@ baseline a CI error.
 
 ## Log
 
-PR comments read until: 2026-11-22T22:56Z
+PR comments read until: 2026-11-22T23:20Z
 
 | Date | Task | Commits | Findings |
 |---|---|---|---|
@@ -152,3 +152,4 @@ PR comments read until: 2026-11-22T22:56Z
 | 2026-11-22 | 1.1 | MES fe447ab, sim b711ade | Docs committed, branches pushed, draft PRs MES #160 and sim #1 opened. Both branches contain their `main`. Local MES on 8080 is down (needed from task 1.6). |
 | 2026-11-22 | 1.2 | sim f4545d4 | `mes_bridge/` uv project (editable path dep, own `uv.lock`; root `uv.lock` unchanged), `CHANGELOG.md`, AST boundary test + detector self-test. Gates: simulation 1807 passed, bridge 2 passed. No PR comments. |
 | 2026-11-22 | 1.3 | MES 4bdad16 | `orders.schedule` / `schedule_step` / `schedule_break` + migration `af51e148a37c` (round trip and `alembic check` clean on a scratch DB, dropped after); `PUT` (201, scheduler only, else 403) / `GET /planning/schedule` (latest per variant). MES has no roles: publish is restricted by `settings.SCHEDULER_USERNAME`; 422 via `GateError` (house pattern). 19 tests, one negative per rule. Gates: backend 1195 passed, ruff/format/mypy clean; client regenerated, svelte-check 0/0, lint 0 errors, vitest green. Docs: `authentication.md` (service account), `architecture.md` §8a note. Findings: `npm run check` rewrites `src/i18n/*` line endings (restore, not commit); frontend `node_modules` now installed in the worktree. |
+| 2026-11-23 | 1.4 | MES 41bbf81 | `GET /planning/problem` (`services/planning/problem.py`, `schemas/problem.py`): `build_plan` split into `gather` + fill (planning tests 96 green before the export was added); `ARRIVAL` = done `DATA_PREP_SECONDARY` (arrival = its `finished_at`), `SCOPE` = SECONDARY lane `DATA_PREP_SEC_MILL`..`SECONDARY_PLATE_REMOVAL` + `REWORK`; done steps stay in the instance (`done`) with real times in the snapshot, a done step without a task (skipped REWORK) is left out; one REPEATABLE READ read-only transaction via `SnapshotDBSession` (tests override it; isolation checked on a fresh session). 11 tests (shared print node, pre-arrival order excluded, no open predecessor cut off, running / handed-off / finished snapshot, machine options). Gates: backend 1206 passed, ruff/format/mypy clean; client regenerated, svelte-check 0/0, lint 0 errors, vitest 116. Findings: (a) `fill.py` books a job's machine for every job-level step (also powder removal, cleaning); the export uses the step's params `resource` instead, so plan and schedule differ there until 1.7; (b) `_MACHINE_TYPE` maps only AM and MILL, OVEN / COM steps get no machine options; (c) until 3.1 no order finishes inside the instance (QM and tail are out), tardiness from `spt` is meaningless; (d) accepted-not-started tasks set the plan's worker but are not exported yet (needed for bound pins, 6.1); (e) 1.5 needs a recorded response: build it from the `two_nested` test state. |
