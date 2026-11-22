@@ -22,7 +22,7 @@ Driven by a self-paced `/loop`. **Read this file top to bottom at the start of e
 ## Prerequisites (user)
 
 - [x] `gh` logged in (checked 2026-11-22).
-- [ ] Claude Code permissions allow `git push` and `gh pr …` without a prompt in both worktrees.
+- [x] Claude Code permissions allow `git push` and `gh pr …` without a prompt in both worktrees (worked 2026-11-22).
 - [ ] Local MES backend on port 8080 with its database (needed from slice 1, task 1.6).
 
 ## Each round
@@ -66,9 +66,10 @@ baseline a CI error.
 
 ### Slice 1: boundary (export → rule → publish → Team plan)
 
-- [ ] 1.1 Commit the design docs (MES: ADR 0003, ADR 0002 status, spec, `CONTEXT.md`; simulation: this file,
+- [x] 1.1 Commit the design docs (MES: ADR 0003, ADR 0002 status, spec, `CONTEXT.md`; simulation: this file,
   `CLAUDE.md` line). Push both branches, open one **draft** PR per repo into `main`; the description carries the
-  slice checklist. Write the PR numbers here.
+  slice checklist. PRs: MES FIDENTIS-GmbH/PROD_DATA_MES_V2____postgres-dbms#160, simulation
+  PaulSeipl/factory-simulation#1.
 - [ ] 1.2 `mes_bridge/` skeleton: own uv project, editable path dependency on `simulation`, `CHANGELOG.md`, a test
   that `src/simulation` never imports `mes_bridge`. MES CI is unaffected (bridge lives here).
 - [ ] 1.3 MES: `scheduler` service user (seeded, bearer login) and the `schedule` tables (append-only, variant,
@@ -143,8 +144,9 @@ baseline a CI error.
 
 ## Log
 
-PR comments read until: —
+PR comments read until: 2026-11-22T22:33Z
 
 | Date | Task | Commits | Findings |
 |---|---|---|---|
 | 2026-11-22 | design | — | Design interview done; spec, ADR 0003 and this plan written, not committed. |
+| 2026-11-22 | 1.1 | MES fe447ab, sim b711ade | Docs committed, branches pushed, draft PRs MES #160 and sim #1 opened. Both branches contain their `main`. Local MES on 8080 is down (needed from task 1.6). |
