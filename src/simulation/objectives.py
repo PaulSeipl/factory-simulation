@@ -30,8 +30,9 @@ from simulation.calendar import (
 from simulation.check.feasibility import worker_intervals
 from simulation.model.compiled import CompiledInstance, share_interval
 from simulation.model.schedule import Assignment, Break
-from simulation.sim.des import replay
-from simulation.sim.scenario import Scenario
+from simulation.sim.des import replay, replay_from
+from simulation.sim.scenario import Scenario, sample_planner_scenario
+from simulation.sim.snapshot import Snapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +56,9 @@ class Objective:
     spread: Callable[[CompiledInstance], int]
     # the levels of a lexicographic objective, highest first (CP-SAT solves them one after another); empty otherwise
     levels: tuple["Objective", ...] = ()
+    # snapshot -> the objective for plans made from it (e.g. `expected`, which replays from the frozen part); None:
+    # the objective does not depend on the snapshot
+    with_snapshot: Callable[["Snapshot"], "Objective"] | None = None
 
 
 def _longest(ci: CompiledInstance, o: int) -> int:
@@ -389,22 +393,45 @@ def start_deviation(reference: Sequence[Assignment]) -> Objective:
     )
 
 
-def expected(objective: Objective, scenarios: Sequence[Scenario]) -> Objective:
-    """Sample mean of `objective` over the realized schedules of the plan under `scenarios` (right-shift execution
-    by the DES, no repair; math/14 section 4a), rounded half up. The scenarios are the planner's own: draw them from
-    seeds disjoint from the evaluation seeds, or the planner sees the disturbances it is evaluated on.
-    shortcut: static plans only (replays from time 0, ignores a snapshot), upgrade for the rescheduling planner."""
-    if not scenarios:
-        raise ValueError("expected: needs at least one scenario")
+def expected(objective: Objective, scenarios_for: Callable[[CompiledInstance], Sequence[Scenario]]) -> Objective:
+    """Sample mean of `objective` over the realized schedules of the plan under the planner's own scenarios
+    (right-shift execution by the DES, no repair; math/14 section 4a), rounded half up. `scenarios_for(ci)` gives
+    them for the instance being planned (e.g. `planner_scenarios`); from seeds disjoint from the evaluation seeds,
+    or the planner sees the disturbances it is evaluated on. From a snapshot (`with_snapshot`, bound by the GA) the
+    plan is replayed from the snapshot's frozen part (`replay_from`)."""
 
-    def evaluate(ci, schedule, breaks=()):
-        runs = [replay(ci, schedule, s, breaks) for s in scenarios]
-        return math.floor(sum(objective.evaluate(ci, r.schedule, r.breaks) for r in runs) / len(runs) + 0.5)
+    def bound(snap: Snapshot | None) -> Objective:
+        def evaluate(ci, schedule, breaks=()):
+            scenarios = scenarios_for(ci)
+            if not scenarios:
+                raise ValueError("expected: needs at least one scenario")
+            runs = [replay(ci, schedule, s, breaks) if snap is None else replay_from(ci, snap, schedule, s, breaks)
+                    for s in scenarios]
+            return math.floor(sum(objective.evaluate(ci, r.schedule, r.breaks) for r in runs) / len(runs) + 0.5)
 
-    def cpsat(*_args, **_kwargs):
-        raise NotImplementedError("expected: no CP-SAT model (one copy of the schedule per scenario would not scale)")
+        def cpsat(*_args, **_kwargs):
+            raise NotImplementedError("expected: no CP-SAT model (one copy of the schedule per scenario would not scale)")
 
-    return Objective(name=f"expected_{objective.name}", evaluate=evaluate, cpsat=cpsat, spread=objective.spread)
+        return Objective(name=f"expected_{objective.name}", evaluate=evaluate, cpsat=cpsat, spread=objective.spread,
+                         with_snapshot=bound)
+
+    return bound(None)
+
+
+def planner_scenarios(sigma: float, seeds: Sequence[int], q: float = 1.0, max_early: int = 0, max_late: int = 0
+                      ) -> Callable[[CompiledInstance], list[Scenario]]:
+    """`scenarios_for` of `expected`: one `sample_planner_scenario` per seed, cached for the last instance (the GA
+    evaluates many plans of one instance; one entry, by identity)."""
+    cache: dict[int, tuple[CompiledInstance, list[Scenario]]] = {}
+
+    def scenarios_for(ci: CompiledInstance) -> list[Scenario]:
+        hit = cache.get(id(ci))
+        if hit is None or hit[0] is not ci:
+            cache.clear()
+            cache[id(ci)] = hit = (ci, [sample_planner_scenario(ci, sigma, s, q, max_early, max_late) for s in seeds])
+        return hit[1]
+
+    return scenarios_for
 
 
 OVERTIME = Objective(

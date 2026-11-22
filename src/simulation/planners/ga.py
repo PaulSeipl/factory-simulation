@@ -139,6 +139,8 @@ def solve_ga(
     """The best plan the BRKGA finds within the limits (module docstring). `current`: the plan to start from (warm
     start) and the reference of `change_budget` (machine changes of operations it plans that are not frozen)."""
     start, params = time.perf_counter(), params or GaParams()
+    if snapshot is not None and objective.with_snapshot is not None:  # e.g. `expected`: replay from the snapshot
+        objective = objective.with_snapshot(snapshot)
     rng = random.Random(params.seed)
     unit, n_keys = params.delay_max, N_KEYS * ci.n_ops
     frozen = {(f.order_id, f.op_id) for f in snapshot.frozen} if snapshot else set()

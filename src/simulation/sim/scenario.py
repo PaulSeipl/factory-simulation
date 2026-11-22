@@ -63,6 +63,21 @@ def sample_scenario(
                     factors=factors)
 
 
+def sample_planner_scenario(
+    ci: CompiledInstance, sigma: float, seed: int, q: float = 1.0, max_early: int = 0, max_late: int = 0,
+) -> Scenario:
+    """A planner's own scenario for whatever instance it plans (math/14 section 4a): keyed draws per compiled
+    operation, the same as `sample_scenario(..., keyed=True)` for the same operation, so an operation keeps its draw
+    when orders arrive. Draw it from seeds disjoint from the evaluation seeds (no leakage)."""
+    factors = []
+    for owner, op_id in ci.op_keys:
+        r, s = random.Random(f"{seed}/{owner}/{op_id}"), random.Random(f"start-{seed}/{owner}/{op_id}")
+        factors.append(OperationFactor(order_id=owner, op_id=op_id, factor=r.lognormvariate(-sigma**2 / 2, sigma),
+                                       start_offset=0 if s.random() < q else s.randint(-max_early, max_late)))
+    return Scenario(instance=ci.name, seed=seed, sigma=sigma, q=q, max_early=max_early, max_late=max_late,
+                    factors=tuple(factors))
+
+
 def realized_duration(planned: int, factor: float) -> int:
     """max(1, round(planned * factor)), rounding halves up (Python's round() would round them to even)."""
     return max(1, math.floor(planned * factor + 0.5))

@@ -211,6 +211,14 @@ Hand example (`tests/test_expected_objective.py`): the toy plan of [05](05_resch
 With $\varepsilon_{a3} = 4$, a3 takes 8 instead of 2 and runs $[6, 14)$ on M4, and b4, next on M4, ends at 16.
 Over $\{\varepsilon \equiv 1,\ \varepsilon_{a3} = 4\}$, $f^{\mathrm{exp}} = \lfloor 13.5 + 0.5 \rfloor = 14$.
 
+**From a snapshot** (complete rescheduling, [05](05_rescheduling-frozen-part.md)): the plan holds the frozen part
+with its realized or expected times. Each of the planner's scenarios replays it with the frozen part fixed: a
+finished operation keeps its times; a running operation $o$ started at $\hat S_o$ ends at
+$\hat S_o + \max\big(t + 1 - \hat S_o,\ \mathrm{round}(p_{o,\bar m(o)}\,\varepsilon_o)\big)$ with the planner's own
+draw $\varepsilon_o$ (so its remaining time is uncertain too, and it cannot end before $t + 1$); every other
+operation runs as in the static case. Only planned durations and the planner's own draws enter, no leakage. The plan
+is checked against the snapshot (C7) before the replay.
+
 **Cost (measured 2026-11-22, one run, scratch script, not a thesis result).** Each evaluation decodes once and
 replays $N^{\mathrm{sc}}$ times. On `dental-carriers-example` ($\sigma = 0.45$, $N^{\mathrm{sc}} = 10$, 60 s,
 seeds 0 to 2) the GA on the planned makespan made 5435 to 6703 evaluations (59 to 73 generations), the GA on
@@ -353,11 +361,16 @@ $p \approx 0.11$). One instance each, one GA seed, a rule as rescheduler; each r
   - `solve_ga(ci, objective, params) -> GaResult` (plan, value, generations, evaluations, best value per
     generation).
 - `objectives.py`, `start_deviation(reference)` (§3a; test `test_start_deviation_by_hand`).
-- `objectives.py`, `expected(objective, scenarios)` (§4a): an `Objective` whose `evaluate` replays the plan with
-  `sim.des.replay` under each scenario and averages; `cpsat` raises. Used by `solve_ga` and `nsga2` like any other
-  objective. Tests `tests/test_expected_objective.py` (6): zero disturbance on the toy plan and on dental workers with
-  breaks, hand example, no scenario rejected, no CP-SAT model, the GA on the toy instance not worse than any rule
-  under the same objective.
+- `objectives.py`, `expected(objective, scenarios_for)` (§4a): an `Objective` whose `evaluate` replays the plan
+  under each of the planner's scenarios for the instance (`scenarios_for(ci)`, e.g. `planner_scenarios(sigma,
+  seeds, ...)`, keyed draws `sim.scenario.sample_planner_scenario`) and averages; `cpsat` raises; `with_snapshot`
+  gives the objective for plans from a snapshot, which replays with `sim.des.replay_from`. `solve_ga` binds it when it
+  plans from a snapshot (`ga_planner` in the DES). Tests `tests/test_expected_objective.py` (11): zero disturbance on
+  the toy plan and on dental workers with breaks, hand example, no scenario rejected, no CP-SAT model, the planner's
+  draws equal the keyed ones, the GA not worse than any rule; from a snapshot at 5 on the toy plan: zero disturbance
+  gives the repaired plan, a running operation ends at its own draw but not before $t + 1$ (b1: draw 3 → ends 9,
+  draw 0.5 → 6; fails if the running operation keeps its expected end), a plan that ignores the snapshot is rejected,
+  `ga_planner` on $f^{\mathrm{exp}}$ reschedules in the DES.
 - `planners/nsga2.py` (§3a): `NsgaParams`, `dominates`, `non_dominated_fronts`, `crowding_distances`,
   `nsga2(ci, objectives, params, snapshot) -> NsgaResult` (`NsgaParams.join` as `GaParams.join`) (front as (values, plan) pairs, generations,
   evaluations). Tests `tests/test_nsga2.py`: fronts and crowding by hand; on the late pack (hand example 2) the front
@@ -543,8 +556,9 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 - **No population carried across reschedulings.** Each rescheduling starts from the current plan, the rule plans and
   random keys.
 
-- **Expected objective (§4a), open:** static start plans only (`replay` from time 0; inside `ga_planner` from a
-  snapshot it would replay the frozen part from 0 as well, so it is not used there yet). Mean only: a quantile or
+- **Expected objective (§4a), open:** from a snapshot (2026-11-22) the replay re-simulates the past from 0 with the
+  frozen times (cheap) and gives frozen shares and started s-batches one factor per operation, so their worker times
+  may drift by rounding (an estimate, not the DES). Mean only: a quantile or
   the service level $P(f \le T)$ (Flores-Gómez et al. 2023) is one line more once wanted. Fixed scenario set for
   the whole run (common random numbers across chromosomes); resampling per generation (Sankary & Ostfeld 2018,
   `8M4VZ6UA`, PDF p. 4) not tried. No fast evaluator yet, and without one the expected GA does not search within 60 s (§4a); plan: a forward
@@ -589,5 +603,6 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 | 2026-11-20 | uncommitted | Join key ($5\lvert O \rvert$ keys): a partner may decline an s-batch; `dispatch_plan(..., join)`, `GaParams.join`; hand example 3. |
 | 2026-11-20 | uncommitted | `NsgaParams.join`; §5c: the join key does not hurt NSGA-II (4 seeds). |
 | 2026-11-22 | uncommitted | §3b: planner `"ga"` in the experiments, `wall_limited`; lexicographic weights cached per instance (evaluation ~0.35 s → ~8 ms on dental workers). |
+| 2026-11-22 | uncommitted | §4a from a snapshot: `with_snapshot`, `replay_from`, `planner_scenarios`; `expected` takes the scenarios per instance. |
 | 2026-11-22 | uncommitted | §4b time-buffer baseline, `planners/buffer.py`; first comparison. |
 | 2026-11-22 | uncommitted | §4a expected objective over the planner's own scenarios, `objectives.expected`. |

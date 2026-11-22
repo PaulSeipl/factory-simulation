@@ -8,6 +8,28 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-22 (99) — Merge of the GA/MCTS branch; expected objective from a snapshot — uncommitted
+
+**Decided.** User: commit, merge the RL session's branch (`refs/heads/claude/friendly-chandrasekhar-67ee3e` at
+`d09b517`), then make the expected objective work from a snapshot before it goes into the experiments.
+
+**Done.**
+- Commit `02aa20b` (stochastic work), merge `455c600`: conflicts only in the notes; the stochastic entries renumbered
+  (88)–(93) → (93)–(98), the MCTS entries keep (88)–(92); 1937 tests pass after the merge.
+- `sim/scenario.sample_planner_scenario`, `objectives.planner_scenarios`, `expected(objective, scenarios_for)` with
+  `Objective.with_snapshot`; `sim/des.replay_from` and `Simulation(..., validate_from=)`; `solve_ga` binds the snapshot.
+  Tests `tests/test_expected_objective.py` (11, five new; mutation-checked). Docs: [14](14_genetic-algorithm.md) §4a,
+  §5, §6, change log.
+
+**Found.** Why `execute` takes 30 to 80 s on the dental examples (profile, repair only, dental example, 36 s): the
+planning tool runs at every time point (1416 calls of `adapt_plan`, 724 repairs); each call builds the whole plan and
+snapshot as Pydantic objects (`current_plan`, `snapshot`: 1.8 million Pydantic validations, about 8 s), repairs the
+whole plan (12 s) and checks it again (`update_plan`, 10 s). So the cost is time points × whole-plan work; Pydantic
+in this loop goes against the rule "no Pydantic in the hot path" (`CLAUDE.md`).
+
+**Open.** Speed of `execute` (no Pydantic in the loop; repair only when the plan is affected); the experiment config
+with the stochastic start and rescheduling planners.
+
 ## 2026-11-22 (98) — Robust start plans with rescheduling — uncommitted
 
 **Decided.** User: test the robust start plans inside the predictive-reactive loop, with the objective the plans are
