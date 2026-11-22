@@ -3,6 +3,9 @@
 import json
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from simulation.carrier_generator import CarrierGeneratorParams
 from simulation.experiment import ExperimentConfig, run_one
 from simulation.io.json_loader import read_model
@@ -33,6 +36,22 @@ def test_same_seed_same_row(tmp_path):
     for key in ("wall_time", "planner_time", "commit"):
         a.pop(key), b.pop(key)
     assert a == b
+
+
+def test_ga_policy_runs_and_repeats(tmp_path):
+    ga = config(policies={"ga": {"planner": "ga", "generations": 1}})
+    a, b = (run_one(ga, "ga", 1, tmp_path) for _ in range(2))
+    assert a["reschedulings"] >= 1
+    for key in ("wall_time", "planner_time", "commit"):
+        a.pop(key), b.pop(key)
+    assert a == b
+
+
+@pytest.mark.parametrize("policy", [{"planner": "ga"}, {"planner": "rule", "generations": 5},
+                                    {"planner": "ga", "generations": 0}])
+def test_generations_only_and_always_for_ga(policy):
+    with pytest.raises(ValidationError):
+        config(policies={"p": policy})
 
 
 def test_cli_task_by_slurm_index_then_merge(tmp_path, monkeypatch, capsys):

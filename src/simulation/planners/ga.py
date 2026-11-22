@@ -211,7 +211,10 @@ def ga_planner(objective: Objective = MAKESPAN, params: GaParams | None = None, 
     def planner(ci: CompiledInstance, snapshot: Snapshot, current: Sequence[Assignment]) -> Plan:
         result = solve_ga(ci, objective, params, snapshot, current, change_budget)
         planner.last = {"generations": result.generations, "evaluations": result.evaluations,
-                        "value": result.value, "over_budget": result.over_budget}
+                        "value": result.value, "over_budget": result.over_budget,
+                        # as CP-SAT's: the wall clock, not the generation limit, ended the search
+                        "wall_limited": params is not None and params.generations is not None
+                        and result.generations < params.generations}
         return result.plan
 
     return planner

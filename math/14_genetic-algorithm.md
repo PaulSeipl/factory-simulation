@@ -170,6 +170,14 @@ only).
   within the budget is always in the population and the result stays within it. This is the constraint-domination
   idea of Deb et al. (2002, p. 192: a feasible solution beats an infeasible one, two infeasible ones compare by
   violation) applied to one objective (own transfer).
+- **In the experiments** ([07](07_order-arrivals.md) §6): planner `"ga"`, a generation limit decides the result and
+  the wall clock is a safety net; `planner.last["wall_limited"]` is true if the wall clock ended the search before the
+  generation limit (as for CP-SAT).
+- **Evaluation cost** (2026-11-22): a lexicographic objective now computes its level weights once per instance
+  (`objectives._over`, one cached entry by identity). Before, every `evaluate` recomputed `horizon_bound`
+  (`serial_end` per weekday), about 0.35 s per evaluation on the dental workers instance, two thirds of a 10 s GA
+  run. After it the evaluation takes about 8 ms; what remains is the decoder (`dispatch_plan`, mostly the worker gap
+  search). Values are unchanged (`test_lexicographic_weight_follows_the_instance`).
 
 ## 4. Objective function
 
@@ -360,3 +368,4 @@ Limits: 6 seeds, wall-clock limits, makespan only, static instances, one NSGA-II
 | 2026-11-19 | uncommitted | Step 4: `planners/nsga2.py` over the same keys and decoder; `tests/test_nsga2.py`. |
 | 2026-11-19 | uncommitted | §5a: first comparison with rule and CP-SAT on the Fidentis case (`notebooks/ga_compare.py`). |
 | 2026-11-20 | uncommitted | Logarithmic delay map ($D^{\max} = 100$) instead of the linear one; `start_deviation` objective for NSGA-II; §5b notebook 09. |
+| 2026-11-22 | uncommitted | §3b: planner `"ga"` in the experiments, `wall_limited`; lexicographic weights cached per instance (evaluation ~0.35 s → ~8 ms on dental workers). |

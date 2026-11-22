@@ -26,7 +26,16 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    NonNegativeFloat,
+    NonNegativeInt,
+    PositiveFloat,
+    PositiveInt,
+    model_validator,
+)
 
 from simulation.arrival_generator import ArrivalParams, generate_arrival_instance
 from simulation.control.nesting import Nesting
@@ -37,17 +46,28 @@ from simulation.model.compiled import compile_instance, compile_visible
 from simulation.objectives import worker_objective_with_slack
 from simulation.planners.cpsat import CpSatResult, cpsat_planner, solve
 from simulation.planners.dispatching import dispatch_planner, ect, spt
+from simulation.planners.ga import GaParams, ga_planner
 from simulation.sim.scenario import sample_scenario
 
 
 class PolicyConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    planner: Literal["cpsat", "rule"]  # complete rescheduling: CP-SAT with the worker objective, or SPT + ECT
+    # complete rescheduling with the worker objective: CP-SAT, SPT + ECT, or the GA (math/14)
+    planner: Literal["cpsat", "rule", "ga"]
     # hindsight: start from a plan of the full instance (every arrival known) and never see arrivals as events
     hindsight: bool = False
     max_makespan_change: NonNegativeInt | None = None  # thresholds of math/05 §3
     max_shift: NonNegativeInt | None = None
     period: NonNegativeInt | None = None
+    # GA only, and required there: generations per complete rescheduling (decide the result, as CP-SAT's
+    # deterministic time does; the configuration's time_limit is the wall-clock safety net)
+    generations: PositiveInt | None = None
+
+    @model_validator(mode="after")
+    def check_generations(self):
+        if (self.planner == "ga") != (self.generations is not None):
+            raise ValueError("generations is required for planner 'ga' and only allowed there")
+        return self
 
 
 class ExperimentConfig(BaseModel):
@@ -74,7 +94,9 @@ class ExperimentConfig(BaseModel):
         return self
 
     def digest(self) -> str:
-        return hashlib.sha256(self.model_dump_json().encode()).hexdigest()[:12]
+        # generations (added 2026-11-22) only where set: older configurations keep their hash and so their result rows
+        unset = {"policies": {k: {"generations"} for k, p in self.policies.items() if p.generations is None}}
+        return hashlib.sha256(self.model_dump_json(exclude=unset).encode()).hexdigest()[:12]
 
 
 def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) -> dict:
@@ -95,9 +117,13 @@ def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) ->
         start = solve(at(0), objective, config.time_limit, 1, seed, deterministic_time=config.deterministic_time)
     if not start.schedule and start.status != "EMPTY":
         raise RuntimeError(f"{config.name}/{policy_name}/{seed}: no start plan ({start.status})")
-    planner = (cpsat_planner(config.time_limit, 1, seed, objective=objective,
-                             deterministic_time=config.deterministic_time)
-               if pc.planner == "cpsat" else dispatch_planner(spt, ect))
+    planner = {
+        "cpsat": lambda: cpsat_planner(config.time_limit, 1, seed, objective=objective,
+                                       deterministic_time=config.deterministic_time),
+        "rule": lambda: dispatch_planner(spt, ect),
+        "ga": lambda: ga_planner(objective, GaParams(generations=pc.generations, time_limit=config.time_limit,
+                                                     seed=seed)),
+    }[pc.planner]()
     policy = ReschedulingPolicy(planner=planner, max_makespan_change=pc.max_makespan_change,
                                 max_shift=pc.max_shift, period=pc.period)
     def scenario_for(instance):  # keyed with nesting: an operation's draws do not depend on the packages (math/22)

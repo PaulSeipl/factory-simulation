@@ -8,6 +8,46 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-22 (86) — RL/MCTS discussion, GA evaluation cost, planner "ga" in the experiments — uncommitted
+
+- **Decided (user):**
+  - An RL planner should be an alternative to CP-SAT and the GA that builds the plan step by step from the snapshot.
+  - Order: an MCTS planner first, then an RL policy on the same step interface.
+  - Profile the GA before the MCTS step.
+  - Add the GA as a planner to the experiment configuration.
+- **Decided (Claude, stated to the user):**
+  - The MCTS plan:
+    - M1: a candidate hook `choose` in `dispatch_plan`;
+    - M2: `planners/mcts.py`, a root-commit UCT as in Li et al. 2021 (Zotero `7VCTD9GM`, p.4), with the rule plans as incumbent;
+    - M3: a comparison at equal wall time;
+    - M4: overtime in the action, only if M3 needs it.
+  - RL starts only after a dependency decision (PyTorch on Python 3.14) and stores models without pickle.
+  - For the GA in experiments, a generation limit decides the result, so runs are reproducible as with CP-SAT's
+    deterministic limit. `time_limit` is the safety net.
+- **Done:**
+  - `objectives._over`: the weight of a lexicographic level is cached per instance (one entry, by identity).
+  - `PolicyConfig.planner` gains `"ga"`, and `PolicyConfig.generations` is required for it.
+  - `run_one` builds `ga_planner(objective, GaParams(generations, time_limit, seed))`.
+  - `ExperimentConfig.digest` leaves out an unset `generations`.
+  - `ga_planner` reports `wall_limited`.
+  - Tests: `test_lexicographic_weight_follows_the_instance`, `test_ga_policy_runs_and_repeats`,
+    `test_generations_only_and_always_for_ga` (3 negative cases).
+  - Docs: [14](14_genetic-algorithm.md) §3b and change log, [07](07_order-arrivals.md) §6 and change log.
+- **Found:**
+  - On the dental workers instance a 10 s GA spent about 6.7 s recomputing `horizon_bound` / `serial_end` in
+    every `evaluate`. Without the profiler it did 72 evaluations and 0 generations; after the fix, 152
+    evaluations (machine loaded, times vary). That is still 0 generations, because seeding alone needs 100 decodes.
+  - The remaining cost is `dispatch_plan` (worker gap search, `earliest`).
+  - Rollout cost per decision for MCTS on that instance: about 0.2 iterations per decision at 10 s, about 1 at 60 s.
+    So MCTS v1 needs minutes or a faster decoder to beat its rollout rule there.
+  - The digests of all 7 configurations in `experiments/` are unchanged; checked against the version before.
+- **Open:**
+  - The GA's generation limit and time budget for the experiments (start plan vs rescheduling); no configuration uses `"ga"` yet.
+  - MCTS step M1 waits for approval. `"mcts"` joins `PolicyConfig` with M2.
+  - Thesis sections affected: none written yet.
+
+---
+
 ## 2026-11-20 (85) — Decoder: fewer calls in the gap search — uncommitted
 
 - **Decided (user):** try both follow-ups from (83): `part_fits` called less often, and a fast path for
