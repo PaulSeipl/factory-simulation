@@ -70,7 +70,7 @@ baseline a CI error.
   `CLAUDE.md` line). Push both branches, open one **draft** PR per repo into `main`; the description carries the
   slice checklist. PRs: MES FIDENTIS-GmbH/PROD_DATA_MES_V2____postgres-dbms#160, simulation
   PaulSeipl/factory-simulation#1.
-- [ ] 1.2 `mes_bridge/` skeleton: own uv project, editable path dependency on `simulation`, `CHANGELOG.md`, a test
+- [x] 1.2 `mes_bridge/` skeleton: own uv project, editable path dependency on `simulation`, `CHANGELOG.md`, a test
   that `src/simulation` never imports `mes_bridge`. MES CI is unaffected (bridge lives here).
 - [ ] 1.3 MES: `scheduler` service user (seeded, bearer login) and the `schedule` tables (append-only, variant,
   `snapshot_as_of`, steps, breaks) with migration; `PUT` / `GET /planning/schedule`, write restricted to the
@@ -144,9 +144,10 @@ baseline a CI error.
 
 ## Log
 
-PR comments read until: 2026-11-22T22:33Z
+PR comments read until: 2026-11-22T22:41Z
 
 | Date | Task | Commits | Findings |
 |---|---|---|---|
 | 2026-11-22 | design | — | Design interview done; spec, ADR 0003 and this plan written, not committed. |
 | 2026-11-22 | 1.1 | MES fe447ab, sim b711ade | Docs committed, branches pushed, draft PRs MES #160 and sim #1 opened. Both branches contain their `main`. Local MES on 8080 is down (needed from task 1.6). |
+| 2026-11-22 | 1.2 | sim (this commit) | `mes_bridge/` uv project (editable path dep, own `uv.lock`; root `uv.lock` unchanged), `CHANGELOG.md`, AST boundary test + detector self-test. Gates: simulation 1807 passed, bridge 2 passed. No PR comments. |
