@@ -7,6 +7,7 @@ and the bound stays a valid lower bound. See math/01_basic-fjsp.md, section 4, a
 (due-date objectives, lexicographic combination).
 """
 
+import math
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -29,6 +30,8 @@ from simulation.calendar import (
 from simulation.check.feasibility import worker_intervals
 from simulation.model.compiled import CompiledInstance, share_interval
 from simulation.model.schedule import Assignment, Break
+from simulation.sim.des import replay
+from simulation.sim.scenario import Scenario
 
 
 @dataclass(frozen=True, slots=True)
@@ -384,6 +387,24 @@ def start_deviation(reference: Sequence[Assignment]) -> Objective:
                                                         if (k := (a.order_id, a.op_id)) in ref),
         cpsat=cpsat, spread=lambda ci: ci.n_ops * horizon_bound(ci),  # every start lies within the horizon
     )
+
+
+def expected(objective: Objective, scenarios: Sequence[Scenario]) -> Objective:
+    """Sample mean of `objective` over the realized schedules of the plan under `scenarios` (right-shift execution
+    by the DES, no repair; math/14 section 4a), rounded half up. The scenarios are the planner's own: draw them from
+    seeds disjoint from the evaluation seeds, or the planner sees the disturbances it is evaluated on.
+    shortcut: static plans only (replays from time 0, ignores a snapshot), upgrade for the rescheduling planner."""
+    if not scenarios:
+        raise ValueError("expected: needs at least one scenario")
+
+    def evaluate(ci, schedule, breaks=()):
+        runs = [replay(ci, schedule, s, breaks) for s in scenarios]
+        return math.floor(sum(objective.evaluate(ci, r.schedule, r.breaks) for r in runs) / len(runs) + 0.5)
+
+    def cpsat(*_args, **_kwargs):
+        raise NotImplementedError("expected: no CP-SAT model (one copy of the schedule per scenario would not scale)")
+
+    return Objective(name=f"expected_{objective.name}", evaluate=evaluate, cpsat=cpsat, spread=objective.spread)
 
 
 OVERTIME = Objective(

@@ -185,6 +185,150 @@ overtime key the GA can trade overtime against the other levels: under makespan 
 ends the plan earlier, under an objective with an overtime level it avoids overtime that buys nothing on a higher
 level (second hand example in §5).
 
+### 4a. Expected objective over the planner's own scenarios (2026-11-22)
+
+A robust pro-active variant ([05](05_rescheduling-frozen-part.md) §1): the GA scores a plan not by its planned
+value but by the sample mean of the objective $f$ over the schedules the DES realizes from it under $N^{\mathrm{sc}}$
+scenarios $\mathcal{S}^{\mathrm{pl}}$ ([22](22_scenarios.md)), with the DES's right-shift execution and no repair:
+
+$$f^{\mathrm{exp}} = \Big\lfloor \frac{1}{N^{\mathrm{sc}}} \sum_{s \in \mathcal{S}^{\mathrm{pl}}} f\big(\text{realized schedule of the plan under } s\big) + \tfrac12 \Big\rfloor$$
+
+rounded half up, since objective values are integers. $\mathcal{S}^{\mathrm{pl}}$ belongs to the planner. Its seeds
+must be disjoint from the seeds of the evaluation scenarios, or the planner sees the disturbances it is judged on
+(no information leakage, `CLAUDE.md`). With $\sigma = 0$ in every scenario, $f^{\mathrm{exp}} = f$
+(zero-disturbance). The objective changes, the model does not: format, checker, DES and CP-SAT are unchanged, so the
+Definition of Done does not apply. There is no CP-SAT model: one copy of the schedule per scenario would not scale.
+
+Hand example (`tests/test_expected_objective.py`): the toy plan of [05](05_rescheduling-frozen-part.md) (makespan 11).
+With $\varepsilon_{a3} = 4$, a3 takes 8 instead of 2 and runs $[6, 14)$ on M4, and b4, next on M4, ends at 16.
+Over $\{\varepsilon \equiv 1,\ \varepsilon_{a3} = 4\}$, $f^{\mathrm{exp}} = \lfloor 13.5 + 0.5 \rfloor = 14$.
+
+**Cost (measured 2026-11-22, one run, scratch script, not a thesis result).** Each evaluation decodes once and
+replays $N^{\mathrm{sc}}$ times. On `dental-carriers-example` ($\sigma = 0.45$, $N^{\mathrm{sc}} = 10$, 60 s,
+seeds 0 to 2) the GA on the planned makespan made 5435 to 6703 evaluations (59 to 73 generations), the GA on
+$f^{\mathrm{exp}}$ 218 to 235 (1 generation): an evaluation costs about 27 times more (decode about 10 ms, a replay
+about 26 ms). Within the same time the expected GA does not search; all three seeds return the same plan (planned
+1139, realized mean 1315 on 100 evaluation seeds) and it is not better than the GA on the planned value (planned
+1123 to 1128, realized mean 1304 to 1314). The realized makespan lies about 17 % above the planned one under
+right-shift. So the objective needs a fast evaluator (§6) before it can be compared fairly.
+
+After the faster replay ([13](13_des.md) §8: unfinished-predecessor counter, repeated start step, no OVERDUE
+events in `replay`; same script, 2026-11-22, a less loaded machine, so decodes are faster too): decode / replay
+6 / 8 ms on the dental example, 37 / 17 ms on dental workers, 15 / 9 ms on Fidentis with 10 orders; an evaluation
+with $N^{\mathrm{sc}} = 10$ costs 15, 5.5 and 7 times a plain one. In 60 s the GA on the planned makespan ran 109 to
+112 generations, the GA on $f^{\mathrm{exp}}$ 6. The expected GA's plans realize a slightly higher mean (1316 to 1328
+against 1304 to 1314) but a lower worst case over the 100 evaluation seeds (1563 to 1585 against 1659 to 1669); one
+instance, three seeds, no test of significance.
+
+### 4b. Time-buffer baseline (2026-11-22)
+
+The cheapest robust pro-active plan: inflate every processing time by a factor $\varrho \ge 1$, plan with any planner on
+the inflated instance, then give each operation its nominal duration back at the same start. The gaps left behind
+are time buffers; the DES executes the plan unchanged (no operation starts before its planned start), so a delay up
+to the buffer does not reach the successors. Temporal slack as a robustness device: Davenport et al. (2001,
+`T67B96FW`, p. 1); Lambrechts et al. (2011, `LQFDQ743`). The factor from the duration distribution
+([22](22_scenarios.md)): the $\alpha^{\mathrm{buf}}$-quantile of the mean-one log-normal,
+
+$$\varrho = \exp\!\big(-\tfrac{\sigma^2}{2} + z_{\alpha^{\mathrm{buf}}}\,\sigma\big)$$
+
+($z_{\alpha^{\mathrm{buf}}}$ the standard normal quantile), e.g. $\varrho = 1.32$ for $\sigma = 0.45$, $\alpha^{\mathrm{buf}} = 0.8$. $\varrho \ge 1$ needs
+$\alpha^{\mathrm{buf}} \ge \Phi(\sigma/2)$ (0.59 at $\sigma = 0.45$): the median of a mean-one factor lies below 1. Own choices: p-batch
+steps keep their duration (a fixed program does not deviate); worker share lengths stay, so the buffer lies in the
+unattended part of an operation or after it; rounding half up. Shortening moves a removal (suffix) share earlier,
+which could meet another share of its worker; the shortened plan is checked and rejected if infeasible (not seen on
+the rule plans of five small instances).
+
+**First comparison (2026-11-22, `dental-carriers-example`, $\sigma = 0.45$, 100 evaluation seeds, GA 60 s, seeds 0
+to 2; scratch script, one run, no test of significance):**
+
+| plan | planned | realized mean | p90 | worst |
+|---|---|---|---|---|
+| best rule, $\varrho = 1$ | 1138 | 1323 | 1431 | 1726 |
+| best rule, $\varrho = 1.14$ ($\alpha^{\mathrm{buf}} = 0.7$) | 1241 | 1344 | 1435 | 1690 |
+| best rule, $\varrho = 1.32$ ($\alpha^{\mathrm{buf}} = 0.8$) | 1409 | 1445 | 1512 | 1644 |
+| GA, $\varrho = 1$ (§4a) | 1121–1128 | 1304–1314 | 1416–1447 | 1659–1669 |
+| GA, $\varrho = 1.14$ | 1212–1238 | 1324–1343 | 1415–1440 | 1603–1704 |
+| GA, $\varrho = 1.32$ | 1376–1388 | 1412–1423 | 1472–1494 | 1596–1624 |
+| GA on $f^{\mathrm{exp}}$, $N^{\mathrm{sc}} = 10$ (§4a) | 1147–1166 | 1316–1328 | 1438–1482 | 1563–1585 |
+
+Under right-shift a buffer cannot lower the realized makespan on average: it delays every start, and a delay is
+only absorbed up to its size. What it buys is predictability: the realized makespan lies 17 % above the planned one
+with $\varrho = 1$ and 2 to 3 % with $\varrho = 1.32$, and the worst case drops. So the buffer is a baseline for objectives that
+measure the promise (stability against the plan, tardiness against promised dates; [23](23_metrics.md)), not for
+the makespan. On this instance the GA on $f^{\mathrm{exp}}$ has a lower mean and a lower worst case than both
+buffered GAs.
+
+
+**Stability and tardiness (2026-11-22, same instance and seeds; GA 60 s on a loaded machine, so fewer generations:
+plain 40 to 56, buffered 52 to 81, expected 0 to 2; all GAs minimize the makespan; scratch script, one run):** per
+plan the mean over 100 evaluation seeds of $D_S$ (mean absolute start deviation from the plan, [23](23_metrics.md)),
+of the total tardiness against the due dates, and of the mean lateness of an order against its own planned
+completion, $\frac{1}{|\mathcal{K}|}\sum_{k \in \mathcal{K}} \max(0, \hat C_k - \bar C_k)$ (own measure of the broken promise).
+
+| plan | $D_S$ (min) | late vs. plan (min per order) | tardiness planned | tardiness realized |
+|---|---|---|---|---|
+| GA, $\varrho = 1$ | 76–83 | 113–127 | 2823–5670 | 7861–11225 |
+| GA, $\varrho = 1.14$ | 50–53 | 77–80 | 7563–9370 | 11100–12635 |
+| GA, $\varrho = 1.32$ | 20–22 | 28–33 | 12341–13958 | 13472–15306 |
+| GA on $f^{\mathrm{exp}}$ | 78 | 125 | 5782 | 11338 |
+
+The buffer does what it is for: with $\varrho = 1.32$ the shop floor deviates a quarter as much from the plan and an
+order ends about half an hour after its planned completion instead of two hours. Against the due dates it is worse,
+since the buffered plan already promises later completions and the planner minimizes the makespan, not the
+tardiness. So a buffer trades due-date performance for a plan the shop floor can keep. A fair test against the due
+dates needs the tardiness objective in all planners; the expected GA was not given enough generations here.
+; tests `tests/test_buffer.py` (10): factor
+values and the quantile range, inflation by hand (3 · 1.5 = 4.5 → 5), p-batch steps kept, $\varrho < 1$ rejected, the
+shortened rule plans of five small instances pass the checker, keep their starts and replay unchanged without
+disturbance, an infeasible shortened plan is rejected.
+
+### 4c. Robust start plans in the predictive-reactive loop (2026-11-22)
+
+The question that matters for the thesis: does a robust start plan still pay off when the DES repairs and
+reschedules ([05](05_rescheduling-frozen-part.md))? Setup (scratch script, one run, not a thesis result): the GA
+minimizes the total tardiness for every start plan (population 50, 15 generations, seed 0): plain, buffered with
+$\alpha^{\mathrm{buf}} = 0.7$ and $0.8$ (§4b), and on $f^{\mathrm{exp}}$ of the total tardiness with
+$N^{\mathrm{sc}} = 10$ (§4a). Each start plan runs under two policies, repair only and repair with complete
+rescheduling by the EDD rule (trigger: total tardiness of the repaired plan more than 60 above the anchor, safety
+net every 480 min), on the same DES seeds 0 to 9 ($\sigma = 0.45$, no start offsets). Means over the seeds; "wins":
+seeds on which the total tardiness is lower than with the plain start plan under the same policy.
+
+`dental-carriers-example` (no workers, no calendar; all 40 orders tardy even in the plan):
+
+| start plan | policy | total tardiness | $D_S$ (min) | reschedulings | wins |
+|---|---|---|---|---|---|
+| plain | repair | 7826 | 84 | 0 | |
+| buffer 0.7 | repair | 8330 | 52 | 0 | 2/10 |
+| buffer 0.8 | repair | 9831 | 20 | 0 | 1/10 |
+| expected | repair | 7596 | 83 | 0 | 9/10 |
+| plain | repair + EDD | 4620 | 69 | 65 | |
+| buffer 0.7 | repair + EDD | 4908 | 54 | 55 | 5/10 |
+| buffer 0.8 | repair + EDD | 5764 | 70 | 50 | 1/10 |
+| expected | repair + EDD | 4699 | 69 | 68 | 4/10 (3 ties) |
+
+`dental-carriers-workers` (four workers, calendar):
+
+| start plan | policy | total tardiness | $D_S$ (min) | reschedulings | wins |
+|---|---|---|---|---|---|
+| plain | repair | 54614 | 716 | 0 | |
+| buffer 0.7 | repair | 64623 | 714 | 0 | 2/10 |
+| buffer 0.8 | repair | 57113 | 410 | 0 | 5/10 |
+| expected | repair | 53103 | 602 | 0 | 5/10 |
+| plain | repair + EDD | 46605 | 592 | 8.8 | |
+| buffer 0.7 | repair + EDD | 44077 | 527 | 8.2 | 6/10 |
+| buffer 0.8 | repair + EDD | 43974 | 386 | 8.3 | 5/10 |
+| expected | repair + EDD | 42031 | 455 | 8.1 | 8/10 |
+
+Findings. (1) Rescheduling dominates: it lowers the total tardiness by 41 % (example) and 15 % (workers) against
+repair only, more than any start plan. (2) Without workers and calendar the start plan hardly matters once the DES
+reschedules (about 65 reschedulings per run replan the start plan away, the buffers too: $D_S$ of buffer 0.8 rises
+from 20 to 70). (3) With workers and calendar a disturbance pushes work into later shifts (realized makespan 44 %
+above the plan, $D_S$ about 12 h), the DES reschedules only about 8 times, and the start plan keeps its effect: the
+expected start plan has 10 % less total tardiness than the plain one under rescheduling and wins on 8 of 10 seeds;
+buffer 0.8 has the smallest deviation from the plan. 8 of 10 is not significant (two-sided sign test,
+$p \approx 0.11$). One instance each, one GA seed, a rule as rescheduler; each run of `execute` takes 30 to 80 s
+(the repair at every time point), which limits the number of seeds.
+
 ## 5. Implementation in code
 
 - `planners/dispatching.py`, `dispatch_plan(..., delay=None, overtime=None, join=None)`: the delay window, the
@@ -201,6 +345,11 @@ level (second hand example in §5).
   - `solve_ga(ci, objective, params) -> GaResult` (plan, value, generations, evaluations, best value per
     generation).
 - `objectives.py`, `start_deviation(reference)` (§3a; test `test_start_deviation_by_hand`).
+- `objectives.py`, `expected(objective, scenarios)` (§4a): an `Objective` whose `evaluate` replays the plan with
+  `sim.des.replay` under each scenario and averages; `cpsat` raises. Used by `solve_ga` and `nsga2` like any other
+  objective. Tests `tests/test_expected_objective.py` (6): zero disturbance on the toy plan and on dental workers with
+  breaks, hand example, no scenario rejected, no CP-SAT model, the GA on the toy instance not worse than any rule
+  under the same objective.
 - `planners/nsga2.py` (§3a): `NsgaParams`, `dominates`, `non_dominated_fronts`, `crowding_distances`,
   `nsga2(ci, objectives, params, snapshot) -> NsgaResult` (`NsgaParams.join` as `GaParams.join`) (front as (values, plan) pairs, generations,
   evaluations). Tests `tests/test_nsga2.py`: fronts and crowding by hand; on the late pack (hand example 2) the front
@@ -386,6 +535,15 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 - **No population carried across reschedulings.** Each rescheduling starts from the current plan, the rule plans and
   random keys.
 
+- **Expected objective (§4a), open:** static start plans only (`replay` from time 0; inside `ga_planner` from a
+  snapshot it would replay the frozen part from 0 as well, so it is not used there yet). Mean only: a quantile or
+  the service level $P(f \le T)$ (Flores-Gómez et al. 2023) is one line more once wanted. Fixed scenario set for
+  the whole run (common random numbers across chromosomes); resampling per generation (Sankary & Ostfeld 2018,
+  `8M4VZ6UA`, PDF p. 4) not tried. No fast evaluator yet, and without one the expected GA does not search within 60 s (§4a); plan: a forward
+  pass over the plan's precedence, machine-order and worker-order graph with the realized durations of all
+  scenarios as NumPy arrays, checked for equality with `replay` on the small instances. $N^{\mathrm{sc}}$ not chosen; error falls as
+  $O(1/\sqrt{N^{\mathrm{sc}}})$ (Flores-Gómez et al. 2023, PDF p. 13).
+
 ## 7. Sources
 
 - Bean (1994): random keys, feasibility of all offspring (p. 154).
@@ -399,6 +557,14 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 - Lunardi et al. (2021): two real arrays (assignment, sequencing) with a decoder (p. 420).
 - Defersha & Rooyani (2020): an alternative without machine keys, the machine that finishes soonest (p. 2);
   seeding with the ECT rule plans covers that choice.
+- Flores-Gómez et al. (2023, Zotero `5LQ7XIL8`): stochastic FJSP, Monte Carlo scenarios inside a tabu search,
+  service level (PDF pp. 1, 4, 7, 8, 13) (§4a, §6).
+- Leon, Wu & Storer (1994, Zotero `7T6HU5N6`): robust schedules for a right-shift control policy, a surrogate
+  robustness measure embedded in a GA (PDF p. 1) (§4a).
+- Huang et al. (2024, Zotero `LD25WQL3`): DCE-BRKGA, populations of solutions and of scenarios co-evolve and
+  evaluate each other (PDF pp. 3, 9); average and pessimistic fitness criteria (abstract, PDF p. 1) (§4a).
+- Sankary & Ostfeld (2018, Zotero `8M4VZ6UA`): resampling a small suite of scenarios in each generation of an EA
+  (PDF p. 4) (§6).
 - Own modeling: the decoder is the project's dispatcher; the delay window applied to runs, p- and s-batches and
   workers; the overtime key; the join key; the initial population from the rule plans.
 
@@ -414,3 +580,5 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 | 2026-11-20 | uncommitted | Logarithmic delay map ($D^{\max} = 100$) instead of the linear one; `start_deviation` objective for NSGA-II; §5b notebook 09. |
 | 2026-11-20 | uncommitted | Join key ($5\lvert O \rvert$ keys): a partner may decline an s-batch; `dispatch_plan(..., join)`, `GaParams.join`; hand example 3. |
 | 2026-11-20 | uncommitted | `NsgaParams.join`; §5c: the join key does not hurt NSGA-II (4 seeds). |
+| 2026-11-22 | uncommitted | §4b time-buffer baseline, `planners/buffer.py`; first comparison. |
+| 2026-11-22 | uncommitted | §4a expected objective over the planner's own scenarios, `objectives.expected`. |

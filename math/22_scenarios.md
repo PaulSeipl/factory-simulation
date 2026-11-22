@@ -54,6 +54,12 @@ Tests (`tests/test_scenario.py`): same seed same factors, other seed other facto
 - Start offsets are independent of the operation, the worker and the time of day; without data this is the simplest assumption.
 - The factor is sampled for every operation, including those that will never be started in a replanning setting; this keeps a scenario independent of the plan.
 - **To clarify:** realistic values of $\sigma$ for the dental production process (data from the company?).
+- **First look at company data (2026-11-20, MES backup of 2026-11-10, own query, protocol (88)):** worker-step times are
+  not usable per step (214 of 672 done tasks under 30 s, half of them booked within 2 minutes of the previous one;
+  tasks left open overnight). Machine runs, realized / estimated duration, filtered to 0.33 to 3: milling 58 runs,
+  median 1.14, sd of the log ratio 0.45; printing 7 runs, 1.25 and 0.65; one machine each. So the mean-one
+  assumption does not hold for milling (estimates too low on average), and $\sigma \approx 0.45$ is a candidate
+  for machine runs. The cutoff is arbitrary and $\sigma$ depends on it; the log-normal shape is untested.
 
 ## 6. Sources
 

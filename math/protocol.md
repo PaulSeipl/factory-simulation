@@ -8,6 +8,149 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-22 (93) — Robust start plans with rescheduling — uncommitted
+
+**Decided.** User: test the robust start plans inside the predictive-reactive loop, with the objective the plans are
+measured on (total tardiness) in every planner (after the user pointed out the mismatch of (92): makespan
+optimized, tardiness measured).
+
+**Done.** Scratch comparison on both dental examples: four start plans (plain, buffer 0.7 and 0.8, expected) by the
+GA on total tardiness, two policies (repair; repair + EDD rescheduling on a tardiness trigger), DES seeds 0 to 9;
+[14](14_genetic-algorithm.md) §4c (new).
+
+**Found.** Rescheduling lowers tardiness by 41 % (example) and 15 % (workers), more than any start plan. Without
+workers and calendar the start plan hardly matters under rescheduling (the about 65 reschedulings per run replan the
+buffers away). With workers and calendar the expected start plan has 10 % less tardiness than the plain one under
+rescheduling (8 of 10 seeds, sign test $p \approx 0.11$, not significant). `execute` takes 30 to 80 s per run on the
+dental examples (repair at every time point); this, not the GA, limits the experiments.
+
+**Open.** More seeds and GA seeds on dental workers and on the Fidentis case (experiment); the GA as rescheduler;
+the speed of `execute`; the lexicographic thesis objective; merging `cda44bd`; the (92) tardiness column is not
+evidence (makespan objective).
+
+## 2026-11-22 (92) — Buffer, plain and expected GA on stability and tardiness; papers in Zotero — uncommitted
+
+**Decided.** User: compare the plans on stability and tardiness; the user added the Consensus papers to Zotero.
+
+**Done.** Scratch comparison (`dental-carriers-example`, $\sigma = 0.45$, 100 evaluation seeds, 3 GA seeds, 60 s);
+[14](14_genetic-algorithm.md) §4b table. Citations checked in the PDFs: Leon et al. 1994 (`7T6HU5N6`, p. 1),
+Huang et al. 2024 (`LD25WQL3`, pp. 1, 3, 9), Sankary & Ostfeld 2018 (`8M4VZ6UA`, p. 4); [14](14_genetic-algorithm.md)
+§6, §7 and [references](references.md) updated, the **[uncertain]** marks removed. Also in Zotero, not cited yet:
+Xiao et al. 2017 (`3NVUVGJF`), 2022 (`LF57RHND`), Teck et al. 2024 (`96BQ6NNR`), Fu et al. (`4WKLMS8E`, Zotero year
+2025, Consensus 2024). Not found: de Bruin et al. 2026.
+
+**Found.** With $\varrho = 1.32$: $D_S$ 20–22 min instead of 76–83, lateness against the plan 28–33 instead of
+113–127 min per order, realized tardiness against due dates higher (13472–15306 against 7861–11225). The expected
+GA (0 to 2 generations on the loaded machine) is close to the plain GA on these measures. One instance, one run, no
+test of significance.
+
+**Open.** Tardiness objective in all planners for the due-date comparison; generation budgets instead of seconds;
+the vectorized evaluator; Fidentis case (experiment, not tests); merging `cda44bd`.
+
+## 2026-11-22 (91) — Time-buffer baseline — uncommitted
+
+**Decided.** User: the buffer baseline next (before the vectorized evaluator). Own: inflate, plan, shorten back
+(time buffers at the same starts) instead of executing on the inflated instance, so the DES, checker and objectives
+see the nominal instance; factor $\varrho$ from the $\alpha^{\mathrm{buf}}$-quantile of the mean-one log-normal;
+p-batch steps and worker share lengths not inflated.
+
+**Done.** `planners/buffer.py` (`quantile_factor`, `inflate`, `shorten` with a checker guard); tests
+`tests/test_buffer.py` (10). Docs: [14](14_genetic-algorithm.md) §4b (new), change log;
+[notation](notation.md) ($\varrho$, $\alpha^{\mathrm{buf}}$, $z_\alpha$, $\Phi$).
+
+**Found.** On `dental-carriers-example` ($\sigma = 0.45$, 100 evaluation seeds, GA 60 s, three seeds): the buffer
+raises the planned and the mean realized makespan (GA 1304–1314 without, 1412–1423 with $\varrho = 1.32$) and lowers
+the gap between plan and realization (17 % to 2–3 %) and the worst case (1659–1669 to 1596–1624). The GA on
+$f^{\mathrm{exp}}$ has a lower mean (1316–1328) and worst case (1563–1585) than both buffered GAs. Under right-shift
+a buffer cannot shorten the makespan; it is a baseline for promise-type measures (stability, tardiness against
+promised dates). One instance, no test of significance.
+
+**Open.** Compare on stability ($D_S$, [23](23_metrics.md)) and tardiness, not only makespan; the vectorized
+evaluator; a fair budget (generations); merging `cda44bd`.
+
+## 2026-11-22 (90) — Repeated start step, replay without OVERDUE — uncommitted
+
+**Decided.** User: adopt the repeated start step (after an example of current and adjusted behavior on dental
+workers, 10 seeds: makespan unchanged, up to 10 of 287 operations up to 11 min earlier, 3 other workers).
+
+**Done.** `sim/des.py`: `start_operations` repeats `_start_pass` at $t$ until nothing starts;
+`Simulation(..., overdue=False)` and `replay` without OVERDUE events. Tests `tests/test_replay_overdue.py` (6):
+replay equals the full run (schedule, breaks, log) on five small instances, two plans, four seeds with offsets;
+O37's design swaps to C at 612 (both fail with a single pass). 1817 tests pass, no hand value changed; the suite
+takes 5.4 min instead of 9. Docs: [13](13_des.md) §3 step 3, §8, change log; [14](14_genetic-algorithm.md) §4a.
+
+**Found.** Replay now 8 / 17 / 9 ms (dental example / dental workers / Fidentis with 10 orders; Fidentis was 150 ms
+before (89)). The expected GA ($N^{\mathrm{sc}} = 10$, 60 s) runs 6 generations instead of 1, the plain GA 110;
+the expected GA's plans have a slightly higher realized mean but a lower worst case (one instance, three seeds).
+
+**Open.** Experiment results with workers and disturbances from before (89)/(90) may shift slightly (rerun before
+they enter the thesis). The vectorized evaluator, the buffer baseline, merging `cda44bd`, a fair budget
+(generations instead of seconds) for the comparison.
+
+## 2026-11-22 (89) — Faster replay; two DES bugs found — uncommitted
+
+**Decided.** User: continue the stochastic extension where the RL session left off on speed. Own (with a second
+opinion): first make `replay` faster exactly, before any separate vectorized evaluator.
+
+**Done.**
+- `sim/des.py`: unfinished-predecessor counter (`open_preds`), exact; WAKE at the order release for an operation
+  released early (bug fix, regression test in `tests/test_des.py`, mutation-checked). Docs: [13](13_des.md) §8,
+  change log.
+- Tried and reverted: a candidate filter in the start step (no gain); replay without OVERDUE events (5 to 10 times
+  faster, but not equal on instances with workers, see Found).
+
+**Found.**
+- Cost per evaluation (decode / replay, ms, scratch script, one run): dental example 15 / 21, dental workers 71 / 72,
+  Fidentis with 10 orders 28 / 80 (before the counter 33 / 150). Replay, not decode, dominates the expected
+  objective on every instance; $N^{\mathrm{sc}} = 10$ still costs 11 to 29 times a plain evaluation.
+- Without OVERDUE events a replay takes 14 / 29 / 17 ms. Equal on toy-dag (after the release fix), toy-carriers,
+  toy-workers and the dental example, not on dental workers: the swap rule depends on incidental time points
+  ([13](13_des.md) §8).
+- The RL session's commit `cda44bd` (cached weights of lexicographic objectives, 350 ms to 8 ms per evaluation) is
+  on `refs/heads/claude/friendly-chandrasekhar-67ee3e`, cut from `043ee7f`, not merged here; its protocol entry is
+  numbered (86) like main's. Matters for $f^{\mathrm{exp}}$ with a lexicographic objective (it calls `evaluate`
+  $N^{\mathrm{sc}}$ times).
+
+**Open.** User decision: fixed-point start step (repeat at $t$ until nothing starts; changes realized schedules)
+to remove the time-point dependence and allow replay without OVERDUE; merging `cda44bd`; then re-measure the
+expected GA.
+
+## 2026-11-22 (88) — Company duration data; expected objective for the GA — uncommitted
+
+**Decided.** User (2026-11-20): for the thesis, synthesize duration data from cleaned Fidentis data or generate it,
+instead of using the MES p80 estimates; count the clean samples per step on a backup (not the production database).
+User (2026-11-22): go ahead with the stochastic extension; literature also via Consensus. Own: step 1 is an
+objective, not a model change (format, checker, DES, CP-SAT unchanged, so the Definition of Done does not apply);
+the planner's scenarios have seeds disjoint from the evaluation seeds (no leakage). Branch fast-forwarded to
+`main` (`2031859`) to have the GA.
+
+**Done.**
+- MES backup of 2026-11-10 restored into a separate database `mes_backup_20261110` (local Docker; `mes_db` and
+  `mes_test_db` untouched); counts per task type and per run kind, own SQL, not stored in the repo.
+- `objectives.expected(objective, scenarios)`: sample mean of the objective over the plan's realized schedules
+  (`replay`), rounded half up, no CP-SAT model. Tests `tests/test_expected_objective.py` (6): zero disturbance on the
+  toy plan and on dental workers with breaks, hand example (mean 14), empty scenario list rejected, no CP-SAT model,
+  the GA on the toy instance not worse than any rule. 1810 tests pass.
+- Docs: [14](14_genetic-algorithm.md) §4a (new), §5, §6, §7, change log; [22](22_scenarios.md) §5;
+  [notation](notation.md) ($f^{\mathrm{exp}}$, $\mathcal{S}^{\mathrm{pl}}$, $N^{\mathrm{sc}}$).
+
+**Found.**
+- Data: worker-step times are not usable per step (214 of 672 done tasks under 30 s, 109 of them within 2 minutes
+  of the same worker's previous task; tasks left open overnight). `task_duration_estimate` is empty. Machine runs,
+  realized / estimated, kept in 0.33 to 3: milling 58 runs, median 1.14, sd of the log ratio 0.45; printing 7 runs,
+  1.25 and 0.65; one machine each; 73 milling runs with an empty success field counted as successful.
+- Cost: on `dental-carriers-example` an evaluation of the expected objective ($N^{\mathrm{sc}} = 10$) costs about 27
+  times a plain one; within 60 s the GA ran 1 generation instead of 59 to 73 and was not better under realization
+  (scratch script, 3 seeds, 100 evaluation seeds; [14](14_genetic-algorithm.md) §4a).
+- Literature (Consensus, abstracts only, not in Zotero, **[uncertain]**): Leon, Wu & Storer (1994) robustness under
+  right-shift in a GA; Xiao et al. (2017, 2022) surrogate robustness measures instead of simulation; Huang et al.
+  (2024) BRKGA with scenario populations; Fu et al. (2024), Teck et al. (2024) simulation inside the fitness with
+  variance reduction; de Bruin et al. (2026) t-tests to limit simulations.
+
+**Open.** Step 2: fast evaluator (vectorized forward pass, equality with `replay`); step 3: quantile buffer
+baseline (plan with inflated durations); choice of $N^{\mathrm{sc}}$; snapshot support for the rescheduling planner;
+sensitivity of $\sigma$ to the cutoff; add the Consensus papers to Zotero. Thesis: GA chapter not written yet.
+
 ## 2026-11-20 (87) — NSGA-II and the join key: four seeds — uncommitted
 
 **Decided.** User: check whether the join key hurts NSGA-II (the fidentis overtime front had got worse in (86)).

@@ -124,3 +124,12 @@
 
 - Zhou, Y., Tan, H., & Li, J. (2026). Adaptive Lagrangian penalty-enhanced proximal policy optimization for flexible job shop rescheduling with worker workload constraints under concurrent dynamic disturbances. *Processes*, 14(15), 2519. https://doi.org/10.3390/pr14152519 (Zotero `EA8QC55F`)
   Used for: workload balance and fatigue as explicit constraints in dynamic FJSP; event trigger between right shift and full rescheduling (p. 1) ([32](32_target-data-model.md)).
+
+- Huang, Z., Huang, L., & Li, D. (2024). Co-evolutionary algorithm for two-stage hybrid flow shop scheduling problem with suspension shifts. *Mathematics*, 12(16), 2575. https://doi.org/10.3390/math12162575 (Zotero `LD25WQL3`)
+  Used for: BRKGA with co-evolving solution and scenario populations (PDF pp. 3, 9); average and pessimistic fitness (abstract, PDF p. 1) ([14](14_genetic-algorithm.md) §4a, §7).
+
+- Leon, V. J., Wu, S. D., & Storer, R. H. (1994). Robustness measures and robust scheduling for job shops. *IIE Transactions*, 26(5), 32–43. https://doi.org/10.1080/07408179408966626 (Zotero `7T6HU5N6`)
+  Used for: robust schedules for a right-shift control policy, a surrogate robustness measure in a GA (PDF p. 1) ([14](14_genetic-algorithm.md) §7).
+
+- Sankary, N., & Ostfeld, A. (2018). Stochastic scenario evaluation in evolutionary algorithms used for robust scenario-based optimization. *Water Resources Research*, 54(4), 2813–2833. https://doi.org/10.1002/2017WR022068 (Zotero `8M4VZ6UA`)
+  Used for: resampling a small scenario suite in each generation (PDF p. 4) ([14](14_genetic-algorithm.md) §6).

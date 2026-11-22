@@ -237,3 +237,17 @@ def test_plan_update_must_respect_the_frozen_part():
     moved = [a.model_copy(update={"start": 2, "end": 4}) if a.op_id == "b1" else a for a in sim.current_plan()]
     with pytest.raises(PlanNotExecutable, match=r"\[C7\]"):
         sim.update_plan(moved)
+
+
+def test_early_release_waits_for_the_order_release_not_for_the_next_event():
+    # spt plan on toy-dag: b1 planned [2, 6) on M3, order B released at 2; offset -4 releases b1 to the floor at -2,
+    # so it starts at max(-2, r_B) = 2 (math/13 section 3); without a time point at r_B it started at 3 (a1's end)
+    from simulation.planners.dispatching import dispatch_plan, spt
+    from simulation.sim.scenario import Scenario
+    inst = read_model(Path(__file__).parents[1] / "data" / "instances" / "toy-dag-3x4.json", Instance)
+    ci = compile_instance(inst)
+    plan = dispatch_plan(ci, spt).assignments
+    assert next(a for a in plan if a.op_id == "b1").start == 2
+    early = Scenario(instance=ci.name, seed=0, sigma=0, factors=[
+        {"order_id": k, "op_id": j, "factor": 1.0, "start_offset": -4 if j == "b1" else 0} for k, j in ci.op_keys])
+    assert next(a for a in replay(ci, plan, early).schedule if a.op_id == "b1").start == 2
