@@ -8,6 +8,29 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-22 (89) — The plan over time: animation and metric history (notebook 09 §7) — uncommitted
+
+**Decided.** User: use the plan history for visualizations first, an animation of the evolving plan including the
+finished operations, and plots of the metrics over time. Own: rows per order (a carrier or run operation in the row of
+every order it serves), finished operations as realized, the part after the due date in orange (planned) or light
+orange (finished); one frame per day at 12:01 (after the nesting batch); GA against CP-SAT on seed 1, bind all, rate
+1.0 (where they differ most); metric histories for rate 1.0, seeds 1 and 4, both releases, all planners.
+
+**Done.** `viz.plan_at(history, t)` and `viz.plot_plan_state(ci, plan, realized, t, ax, t_max)` with two tests
+(`tests/test_viz.py`: change sets applied up to t; split at the due date, finished as realized, late finished light
+orange). `resched_run(..., history=True)` returns the plan history, the final instance and the realized schedule.
+Notebook 09 §7: cached histories (`notebooks/results/09/history.json`, 4.5 MB; full change sets only for the two
+animated episodes), the animation as an embedded player (25 frames), step plots of planned tardy days and makespan,
+findings. Docs: [14](14_genetic-algorithm.md) §5e, change log.
+
+**Found.** Seed 1, bind all: the GA's plan holds 1 planned tardy day from day 2 on; the rule's climbs to 22 by day
+10.4; CP-SAT's reschedulings lower it (3 at days 9.2 and 10.2), but the repairs right after raise it again (9, then 14
+at day 15.4 and 18 at day 17.4), since disturbances trigger no rescheduling. Under the norm the planners stay close
+(at most 3) until the late bindings around day 15; then the GA's plan has the fewest.
+
+**Open.** A rescheduling trigger on the objective (`max_objective_change`) would catch the drift between nesting
+times; the animation shows only two episodes; no machine or worker view of the history.
+
 ## 2026-11-22 (88) — GA rescheduling with arrivals in the DES (notebook 09 §6) — uncommitted
 
 **Decided.** User: add rescheduling runs to notebook 09 (after finding that no GA run used arrivals or forecasts).

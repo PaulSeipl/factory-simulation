@@ -40,7 +40,12 @@ from statistics import mean
 import matplotlib.pyplot as plt
 
 from simulation.model.schedule import Schedule
-from simulation.viz import plot_days
+from matplotlib.animation import FuncAnimation
+from IPython.display import HTML
+
+from simulation.model.compiled import compile_instance
+from simulation.model.instance import Instance
+from simulation.viz import plan_at, plot_days, plot_plan_state
 
 from ga_runs import (CASES, FIDENTIS, FRONT_TIME, GA_GENERATIONS, RATES, RESCHED_PLANNERS, RESCHED_SEEDS, SETTINGS,
                      TIME_LIMIT, WINDOWS, cpsat_run, front_run, ga_run, instance, resched_run,
@@ -318,6 +323,96 @@ plt.show()"""),
 
 Limits: 4 seeds, 4 to 11 orders per episode (seed 3 at rate 1.0 only 4), one CP-SAT budget, the rule optimizes no
 objective; disturbances are only repaired. Own reading of the numbers."""),
+("md", """## 7. The plan over time
+
+The DES records the plan at every time point it changes (repair or rescheduling) with the metrics of that plan
+([23](../math/23_metrics.md) (M10)). Here for rate 1.0 (above the mill's capacity), seeds 1 and 4, both releases and
+all three planners; the animation shows seed 1 with bind all, the GA against CP-SAT (the setting where they differ
+most). One frame per day at 12:01, just after the nesting batch and its rescheduling. Grey: finished operations as
+realized; blue: planned; orange: planned after the order's due date (red tick); the line is the current time. A
+print, milling or oven run shows in the row of every order it serves. An order gets its row filled when it arrives."""),
+("code", """HISTORY_RUNS = [(1.0, w, pl, seed) for w in WINDOWS for seed in (1, 4) for pl in RESCHED_PLANNERS]
+ANIMATED = [(1.0, None, "GA", 1), (1.0, None, "CP-SAT", 1)]
+HISTORY_DIGEST = hashlib.sha256(repr((RESCHED_DIGEST, HISTORY_RUNS, ANIMATED)).encode()).hexdigest()[:12]
+
+
+def histories():
+    jobs = [(rate, w, pl, seed, GA_GENERATIONS, True) for rate, w, pl, seed in HISTORY_RUNS]
+    with ProcessPoolExecutor(max_workers=6) as pool:
+        runs = list(pool.map(resched_run, *zip(*jobs, strict=True)))
+    out = []
+    for key, r in zip(HISTORY_RUNS, runs, strict=True):
+        keep = {"rate": r["rate"], "release": r["release"], "planner": r["planner"], "seed": r["seed"],
+                "series": [[h["t"], h["type"], h["metrics"]] for h in r["history"]]}
+        if key in ANIMATED:  # the change sets without the break lists (they repeat in every record)
+            keep |= {"history": [{"t": h["t"], "changed": h["changed"]} for h in r["history"]],
+                     "instance": r["instance"], "realized": r["realized"]}
+        out.append(keep)
+    return out
+
+
+HISTORIES = cached("history", histories, HISTORY_DIGEST)
+print(len(HISTORIES), "episodes")"""),
+("code", """runs = [next(h for h in HISTORIES if (h["rate"], None if h["release"] == "bind all" else 3, h["planner"],
+                                      h["seed"]) == key) for key in ANIMATED]
+ci_h = compile_instance(Instance.model_validate(runs[0]["instance"]))
+realized = [{(k, j): (s, e) for k, j, s, e in r["realized"]} for r in runs]
+t_max = max(e for real in realized for s, e in real.values())
+frames = list(range(241, t_max + DAY, DAY))
+fig, axes = plt.subplots(1, 2, figsize=(12, 4.2), sharey=True)
+
+
+def frame(t):
+    for ax, r, real in zip(axes, runs, realized, strict=True):
+        ax.clear()
+        plot_plan_state(ci_h, plan_at(r["history"], t), real, t, ax, t_max)
+        ax.set_title(f"{r['planner']}, day {t / DAY:.1f}", fontsize=10, loc="left")
+    fig.tight_layout()
+
+
+anim = FuncAnimation(fig, frame, frames=frames, interval=500)
+plt.close(fig)
+HTML(anim.to_jshtml())"""),
+("md", """Planned tardy days and planned makespan of the plan in force, over the run (a step at every repair or
+rescheduling); dots mark the reschedulings at nesting times. Rate 1.0, one column per release and seed."""),
+("code", """panels = [(release, seed) for release in ("bind all", "norm 3 d") for seed in (1, 4)]
+fig, axes = plt.subplots(2, 4, figsize=(13, 5.6), sharex="col")
+for j, (release, seed) in enumerate(panels):
+    for pl in RESCHED_PLANNERS:
+        h = next(h for h in HISTORIES if (h["release"], h["seed"], h["planner"]) == (release, seed, pl))
+        ts = [t / DAY for t, _, _ in h["series"]]
+        color = COLORS["best rule" if pl == "rule" else pl]
+        for i, metric in enumerate(("tardy_days", "makespan")):
+            ys = [m[metric] / (DAY if metric == "makespan" else 1) for _, _, m in h["series"]]
+            axes[i][j].plot(ts, ys, drawstyle="steps-post", color=color, linewidth=1.5,
+                            label="SPT/ECT" if pl == "rule" else pl)
+            replans = [(t, y) for (t, kind, _), y in zip(h["series"], ys, strict=True) if kind == "REPLAN"]
+            axes[i][j].scatter([t / DAY for t, _ in replans], [y for _, y in replans], s=16, color=color, zorder=3)
+    axes[0][j].set_title(f"{release}, seed {seed}", fontsize=10)
+    axes[1][j].set_xlabel("day")
+    for ax in axes[:, j]:
+        ax.grid(color="#e4e3dc", linewidth=0.8)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+axes[0][0].set_ylabel("planned tardy days")
+axes[1][0].set_ylabel("planned makespan (days)")
+axes[0][0].legend(frameon=False, fontsize=9)
+fig.tight_layout()
+plt.show()"""),
+("md", """**What the plan history shows** (rate 1.0, seeds 1 and 4):
+
+- **Seed 1, bind all:** the GA's plan reaches 1 planned tardy day at day 2 and keeps it to the end. The rule's
+  climbs with every binding to 22 by day 10.4. CP-SAT's reschedulings lower it (to 3 at days 9.2 and 10.2), but the
+  repairs right after push it up again (9 at day 10.2, 14 at day 15.4, 18 at day 17.4): disturbances trigger no
+  rescheduling here (§6), so a tight plan drifts and nothing re-sequences it. The GA's plan absorbs the same
+  disturbances.
+- **Under the norm the planners stay close until the late bindings** (planned tardy days at most 3 up to day 14 to
+  15), when the held-back orders arrive together; from then on the GA's plan has the fewest (seed 1 day 16.2: rule 15,
+  CP-SAT 11, GA 9; seed 4 at the end: 58, 55, 36).
+- **Animation (seed 1, bind all):** at the end only O2 finished late with the GA (realized tardy days 1); with
+  CP-SAT seven of eight orders did.
+
+Own reading of 4 episodes per planner; the history is the plan in force, not the realized schedule (M10)."""),
 ]
 
 if __name__ == "__main__":

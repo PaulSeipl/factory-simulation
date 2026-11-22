@@ -388,6 +388,29 @@ computed once per instance object: a lexicographic `evaluate` asked it about 25 
 time (69 ms per plan on 216 operations, now about 6 ms). `ga_planner.last` reports `wall_limited` like CP-SAT.
 Test `test_ga_reschedules_arrivals_with_nesting` (dental example, three arrivals, every rescheduling accepted).
 
+## 5e. The plan over time (2026-11-22)
+
+Notebook 09 §7: the plan history of the DES (`execute(..., keep_history=True)`, plan metrics (M10) of
+[23](23_metrics.md)) for rate 1.0, seeds 1 and 4, both releases and all three planners (results in
+`notebooks/results/09/history.json`). An animation shows the plan in force once a day (GA and CP-SAT, seed 1, bind
+all; `viz.plan_at` rebuilds the plan at t from the change sets, `viz.plot_plan_state` draws it per order with finished
+operations as realized), and step plots show the planned tardy days and makespan over the run.
+
+**What the plan history shows** (rate 1.0, seeds 1 and 4):
+
+- **Seed 1, bind all:** the GA's plan reaches 1 planned tardy day at day 2 and keeps it to the end. The rule's
+  climbs with every binding to 22 by day 10.4. CP-SAT's reschedulings lower it (to 3 at days 9.2 and 10.2), but the
+  repairs right after push it up again (9 at day 10.2, 14 at day 15.4, 18 at day 17.4): disturbances trigger no
+  rescheduling here (§6), so a tight plan drifts and nothing re-sequences it. The GA's plan absorbs the same
+  disturbances.
+- **Under the norm the planners stay close until the late bindings** (planned tardy days at most 3 up to day 14 to
+  15), when the held-back orders arrive together; from then on the GA's plan has the fewest (seed 1 day 16.2: rule 15,
+  CP-SAT 11, GA 9; seed 4 at the end: 58, 55, 36).
+- **Animation (seed 1, bind all):** at the end only O2 finished late with the GA (realized tardy days 1); with
+  CP-SAT seven of eight orders did.
+
+Own reading of 4 episodes per planner; the history is the plan in force, not the realized schedule (M10).
+
 ## 6. Assumptions and open points
 
 - **Delay scale.** Now logarithmic up to $D^{\max} = 100$ minutes (§3), chosen by judgement (user: median about
@@ -454,3 +477,4 @@ Test `test_ga_reschedules_arrivals_with_nesting` (dental example, three arrivals
 | 2026-11-20 | uncommitted | Join key ($5\lvert O \rvert$ keys): a partner may decline an s-batch; `dispatch_plan(..., join)`, `GaParams.join`; hand example 3. |
 | 2026-11-20 | uncommitted | `NsgaParams.join`; §5c: the join key does not hurt NSGA-II (4 seeds). |
 | 2026-11-22 | uncommitted | §5d: GA, CP-SAT and rule rescheduling with arrivals in the DES; `horizon_bound` cached per instance; `ga_planner.last["wall_limited"]`. |
+| 2026-11-22 | uncommitted | §5e: plan history of the rescheduling runs, animation and metrics over time (`viz.plan_at`, `viz.plot_plan_state`). |

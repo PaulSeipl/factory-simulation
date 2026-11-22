@@ -128,10 +128,12 @@ def release_norm(window: int, rate: float) -> dict:
             "forecast": dict.fromkeys(range(5), rate)}
 
 
-def resched_run(rate: float, window: int | None, planner: str, seed: int, generations: int) -> dict:
+def resched_run(rate: float, window: int | None, planner: str, seed: int, generations: int,
+                history: bool = False) -> dict:
     """One episode: orders accepted over 10 days, bound at the nesting times (all, or under the norm with `window`
     days), keyed disturbances (sigma 0.2); start plan by CP-SAT for every planner of a seed; complete rescheduling by
-    `planner` at every nesting time, repair in between."""
+    `planner` at every nesting time, repair in between. `history`: also the plan history (change sets and plan
+    metrics per time point), the realized schedule and the final instance, for the plots of the plan over time."""
     p = ArrivalParams(seed=seed, base=BASE, rates=dict.fromkeys(range(5), rate), window_days=10, backlog=2,
                       due_working_days=10, norm=release_norm(window, rate) if window else None)
     nesting = Nesting(p)
@@ -148,8 +150,11 @@ def resched_run(rate: float, window: int | None, planner: str, seed: int, genera
         return sample_scenario(inst, seed=seed, keyed=True, sigma=0.2, q=0.5, max_early=5, max_late=5)
 
     result = execute(ci0, start.schedule, scenario(inst0), ReschedulingPolicy(planner=tool), start.breaks,
-                     nesting=nesting, scenario_for=scenario)
+                     nesting=nesting, scenario_for=scenario, keep_history=history)
     final = nesting.instance()
     ci = compile_instance(final)
     return {"rate": rate, "release": f"norm {window} d" if window else "bind all", "planner": planner, "seed": seed,
-            "orders": len(final.orders), "objective": objective.evaluate(ci, result.schedule, result.breaks)} | run_metrics(ci, start.schedule, result)
+            "orders": len(final.orders), "objective": objective.evaluate(ci, result.schedule, result.breaks)
+            } | run_metrics(ci, start.schedule, result) | ({
+                "history": result.history, "instance": final.model_dump(mode="json"),
+                "realized": [[a.order_id, a.op_id, a.start, a.end] for a in result.schedule]} if history else {})
