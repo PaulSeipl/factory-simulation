@@ -8,6 +8,33 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-22 (91) — MCTS step M3: comparison at equal wall time — uncommitted
+
+- **Decided (user):** do M3.
+- **Decided (Claude, stated to the user):**
+  - 60 s and one core per run.
+  - Makespan on four cases; the worker objective only on dental workers, because Fidentis has no due dates.
+  - GA in three variants (all keys / no overtime / no overtime and no delay), the overtime keys zeroed in the script
+    around `decode`, with no change in `src`, to see whether overtime explains the GA's lead.
+  - MCTS $N^{\mathrm{it}}$ derived from the budget.
+- **Done:** `notebooks/mcts_compare.py`, `notebooks/results/mcts_compare.json`, [15](15_mcts.md) §5a.
+- **Found** (details in [15](15_mcts.md) §5a):
+  - MCTS is best on dental example (1122 against GA 1126–1130).
+  - Overtime explains most of the GA's lead on the worker instances. Without overtime the GA is behind MCTS on
+    dental workers (makespan).
+  - In the same action class the GA stays clearly ahead on balanced: join and partner steering, or the search; this run does not separate them.
+  - MCTS on dental workers gets 1–2 iterations per decision (0.2 s per rollout).
+  - CP-SAT on one thread: no plan for Fidentis in 60 s. On dental workers it does not improve the hinted rule
+    plan; once it was worse than the hint, once a level failed under load.
+  - The first rerun crashed on that failure; the script now records it.
+- **Open:**
+  - M4: overtime as part of the action (this comparison supports it), and/or a resumable dispatcher (cheaper rollouts).
+  - A GA "no overtime, no delay, greedy join" variant would separate join steering from search on balanced.
+  - The CP-SAT hint with lexicographic levels.
+  - Thesis sections affected: none written yet.
+
+---
+
 ## 2026-11-22 (90) — MCTS step M2: the planner — uncommitted
 
 - **Decided (user):** do M2.

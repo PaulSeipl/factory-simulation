@@ -126,6 +126,55 @@ With $\beta = 0.5$ the table gave the same MCTS values (CP-SAT reached 1280 in 1
 optimum 10 is not a non-delay plan: the enumeration of all 174 non-delay plans gives 11 at best, so the tree cannot
 reach it.
 
+## 5a. M3: comparison at equal wall time (2026-11-22)
+
+**Script:** `notebooks/mcts_compare.py`, results in `notebooks/results/mcts_compare.json`.
+
+**Setup:**
+- 60 s per run on one core each, 11 runs in parallel.
+- GA: 3 seeds each, in three variants:
+  - all keys;
+  - overtime keys forced to 0;
+  - additionally $D^{\max} = 0$ (non-delay).
+
+  The last variant has the same action class as MCTS, except that the join keys and priority keys still steer the
+  load and s-batch partners.
+- CP-SAT: one thread, hinted with the best rule plan.
+- MCTS: $N^{\mathrm{it}}$ = budget / (decisions × rollout time), measured before the run.
+- Objectives: makespan; on dental workers (due dates and calendar) also the worker objective with cutoff slack.
+
+| Case, objective | Rule | CP-SAT | MCTS ($N^{\mathrm{it}}$) | GA | GA no overtime | GA no overtime, no delay |
+|---|---|---|---|---|---|---|
+| dental example, makespan | 1138 | 1138 | **1122** (19) | 1126–1130 | 1126–1130 | 1126–1129 |
+| dental workers, makespan | 2963 | 2963 | 2936 (2, cut) | **2915**–2942 (OT 345–531) | 2946–2952 | 2952 |
+| dental workers, worker obj. ($10^{17}$) | 1.736 | 1.734 | 1.736 (1) | **1.27**–1.33 (OT 301–463) | 1.56–1.61 | 1.61 |
+| Fidentis, makespan | 24850 | none in 60 s | 24640 (32, cut) | **23130**–24520 (OT 630–872) | 23200–24570 | 24570 |
+| balanced, makespan | 24640 | none in 60 s | 24640 (13) | **22180**–22260 (OT 459–699) | 23160–23200 | 23170–23610 |
+
+"cut": the time limit stopped the search before every decision was committed. OT: planned overtime in minutes. An
+earlier round on a more loaded machine gave the same ranking.
+
+**Findings:**
+- **Overtime explains most of the GA's lead on the worker instances.**
+  - On dental workers (makespan) the GA without overtime is behind MCTS: 2946–2952 against 2936.
+  - On Fidentis and balanced, removing overtime costs the GA 70–1440 minutes.
+  - Makespan does not penalize overtime. The worker objective weighs it below tardiness, so trading tardiness
+    for overtime pays there.
+- **In the same action class** (no overtime, non-delay):
+  - MCTS is better on dental example and on dental workers (makespan);
+  - slightly worse on Fidentis (24640 against 24570);
+  - clearly worse on balanced (24640 against 23170–23610).
+
+  What remains of the GA's advantage on balanced comes from its join keys and from its priority keys over load
+  and s-batch partners, or from the search itself. This run does not separate the two.
+- **Budget.** On dental workers a rollout costs about 0.2 s, so 60 s allow 1–2 iterations per decision. With the
+  worker objective MCTS stays at its rollout rule.
+- **CP-SAT on one thread** finds no plan for Fidentis in 60 s. On dental workers it does not improve the hinted rule
+  plan, or only barely (worker objective 1.734 against 1.736).
+  - In the first round it returned 1.906, worse than the hint, after 304 s (five levels one after another).
+  - In a loaded run it failed with "level active_makespan: no solution within the time limit".
+  - Whether the hint is kept across the levels is open ([12](12_cp-sat.md)).
+
 ## 6. Assumptions and open points
 
 - **Non-delay only, no overtime, greedy partners.**
@@ -158,3 +207,4 @@ reach it.
 | Date | Commit | Change |
 |---|---|---|
 | 2026-11-22 | uncommitted | M2: `planners/mcts.py`, `tests/test_mcts.py`, planner `"mcts"` in the experiments; first numbers. |
+| 2026-11-22 | uncommitted | §5a M3: comparison at 60 s against rule, CP-SAT and three GA variants (`notebooks/mcts_compare.py`). |
