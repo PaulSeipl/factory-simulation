@@ -413,6 +413,55 @@ plt.show()"""),
   CP-SAT seven of eight orders did.
 
 Own reading of 4 episodes per planner; the history is the plan in force, not the realized schedule (M10)."""),
+("md", """## 8. Rescheduling on drift
+
+In §6 and §7 only nesting times trigger a complete rescheduling; in between the repair shifts operations right, and a
+tight plan drifts (§7, CP-SAT). Here the policy also reschedules when the repaired plan's tardy days (missed
+cutoffs, [06](../math/06_due-dates.md)) deviate from the last rescheduled plan's by more than 1
+(`ReschedulingPolicy(objective=TOTAL_TARDINESS, max_objective_change=1)`, [05](../math/05_rescheduling-frozen-part.md)
+§3). Rate 1.0 (where the drift showed), both releases, the same 4 seeds and budgets as §6; compared with §6."""),
+("code", """TRIGGER = 1  # tardy days of drift tolerated
+TRIGGER_RUNS = [(1.0, w, pl, seed) for w in WINDOWS for pl in RESCHED_PLANNERS for seed in RESCHED_SEEDS]
+TRIGGER_DIGEST = hashlib.sha256(repr((RESCHED_DIGEST, TRIGGER_RUNS, TRIGGER)).encode()).hexdigest()[:12]
+
+
+def triggered():
+    jobs = [(rate, w, pl, seed, GA_GENERATIONS, False, TRIGGER) for rate, w, pl, seed in TRIGGER_RUNS]
+    with ProcessPoolExecutor(max_workers=6) as pool:
+        return list(pool.map(resched_run, *zip(*jobs, strict=True)))
+
+
+TRIGGERED = cached("trigger", triggered, TRIGGER_DIGEST)
+print(f"{'release':8} {'planner':7} {'tardy d':>15} {'tardy orders':>13} {'resched':>9} {'planner s':>11}")
+print(f"{'':16} {'nesting / +drift':>16}")
+for release in ("bind all", "norm 3 d"):
+    for pl in RESCHED_PLANNERS:
+        base = [e for e in EPISODES if (e["rate"], e["release"], e["planner"]) == (1.0, release, pl)]
+        trig = [e for e in TRIGGERED if (e["release"], e["planner"]) == (release, pl)]
+        cols = [(mean(e[m] for e in base), mean(e[m] for e in trig))
+                for m in ("tardy_days", "tardy_orders", "reschedulings", "planner_time")]
+        print(f"{release:8} {pl:7} " + " ".join(f"{a:7.1f}/{b:<7.1f}" for a, b in cols))"""),
+("md", """Tardy days per seed without (left of each pair) and with the drift trigger (right), joined per seed."""),
+("code", """fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), sharey=True)
+for ax, release in zip(axes, ("bind all", "norm 3 d"), strict=True):
+    for x, pl in enumerate(RESCHED_PLANNERS):
+        color = COLORS["best rule" if pl == "rule" else pl]
+        for seed in RESCHED_SEEDS:
+            a = next(e["tardy_days"] for e in EPISODES
+                     if (e["rate"], e["release"], e["planner"], e["seed"]) == (1.0, release, pl, seed))
+            b = next(e["tardy_days"] for e in TRIGGERED if (e["release"], e["planner"], e["seed"]) == (release, pl, seed))
+            ax.plot([3 * x, 3 * x + 1], [a, b], color=color, linewidth=1.2, alpha=0.7)
+            ax.scatter([3 * x, 3 * x + 1], [a, b], s=30, color=color, edgecolor="white", linewidth=1.2, zorder=3)
+    ax.set_xticks([t for x in range(3) for t in (3 * x, 3 * x + 1)],
+                  [f"{n}\\n{w}" for n in ("SPT/ECT", "CP-SAT", "GA") for w in ("nesting", "+drift")], fontsize=8)
+    ax.set_title(f"rate 1.0, {release}", fontsize=10)
+    ax.grid(axis="y", color="#e4e3dc", linewidth=0.8)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+axes[0].set_ylabel("tardy days")
+fig.tight_layout()
+plt.show()"""),
 ]
 
 if __name__ == "__main__":

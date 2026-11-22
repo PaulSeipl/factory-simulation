@@ -13,7 +13,8 @@ from simulation.check.feasibility import check_schedule, worker_intervals
 from simulation.io.json_loader import read_model
 from simulation.model.compiled import CompiledInstance, compile_instance
 from simulation.model.schedule import Schedule
-from simulation.objectives import MAKESPAN, OVERTIME, overtime, start_deviation, worker_objective_with_slack
+from simulation.objectives import (MAKESPAN, OVERTIME, TOTAL_TARDINESS, overtime, start_deviation,
+                                   worker_objective_with_slack)
 from simulation.planners.cpsat import cpsat_planner, solve
 from simulation.planners.dispatching import dispatch_planner, ect, spt
 from simulation.planners.ga import GaParams, ga_planner, rule_plans, solve_ga
@@ -129,11 +130,13 @@ def release_norm(window: int, rate: float) -> dict:
 
 
 def resched_run(rate: float, window: int | None, planner: str, seed: int, generations: int,
-                history: bool = False) -> dict:
+                history: bool = False, trigger: int | None = None) -> dict:
     """One episode: orders accepted over 10 days, bound at the nesting times (all, or under the norm with `window`
     days), keyed disturbances (sigma 0.2); start plan by CP-SAT for every planner of a seed; complete rescheduling by
     `planner` at every nesting time, repair in between. `history`: also the plan history (change sets and plan
-    metrics per time point), the realized schedule and the final instance, for the plots of the plan over time."""
+    metrics per time point), the realized schedule and the final instance, for the plots of the plan over time.
+    `trigger`: also reschedule when the repaired plan's total tardiness (with the calendar: tardy days, missed
+    cutoffs) deviates from the last rescheduled plan's by more than this many days (math/05 §3)."""
     p = ArrivalParams(seed=seed, base=BASE, rates=dict.fromkeys(range(5), rate), window_days=10, backlog=2,
                       due_working_days=10, norm=release_norm(window, rate) if window else None)
     nesting = Nesting(p)
@@ -149,11 +152,14 @@ def resched_run(rate: float, window: int | None, planner: str, seed: int, genera
     def scenario(inst):
         return sample_scenario(inst, seed=seed, keyed=True, sigma=0.2, q=0.5, max_early=5, max_late=5)
 
-    result = execute(ci0, start.schedule, scenario(inst0), ReschedulingPolicy(planner=tool), start.breaks,
+    policy = ReschedulingPolicy(planner=tool, **({"objective": TOTAL_TARDINESS, "max_objective_change": trigger}
+                                                 if trigger is not None else {}))
+    result = execute(ci0, start.schedule, scenario(inst0), policy, start.breaks,
                      nesting=nesting, scenario_for=scenario, keep_history=history)
     final = nesting.instance()
     ci = compile_instance(final)
     return {"rate": rate, "release": f"norm {window} d" if window else "bind all", "planner": planner, "seed": seed,
+            "trigger": trigger,
             "orders": len(final.orders), "objective": objective.evaluate(ci, result.schedule, result.breaks)
             } | run_metrics(ci, start.schedule, result) | ({
                 "history": result.history, "instance": final.model_dump(mode="json"),
