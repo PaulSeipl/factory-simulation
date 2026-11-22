@@ -8,6 +8,39 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-22 (93) — MCTS step M4: overtime in the action — uncommitted
+
+- **Decided (user):** do overtime in the action.
+- **Decided (Claude):**
+  - An overtime allowance only matters through the earliest start it allows. So the dispatcher offers each waiting
+    candidate a second time with its earliest start under the calendar's maximum overtime, if that is earlier and
+    within the reach.
+  - The reach stays the one without overtime.
+  - One level, $\overline{\mathrm{ot}}$; rollouts never use overtime; `MctsParams.overtime = True` by default, on a
+    par with the GA's overtime keys.
+- **Done:**
+  - `dispatching.py`: `overtime_option` (candidates $(t', o, m, p, L)$, allowance per operation in the checkpoint).
+  - `mcts.py`: keys with the allowance; overtime variants ranked right after their own candidate; rollouts without
+    overtime.
+  - `notebooks/mcts_compare.py`: MCTS with and without overtime; $N^{\mathrm{it}}$ from half a decode.
+  - Tests: hand case `late_pack` in `tests/test_dispatch_choose.py` and `tests/test_mcts.py`; feasibility and
+    resume on dental workers; negative tests.
+  - Docs: [11](11_dispatching-rules.md) §5, [15](15_mcts.md) §2, §3, §5b, §6.
+- **Found:**
+  - Without the option, `dispatch_speed.py` gives all 1710 plans equal.
+  - Overtime improves MCTS where it was not cut: worker objective on dental workers 1.679 against 1.736 for the
+    rule; balanced 24510 against 24640.
+  - On dental example and Fidentis the predicted $N^{\mathrm{it}}$ was too high. The time limit cut the search
+    (51 of 132, 29 of 90 decisions), so those rows do not measure overtime.
+  - The GA stays far ahead on the worker instances. MCTS is limited by its budget there (1–2 iterations per decision).
+- **Open:**
+  - Time-based commitment instead of a predicted $N^{\mathrm{it}}$.
+  - Cheaper rollouts.
+  - Whether MCTS should stay a planner of the thesis or become a baseline next to the GA (user).
+  - Thesis sections affected: none written yet.
+
+---
+
 ## 2026-11-22 (92) — Resumable dispatcher; MCTS resumes at the root — uncommitted
 
 - **Decided (user):** the resumable dispatcher first, then overtime in the MCTS action. Claude had recommended

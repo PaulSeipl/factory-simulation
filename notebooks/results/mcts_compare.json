@@ -1,5 +1,5 @@
 {
- "digest": "a0a90b149290",
+ "digest": "d1573a8be25b",
  "budget": 60.0,
  "rows": [
   {
@@ -10,7 +10,7 @@
    "overtime": 0,
    "feasible": true,
    "method": "best rule",
-   "wall": 0.25519309999071993
+   "wall": 0.2254121000005398
   },
   {
    "case": "dental-example",
@@ -21,7 +21,24 @@
    "feasible": true,
    "method": "CP-SAT",
    "status": "FEASIBLE",
-   "wall": 60.403174399980344
+   "wall": 60.55481240001973
+  },
+  {
+   "case": "dental-example",
+   "objective": "makespan",
+   "value": 1130,
+   "makespan": 1130,
+   "overtime": 0,
+   "feasible": true,
+   "method": "MCTS",
+   "iterations": 57,
+   "decisions": 135,
+   "rollout_s": 0.0077,
+   "committed": 51,
+   "evaluations": 2965,
+   "wall_limited": true,
+   "rollout_rule": "lrp",
+   "wall": 60.04312960000243
   },
   {
    "case": "dental-example",
@@ -30,15 +47,15 @@
    "makespan": 1122,
    "overtime": 0,
    "feasible": true,
-   "method": "MCTS",
-   "iterations": 19,
+   "method": "MCTS no-overtime",
+   "iterations": 31,
    "decisions": 135,
-   "rollout_s": 0.0223,
+   "rollout_s": 0.014,
    "committed": 132,
-   "evaluations": 2524,
+   "evaluations": 4107,
    "wall_limited": false,
    "rollout_rule": "lrp",
-   "wall": 48.13514319999376
+   "wall": 51.27166080000461
   },
   {
    "case": "dental-example",
@@ -49,74 +66,9 @@
    "feasible": true,
    "method": "GA",
    "seed": 1,
-   "generations": 43,
-   "evaluations": 4014,
-   "wall": 60.04195129999425
-  },
-  {
-   "case": "dental-example",
-   "objective": "makespan",
-   "value": 1126,
-   "makespan": 1126,
-   "overtime": 0,
-   "feasible": true,
-   "method": "GA",
-   "seed": 2,
-   "generations": 41,
-   "evaluations": 3876,
-   "wall": 60.07143779998296
-  },
-  {
-   "case": "dental-example",
-   "objective": "makespan",
-   "value": 1130,
-   "makespan": 1130,
-   "overtime": 0,
-   "feasible": true,
-   "method": "GA",
-   "seed": 3,
-   "generations": 42,
-   "evaluations": 3974,
-   "wall": 60.05592079999042
-  },
-  {
-   "case": "dental-example",
-   "objective": "makespan",
-   "value": 1128,
-   "makespan": 1128,
-   "overtime": 0,
-   "feasible": true,
-   "method": "GA no-overtime",
-   "seed": 1,
-   "generations": 41,
-   "evaluations": 3832,
-   "wall": 60.05692959998851
-  },
-  {
-   "case": "dental-example",
-   "objective": "makespan",
-   "value": 1126,
-   "makespan": 1126,
-   "overtime": 0,
-   "feasible": true,
-   "method": "GA no-overtime",
-   "seed": 2,
-   "generations": 41,
-   "evaluations": 3854,
-   "wall": 60.05675690001226
-  },
-  {
-   "case": "dental-example",
-   "objective": "makespan",
-   "value": 1130,
-   "makespan": 1130,
-   "overtime": 0,
-   "feasible": true,
-   "method": "GA no-overtime",
-   "seed": 3,
-   "generations": 41,
-   "evaluations": 3841,
-   "wall": 60.043616999988444
+   "generations": 28,
+   "evaluations": 2659,
+   "wall": 60.06868349999422
   },
   {
    "case": "dental-example",
@@ -125,11 +77,76 @@
    "makespan": 1129,
    "overtime": 0,
    "feasible": true,
+   "method": "GA",
+   "seed": 2,
+   "generations": 33,
+   "evaluations": 3131,
+   "wall": 60.074927000008756
+  },
+  {
+   "case": "dental-example",
+   "objective": "makespan",
+   "value": 1130,
+   "makespan": 1130,
+   "overtime": 0,
+   "feasible": true,
+   "method": "GA",
+   "seed": 3,
+   "generations": 31,
+   "evaluations": 2975,
+   "wall": 60.09111290000146
+  },
+  {
+   "case": "dental-example",
+   "objective": "makespan",
+   "value": 1128,
+   "makespan": 1128,
+   "overtime": 0,
+   "feasible": true,
+   "method": "GA no-overtime",
+   "seed": 1,
+   "generations": 28,
+   "evaluations": 2695,
+   "wall": 60.052436700003454
+  },
+  {
+   "case": "dental-example",
+   "objective": "makespan",
+   "value": 1129,
+   "makespan": 1129,
+   "overtime": 0,
+   "feasible": true,
+   "method": "GA no-overtime",
+   "seed": 2,
+   "generations": 34,
+   "evaluations": 3229,
+   "wall": 60.06687690000399
+  },
+  {
+   "case": "dental-example",
+   "objective": "makespan",
+   "value": 1130,
+   "makespan": 1130,
+   "overtime": 0,
+   "feasible": true,
+   "method": "GA no-overtime",
+   "seed": 3,
+   "generations": 30,
+   "evaluations": 2832,
+   "wall": 60.03766000000178
+  },
+  {
+   "case": "dental-example",
+   "objective": "makespan",
+   "value": 1135,
+   "makespan": 1135,
+   "overtime": 0,
+   "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 1,
-   "generations": 43,
-   "evaluations": 4030,
-   "wall": 60.053856999991694
+   "generations": 28,
+   "evaluations": 2662,
+   "wall": 60.04576229999657
   },
   {
    "case": "dental-example",
@@ -140,9 +157,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 2,
-   "generations": 43,
-   "evaluations": 4055,
-   "wall": 60.06860150001012
+   "generations": 34,
+   "evaluations": 3194,
+   "wall": 60.03581149998354
   },
   {
    "case": "dental-example",
@@ -153,9 +170,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 3,
-   "generations": 42,
-   "evaluations": 3916,
-   "wall": 60.04463009999017
+   "generations": 28,
+   "evaluations": 2722,
+   "wall": 60.07807019999018
   },
   {
    "case": "dental-workers",
@@ -165,7 +182,7 @@
    "overtime": 0,
    "feasible": true,
    "method": "best rule",
-   "wall": 2.2319404000008944
+   "wall": 3.227167700009886
   },
   {
    "case": "dental-workers",
@@ -176,24 +193,41 @@
    "feasible": true,
    "method": "CP-SAT",
    "status": "FEASIBLE",
-   "wall": 62.55538149998756
+   "wall": 63.3671474000148
   },
   {
    "case": "dental-workers",
    "objective": "makespan",
-   "value": 2936,
-   "makespan": 2936,
+   "value": 2963,
+   "makespan": 2963,
    "overtime": 0,
    "feasible": true,
    "method": "MCTS",
+   "iterations": 1,
+   "decisions": 179,
+   "rollout_s": 0.1759,
+   "committed": 180,
+   "evaluations": 195,
+   "wall_limited": false,
+   "rollout_rule": "fifo",
+   "wall": 33.75740600001882
+  },
+  {
+   "case": "dental-workers",
+   "objective": "makespan",
+   "value": 2935,
+   "makespan": 2935,
+   "overtime": 0,
+   "feasible": true,
+   "method": "MCTS no-overtime",
    "iterations": 2,
    "decisions": 178,
-   "rollout_s": 0.158,
-   "committed": 136,
-   "evaluations": 288,
-   "wall_limited": true,
+   "rollout_s": 0.1174,
+   "committed": 183,
+   "evaluations": 381,
+   "wall_limited": false,
    "rollout_rule": "fifo",
-   "wall": 60.21930349999457
+   "wall": 47.389418600010686
   },
   {
    "case": "dental-workers",
@@ -204,9 +238,9 @@
    "feasible": true,
    "method": "GA",
    "seed": 1,
-   "generations": 5,
-   "evaluations": 581,
-   "wall": 60.08950050000567
+   "generations": 3,
+   "evaluations": 447,
+   "wall": 60.06886620001751
   },
   {
    "case": "dental-workers",
@@ -217,22 +251,22 @@
    "feasible": true,
    "method": "GA",
    "seed": 2,
-   "generations": 4,
-   "evaluations": 529,
-   "wall": 60.0820517000102
+   "generations": 3,
+   "evaluations": 438,
+   "wall": 60.14938729998539
   },
   {
    "case": "dental-workers",
    "objective": "makespan",
-   "value": 2937,
-   "makespan": 2937,
-   "overtime": 345,
+   "value": 2943,
+   "makespan": 2943,
+   "overtime": 133,
    "feasible": true,
    "method": "GA",
    "seed": 3,
-   "generations": 4,
-   "evaluations": 552,
-   "wall": 60.064702500007115
+   "generations": 3,
+   "evaluations": 462,
+   "wall": 60.127850399992894
   },
   {
    "case": "dental-workers",
@@ -244,8 +278,8 @@
    "method": "GA no-overtime",
    "seed": 1,
    "generations": 4,
-   "evaluations": 504,
-   "wall": 60.07808870001463
+   "evaluations": 479,
+   "wall": 60.05423849998624
   },
   {
    "case": "dental-workers",
@@ -256,9 +290,9 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 2,
-   "generations": 4,
-   "evaluations": 511,
-   "wall": 60.10000139998738
+   "generations": 3,
+   "evaluations": 453,
+   "wall": 60.12121079998906
   },
   {
    "case": "dental-workers",
@@ -269,9 +303,9 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 3,
-   "generations": 4,
-   "evaluations": 526,
-   "wall": 60.08764439998777
+   "generations": 3,
+   "evaluations": 457,
+   "wall": 60.273325899994234
   },
   {
    "case": "dental-workers",
@@ -282,9 +316,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 1,
-   "generations": 4,
-   "evaluations": 525,
-   "wall": 60.16866480000317
+   "generations": 3,
+   "evaluations": 436,
+   "wall": 60.12524509997456
   },
   {
    "case": "dental-workers",
@@ -295,9 +329,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 2,
-   "generations": 4,
-   "evaluations": 531,
-   "wall": 60.13157249998767
+   "generations": 3,
+   "evaluations": 438,
+   "wall": 60.15210840001237
   },
   {
    "case": "dental-workers",
@@ -308,9 +342,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 3,
-   "generations": 4,
-   "evaluations": 493,
-   "wall": 60.078008800017415
+   "generations": 3,
+   "evaluations": 458,
+   "wall": 60.24827519999235
   },
   {
    "case": "dental-workers",
@@ -320,18 +354,35 @@
    "overtime": 0,
    "feasible": true,
    "method": "best rule",
-   "wall": 2.337696699978551
+   "wall": 2.6795591000118293
   },
   {
    "case": "dental-workers",
    "objective": "worker",
-   "value": 173430608232430346,
-   "makespan": 3110,
-   "overtime": 468,
+   "value": 178769021889972756,
+   "makespan": 3077,
+   "overtime": 414,
    "feasible": true,
    "method": "CP-SAT",
    "status": "FEASIBLE",
-   "wall": 304.02875600001425
+   "wall": 304.2757366000151
+  },
+  {
+   "case": "dental-workers",
+   "objective": "worker",
+   "value": 167938667682269443,
+   "makespan": 3199,
+   "overtime": 15,
+   "feasible": true,
+   "method": "MCTS",
+   "iterations": 1,
+   "decisions": 179,
+   "rollout_s": 0.3088,
+   "committed": 173,
+   "evaluations": 188,
+   "wall_limited": false,
+   "rollout_rule": "spt",
+   "wall": 38.049205799994525
   },
   {
    "case": "dental-workers",
@@ -340,15 +391,15 @@
    "makespan": 3199,
    "overtime": 0,
    "feasible": true,
-   "method": "MCTS",
+   "method": "MCTS no-overtime",
    "iterations": 1,
    "decisions": 178,
-   "rollout_s": 0.2643,
+   "rollout_s": 0.203,
    "committed": 174,
-   "evaluations": 190,
+   "evaluations": 189,
    "wall_limited": false,
    "rollout_rule": "spt",
-   "wall": 41.58169150000322
+   "wall": 25.69611449999502
   },
   {
    "case": "dental-workers",
@@ -359,35 +410,35 @@
    "feasible": true,
    "method": "GA",
    "seed": 1,
-   "generations": 5,
-   "evaluations": 580,
-   "wall": 60.10000649999711
+   "generations": 3,
+   "evaluations": 435,
+   "wall": 60.183332599990536
   },
   {
    "case": "dental-workers",
    "objective": "worker",
-   "value": 127019591323341591,
-   "makespan": 3073,
-   "overtime": 301,
+   "value": 143964991815906877,
+   "makespan": 3000,
+   "overtime": 462,
    "feasible": true,
    "method": "GA",
    "seed": 2,
-   "generations": 5,
-   "evaluations": 576,
-   "wall": 60.092756300000474
+   "generations": 3,
+   "evaluations": 423,
+   "wall": 60.078190500003984
   },
   {
    "case": "dental-workers",
    "objective": "worker",
-   "value": 132763168131955291,
-   "makespan": 3015,
-   "overtime": 463,
+   "value": 138336498236702020,
+   "makespan": 3014,
+   "overtime": 395,
    "feasible": true,
    "method": "GA",
    "seed": 3,
-   "generations": 5,
-   "evaluations": 577,
-   "wall": 60.05823880000389
+   "generations": 3,
+   "evaluations": 461,
+   "wall": 60.235201000003144
   },
   {
    "case": "dental-workers",
@@ -398,9 +449,9 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 1,
-   "generations": 4,
-   "evaluations": 562,
-   "wall": 60.134571199974744
+   "generations": 3,
+   "evaluations": 393,
+   "wall": 60.1217310000211
   },
   {
    "case": "dental-workers",
@@ -411,9 +462,9 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 2,
-   "generations": 5,
-   "evaluations": 570,
-   "wall": 60.04626490001101
+   "generations": 3,
+   "evaluations": 436,
+   "wall": 60.10455160000129
   },
   {
    "case": "dental-workers",
@@ -424,22 +475,22 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 3,
-   "generations": 4,
-   "evaluations": 550,
-   "wall": 60.156185800005915
+   "generations": 3,
+   "evaluations": 435,
+   "wall": 60.0951584999857
   },
   {
    "case": "dental-workers",
    "objective": "worker",
-   "value": 161411258801231747,
-   "makespan": 3022,
+   "value": 161420847351542961,
+   "makespan": 3047,
    "overtime": 0,
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 1,
-   "generations": 4,
-   "evaluations": 560,
-   "wall": 60.097396500001196
+   "generations": 3,
+   "evaluations": 466,
+   "wall": 60.14590569998836
   },
   {
    "case": "dental-workers",
@@ -450,9 +501,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 2,
-   "generations": 4,
-   "evaluations": 555,
-   "wall": 60.08517310000025
+   "generations": 3,
+   "evaluations": 412,
+   "wall": 60.14559830000508
   },
   {
    "case": "dental-workers",
@@ -463,9 +514,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 3,
-   "generations": 4,
-   "evaluations": 549,
-   "wall": 60.124418499995954
+   "generations": 3,
+   "evaluations": 444,
+   "wall": 60.22765110002365
   },
   {
    "case": "fidentis",
@@ -475,7 +526,7 @@
    "overtime": 0,
    "feasible": true,
    "method": "best rule",
-   "wall": 0.4897052000160329
+   "wall": 1.0301006000081543
   },
   {
    "case": "fidentis",
@@ -486,32 +537,49 @@
   {
    "case": "fidentis",
    "objective": "makespan",
-   "value": 24640,
-   "makespan": 24640,
+   "value": 24850,
+   "makespan": 24850,
    "overtime": 0,
    "feasible": true,
    "method": "MCTS",
-   "iterations": 32,
-   "decisions": 73,
-   "rollout_s": 0.0253,
-   "committed": 50,
-   "evaluations": 1641,
+   "iterations": 42,
+   "decisions": 75,
+   "rollout_s": 0.0187,
+   "committed": 29,
+   "evaluations": 1272,
    "wall_limited": true,
    "rollout_rule": "mwkr",
-   "wall": 60.032849399984116
+   "wall": 60.04599839998991
   },
   {
    "case": "fidentis",
    "objective": "makespan",
-   "value": 23130,
-   "makespan": 23130,
-   "overtime": 630,
+   "value": 24640,
+   "makespan": 24640,
+   "overtime": 0,
+   "feasible": true,
+   "method": "MCTS no-overtime",
+   "iterations": 26,
+   "decisions": 73,
+   "rollout_s": 0.0309,
+   "committed": 90,
+   "evaluations": 2355,
+   "wall_limited": false,
+   "rollout_rule": "mwkr",
+   "wall": 51.45153570000548
+  },
+  {
+   "case": "fidentis",
+   "objective": "makespan",
+   "value": 23150,
+   "makespan": 23150,
+   "overtime": 725,
    "feasible": true,
    "method": "GA",
    "seed": 1,
-   "generations": 16,
-   "evaluations": 1584,
-   "wall": 60.03080119998776
+   "generations": 12,
+   "evaluations": 1211,
+   "wall": 60.035761300008744
   },
   {
    "case": "fidentis",
@@ -522,22 +590,22 @@
    "feasible": true,
    "method": "GA",
    "seed": 2,
-   "generations": 16,
-   "evaluations": 1565,
-   "wall": 60.040718600008404
+   "generations": 14,
+   "evaluations": 1384,
+   "wall": 60.06309850001708
   },
   {
    "case": "fidentis",
    "objective": "makespan",
-   "value": 23160,
-   "makespan": 23160,
-   "overtime": 872,
+   "value": 23205,
+   "makespan": 23205,
+   "overtime": 889,
    "feasible": true,
    "method": "GA",
    "seed": 3,
-   "generations": 15,
-   "evaluations": 1533,
-   "wall": 60.06538489999366
+   "generations": 13,
+   "evaluations": 1308,
+   "wall": 60.06841159999021
   },
   {
    "case": "fidentis",
@@ -548,9 +616,9 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 1,
-   "generations": 17,
-   "evaluations": 1665,
-   "wall": 60.04848669999046
+   "generations": 14,
+   "evaluations": 1442,
+   "wall": 60.13960479997331
   },
   {
    "case": "fidentis",
@@ -561,9 +629,9 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 2,
-   "generations": 17,
-   "evaluations": 1683,
-   "wall": 60.05344170000171
+   "generations": 14,
+   "evaluations": 1413,
+   "wall": 60.06465690000914
   },
   {
    "case": "fidentis",
@@ -574,22 +642,22 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 3,
-   "generations": 17,
-   "evaluations": 1648,
-   "wall": 60.04590389999794
+   "generations": 15,
+   "evaluations": 1520,
+   "wall": 60.037300900003174
   },
   {
    "case": "fidentis",
    "objective": "makespan",
-   "value": 24570,
-   "makespan": 24570,
+   "value": 24590,
+   "makespan": 24590,
    "overtime": 0,
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 1,
-   "generations": 17,
-   "evaluations": 1666,
-   "wall": 60.07286280000699
+   "generations": 12,
+   "evaluations": 1258,
+   "wall": 60.048352099984186
   },
   {
    "case": "fidentis",
@@ -600,9 +668,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 2,
-   "generations": 16,
-   "evaluations": 1644,
-   "wall": 60.06865520001156
+   "generations": 13,
+   "evaluations": 1286,
+   "wall": 60.03070969998953
   },
   {
    "case": "fidentis",
@@ -613,9 +681,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 3,
-   "generations": 17,
-   "evaluations": 1676,
-   "wall": 60.045372299995506
+   "generations": 12,
+   "evaluations": 1204,
+   "wall": 60.05598229999305
   },
   {
    "case": "balanced",
@@ -625,7 +693,7 @@
    "overtime": 0,
    "feasible": true,
    "method": "best rule",
-   "wall": 0.5238207999791484
+   "wall": 0.7808517999947071
   },
   {
    "case": "balanced",
@@ -636,32 +704,49 @@
   {
    "case": "balanced",
    "objective": "makespan",
-   "value": 24640,
-   "makespan": 24640,
-   "overtime": 0,
+   "value": 24510,
+   "makespan": 24510,
+   "overtime": 290,
    "feasible": true,
    "method": "MCTS",
-   "iterations": 13,
-   "decisions": 70,
-   "rollout_s": 0.0629,
-   "committed": 76,
-   "evaluations": 1004,
+   "iterations": 21,
+   "decisions": 74,
+   "rollout_s": 0.0367,
+   "committed": 80,
+   "evaluations": 1695,
    "wall_limited": false,
    "rollout_rule": "fifo",
-   "wall": 32.60185740000452
+   "wall": 41.72889159998158
   },
   {
    "case": "balanced",
    "objective": "makespan",
-   "value": 22180,
-   "makespan": 22180,
-   "overtime": 607,
+   "value": 24640,
+   "makespan": 24640,
+   "overtime": 0,
+   "feasible": true,
+   "method": "MCTS no-overtime",
+   "iterations": 33,
+   "decisions": 70,
+   "rollout_s": 0.0254,
+   "committed": 76,
+   "evaluations": 2523,
+   "wall_limited": false,
+   "rollout_rule": "fifo",
+   "wall": 43.5854480000271
+  },
+  {
+   "case": "balanced",
+   "objective": "makespan",
+   "value": 22185,
+   "makespan": 22185,
+   "overtime": 679,
    "feasible": true,
    "method": "GA",
    "seed": 1,
-   "generations": 15,
-   "evaluations": 1527,
-   "wall": 60.056319399998756
+   "generations": 11,
+   "evaluations": 1150,
+   "wall": 60.10113189998083
   },
   {
    "case": "balanced",
@@ -672,9 +757,9 @@
    "feasible": true,
    "method": "GA",
    "seed": 2,
-   "generations": 15,
-   "evaluations": 1522,
-   "wall": 60.058870099979686
+   "generations": 12,
+   "evaluations": 1277,
+   "wall": 60.08176219998859
   },
   {
    "case": "balanced",
@@ -685,9 +770,9 @@
    "feasible": true,
    "method": "GA",
    "seed": 3,
-   "generations": 14,
-   "evaluations": 1443,
-   "wall": 60.05031429999508
+   "generations": 13,
+   "evaluations": 1294,
+   "wall": 60.03277449999587
   },
   {
    "case": "balanced",
@@ -698,9 +783,9 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 1,
-   "generations": 14,
-   "evaluations": 1383,
-   "wall": 60.08349679998355
+   "generations": 13,
+   "evaluations": 1332,
+   "wall": 60.04993859998649
   },
   {
    "case": "balanced",
@@ -711,9 +796,9 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 2,
-   "generations": 15,
-   "evaluations": 1509,
-   "wall": 60.03245379999862
+   "generations": 12,
+   "evaluations": 1283,
+   "wall": 60.06833930002176
   },
   {
    "case": "balanced",
@@ -724,9 +809,9 @@
    "feasible": true,
    "method": "GA no-overtime",
    "seed": 3,
-   "generations": 13,
-   "evaluations": 1361,
-   "wall": 60.036971199995605
+   "generations": 14,
+   "evaluations": 1397,
+   "wall": 60.05704220000189
   },
   {
    "case": "balanced",
@@ -737,9 +822,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 1,
-   "generations": 16,
-   "evaluations": 1584,
-   "wall": 60.07627339998726
+   "generations": 13,
+   "evaluations": 1307,
+   "wall": 60.03310939998482
   },
   {
    "case": "balanced",
@@ -750,9 +835,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 2,
-   "generations": 16,
-   "evaluations": 1589,
-   "wall": 60.05895669999882
+   "generations": 13,
+   "evaluations": 1339,
+   "wall": 60.03576189998421
   },
   {
    "case": "balanced",
@@ -763,9 +848,9 @@
    "feasible": true,
    "method": "GA no-overtime no-delay",
    "seed": 3,
-   "generations": 18,
-   "evaluations": 1768,
-   "wall": 60.03085649997229
+   "generations": 16,
+   "evaluations": 1575,
+   "wall": 60.02344129999983
   }
  ]
 }

@@ -149,13 +149,14 @@ class Checkpoint:
     cached: dict
     out: list[Assignment]
     zeta: int
+    ot: list[int]  # overtime allowance per operation (the given one, or chosen with an overtime candidate)
 
     def restore(self) -> tuple:
         s = self.state
         return (DispatchState(s.ready_at[:], s.machine_free[:], s.load[:], s.backlog[:], s.work_left[:],
                               s.remaining_path), self.open_preds[:], dict(self.ready), [b[:] for b in self.busy],
                 self.fixed, self.frozen_time, self.worker_load[:], self.longest[:], self.max_end, self.log[:],
-                {k: v[:] for k, v in self.cached.items()}, self.out[:], self.zeta)
+                {k: v[:] for k, v in self.cached.items()}, self.out[:], self.zeta, self.ot[:])
 
 
 def dispatch_plan(
@@ -168,6 +169,7 @@ def dispatch_plan(
     join: Sequence[bool] | None = None,
     choose: Chooser | None = None,
     resume: Checkpoint | None = None,
+    overtime_option: int | None = None,
 ) -> Plan:
     """The rule plan with the breaks it booked (empty without a calendar or without workers). `delay[ζ]`: minutes
     iteration ζ may look past the earliest start (one entry per operation is enough: an iteration places at least
@@ -177,8 +179,12 @@ def dispatch_plan(
     `choose(eligible, state) -> index`: picks the operation of an iteration from its candidates (t, o, m, p) that can
     start by the reach, in place of the sequencing rule (a tree search or a learned policy, math/11 §5); load and
     s-batch partners are still ranked by `sequencing`. None: the sequencing rule picks. `resume`: continue from a
-    checkpoint of `dispatch_until` made with the same arguments, instead of from the snapshot."""
-    plan = _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choose, resume, None)
+    checkpoint of `dispatch_until` made with the same arguments, instead of from the snapshot. `overtime_option`:
+    minutes of overtime a candidate may use instead (for `choose`, math/15): a candidate that would wait for a worker
+    or the shift also comes as (t2, o, m, p, overtime_option) when overtime lets it start earlier, at t2 within the
+    reach; choosing it gives o (a run: all its parts) that allowance. Not with `overtime`."""
+    plan = _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choose, resume, None,
+                     overtime_option)
     assert isinstance(plan, Plan)
     return plan
 
@@ -187,19 +193,27 @@ def dispatch_until(
     ci: CompiledInstance, sequencing: SequencingRule, assignment: AssignmentRule | None, snapshot: Snapshot | None,
     choose: Chooser, decisions: int, resume: Checkpoint | None = None,
     delay: Sequence[int] | None = None, overtime: Sequence[int] | None = None, join: Sequence[bool] | None = None,
+    overtime_option: int | None = None,
 ) -> Checkpoint | Plan:
     """As dispatch_plan, but pause after `decisions` decisions of `choose` (iterations with more than one candidate)
     and return the checkpoint before the next one; the plan if no decision is left by then."""
-    return _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choose, resume, decisions)
+    return _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choose, resume, decisions,
+                     overtime_option)
 
 
-def _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choose, resume, pause) -> Plan | Checkpoint:
-    args = (ci, sequencing, assignment, snapshot, delay, overtime, join)
+def _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choose, resume, pause,
+              overtime_option=None) -> Plan | Checkpoint:
+    args = (ci, sequencing, assignment, snapshot, delay, overtime, join, overtime_option)
     if resume is not None and any(a is not b for a, b in zip(args, resume.args, strict=True)):
         raise ValueError("resume needs the arguments its checkpoint was made with")
     if overtime is not None and ci.calendar is not None and max(overtime, default=0) > ci.calendar.max_overtime:
         raise ValueError(f"overtime allowance {max(overtime)} exceeds the maximum overtime "
                          f"{ci.calendar.max_overtime}")
+    if overtime_option is not None:
+        if overtime is not None:
+            raise ValueError("overtime_option and overtime exclude each other")
+        if ci.calendar is not None and not 0 < overtime_option <= ci.calendar.max_overtime:
+            raise ValueError(f"overtime option {overtime_option} must lie in (0, {ci.calendar.max_overtime}]")
     own =[dict(opts) or {None: ci.fixed_duration[o]} for o, opts in enumerate(ci.options)]  # machine None: no machine
     min_p = [min(d.values()) for d in own]
     work_left = [0] * len(ci.order_ids)
@@ -233,9 +247,10 @@ def _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choos
         cached: dict[tuple[int, int | None], list] = {}
         out: list[Assignment] = []
         zeta = 0  # scheduling iteration
+        ot = list(overtime) if overtime is not None else [0] * ci.n_ops
     else:
         (state, open_preds, ready, busy, fixed, frozen_time, worker_load, longest, max_end, log, cached, out,
-         zeta) = resume.restore()
+         zeta, ot) = resume.restore()
 
     cal = ci.calendar
     snap_day = day_index(cal, t0) if cal is not None and snapshot else None
@@ -269,7 +284,7 @@ def _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choos
 
     def ot_of(o: int) -> int:
         """Overtime allowance of o's new shares: minutes past shift end (0 for the rules)."""
-        return overtime[o] if overtime is not None else 0
+        return ot[o]
 
     @cache  # pure in (n, ot); free_from asks it on every call
     def part_fits(n: int, ot: int) -> bool:
@@ -305,10 +320,11 @@ def _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choos
                 return s
             s = e
 
-    def worker_start(o: int, t: int, p: int) -> int:
+    def worker_start(o: int, t: int, p: int, allowance: int | None = None) -> int:
         """Earliest start >= t of o (duration p) at which every share finds a qualified worker free."""
         spans, limit = _spans(ci.shares[o], p), t + 2 * WEEK + max_end
-        while (later := max((min(free_from(w, t + off, n, ot_of(o)) for w in sh.workers) - off
+        allowance = ot_of(o) if allowance is None else allowance
+        while (later := max((min(free_from(w, t + off, n, allowance) for w in sh.workers) - off
                              for sh, off, n in spans),
                             default=t)) > t:
             if later > limit:  # the calendar repeats weekly: no fit within two weeks after all bookings, none ever
@@ -431,11 +447,13 @@ def _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choos
     # (ready_at is fixed once o is ready, machine_free only grows) and no later booking of a qualified worker overlaps
     # a share of o started at r (each share keeps a free worker at r); otherwise recomputed from the base (same plan)
 
-    def earliest(o: int, m: int | None) -> int:
+    def earliest(o: int, m: int | None, allowance: int | None = None) -> int:
+        """Earliest start of candidate (o, m); with an allowance: if o's shares may use that much overtime."""
         base = max(state.ready_at[o], state.machine_free[m] if m is not None else 0)
         if not ci.shares[o]:  # no worker to wait for: worker_start gives the base
             return base
-        c = cached.get((o, m))
+        key = (o, m) if allowance is None else (o, m, allowance)
+        c = cached.get(key)
         if c is not None and c[0] <= base <= c[1]:
             r, spans = c[1], c[3]
             if all(not (w in sh.workers and a < r + off + n and r + off < e)
@@ -443,8 +461,8 @@ def _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choos
                 c[2] = len(log)
                 return r
         # a run's head (setup) waits for its own workers: own[o][m] is its own duration
-        r = worker_start(o, base, own[o][m])
-        cached[o, m] = [base, r, len(log), _spans(ci.shares[o], own[o][m])]
+        r = worker_start(o, base, own[o][m], allowance)
+        cached[key] = [base, r, len(log), _spans(ci.shares[o], own[o][m])]
         return r
 
     decided = 0  # decisions (iterations with more than one candidate) taken by `choose` in this call
@@ -452,13 +470,21 @@ def _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choos
         candidates = [(earliest(o, m), o, m, p) for o, mps in ready.items() for m, p in mps]
         reach = min(c[0] for c in candidates) + (delay[zeta] if delay is not None else 0)
         eligible = [c for c in candidates if c[0] <= reach]
+        if overtime_option is not None and cal is not None:  # start earlier in overtime instead of waiting
+            eligible += [(r, o, m, p, overtime_option) for t, o, m, p in candidates
+                         if t > max(state.ready_at[o], state.machine_free[m] if m is not None else 0)
+                         and (r := earliest(o, m, overtime_option)) < t and r <= reach]
         if len(eligible) > 1 and pause is not None and decided == pause:  # before this iteration: it reruns on resume
             return Checkpoint(args, state, open_preds, ready, busy, fixed, frozen_time, worker_load, longest, max_end,
-                              log, cached, out, zeta)
+                              log, cached, out, zeta, ot)
         zeta += 1
         decided += len(eligible) > 1
-        t, o, m, p = eligible[choose(eligible, state)] if choose is not None else min(
-            eligible, key=lambda c: (*sequencing(ci, state, c[1], c[2], c[3]), c[1], c[2] is None, c[2] or 0))
+        t, o, m, p, *allowance = eligible[choose(eligible, state)] if choose is not None else min(
+            eligible, key=lambda c: (*sequencing(ci, state, c[1], c[2], c[3]), c[1], c[2] is None, c[2] or 0,
+                                     len(c) > 4))  # the rules: without overtime on ties
+        if allowance:
+            for q in run_of.get(o) or (o,):
+                ot[q] = allowance[0]
         batch = [o]
         if ci.batch_capacity[o] > 1:  # greedy: the ready operations of its step on m with the same duration join
             mates = [(q, mp) for q, mps in ready.items() for mp in mps if q != o and ci.batch_capacity[q] > 1

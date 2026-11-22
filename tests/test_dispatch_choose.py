@@ -122,3 +122,51 @@ def test_resume_with_other_arguments_rejected():
     assert isinstance(cp, Checkpoint)
     with pytest.raises(ValueError, match="arguments its checkpoint"):
         dispatch_plan(ci, SEQUENCING_RULES["fifo"], choose=seeded_chooser(0), resume=cp)
+
+
+# --- overtime candidates (overtime_option) -------------------------------------------------------------------------
+
+
+def test_overtime_candidate_by_hand():
+    # late_pack (test_ga): without overtime the pack waits for Tuesday 08:00; with the option it also comes as
+    # (510, ..., 120): start Monday 16:30 and end 18:00 in 30 minutes of overtime. Choosing it gives the plan of
+    # the GA's overtime allowance; choosing the other the rule plan
+    from test_ga import late_pack, pack_times
+
+    ci, seq = late_pack(), SEQUENCING_RULES["spt"]
+    seen = []
+
+    def take(variant):
+        def choose(eligible, _state):
+            seen.append(eligible)
+            return next(i for i, c in enumerate(eligible) if (len(c) > 4) == variant)
+        return choose
+
+    plan = dispatch_plan(ci, seq, choose=take(True), overtime_option=120)
+    assert [len(e) for e in seen] == [2] and seen[0][1] == (510, 0, None, 90, 120)  # the pack has no machine
+    assert pack_times(plan) == (510, 600) and plan == dispatch_plan(ci, seq, overtime=[120])
+    assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
+    assert dispatch_plan(ci, seq, choose=take(False), overtime_option=120) == dispatch_plan(ci, seq)
+    assert dispatch_plan(ci, seq, overtime_option=120) == dispatch_plan(ci, seq)  # the rules: no overtime on ties
+
+
+@pytest.mark.parametrize(("kwargs", "message"), [
+    ({"overtime_option": 121}, "must lie in"), ({"overtime_option": 0}, "must lie in"),
+    ({"overtime_option": 30, "overtime": [0]}, "exclude each other"),
+])
+def test_invalid_overtime_option_rejected(kwargs, message):
+    from test_ga import late_pack
+
+    with pytest.raises(ValueError, match=message):
+        dispatch_plan(late_pack(), SEQUENCING_RULES["spt"], **kwargs)
+
+
+def test_overtime_candidates_feasible_and_resumable_on_dental_workers():
+    ci, seq = INSTANCES["dental-carriers-workers"], SEQUENCING_RULES["spt"]
+    option, choose = ci.calendar.max_overtime, seeded_chooser(3)
+    whole = dispatch_plan(ci, seq, choose=choose, overtime_option=option)
+    assert check_schedule(ci, whole.assignments, breaks=whole.breaks) == []
+    assert whole != dispatch_plan(ci, seq, choose=choose)  # some overtime candidate was taken
+    cp = dispatch_until(ci, seq, None, None, choose, 40, overtime_option=option)
+    assert isinstance(cp, Checkpoint)
+    assert dispatch_plan(ci, seq, choose=choose, resume=cp, overtime_option=option) == whole
