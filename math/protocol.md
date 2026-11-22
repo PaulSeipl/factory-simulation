@@ -8,6 +8,29 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-22 (89) — MCTS step M1: candidate hook in the dispatcher — uncommitted
+
+- **Decided (user):** merge the main session's branch (`2031859`, join key) into this worktree, then start M1.
+  **Decided (Claude):**
+  - The hook also gets `DispatchState`: the equivalence test needs it for fifo/mwkr/lrp, and a learned policy needs it
+    for its features.
+  - Load and s-batch partners stay with the sequencing rule.
+- **Done:**
+  - Merge with the conflicts in [14](14_genetic-algorithm.md) (change log) and this protocol resolved; (86) of this
+    session renumbered (88).
+  - `dispatch_plan(..., choose=)`.
+  - `tests/test_dispatch_choose.py` (69 tests).
+  - [11](11_dispatching-rules.md) §5 and change log.
+- **Found:**
+  - Decision depth (iterations with more than one candidate) is 133 on dental example and 174 on dental workers, not
+    the about 290 assumed in (88). Mean candidates per decision: 3.9 and 8.8; maximum 12 and 39.
+  - So at about 0.1 s per rollout on dental workers, 60 s gives about 3 iterations per decision and 300 s about 17.
+  - The width cap ω matters there.
+- **Open:**
+  - M2 (`planners/mcts.py`) waits for approval.
+  - The uncommitted changes in the main session's worktree (objectives, DES, `test_expected_objective.py`) are not
+    merged.
+
 ## 2026-11-22 (88) — RL/MCTS discussion, GA evaluation cost, planner "ga" in the experiments — uncommitted
 
 - **Decided (user):**

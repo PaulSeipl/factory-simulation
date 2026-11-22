@@ -135,12 +135,16 @@ def dispatch_plan(
     delay: Sequence[int] | None = None,
     overtime: Sequence[int] | None = None,
     join: Sequence[bool] | None = None,
+    choose: Callable[[list[tuple[int, int, int | None, int]], DispatchState], int] | None = None,
 ) -> Plan:
     """The rule plan with the breaks it booked (empty without a calendar or without workers). `delay[ζ]`: minutes
     iteration ζ may look past the earliest start (one entry per operation is enough: an iteration places at least
     one); None: non-delay. `overtime[o]`: minutes past shift end that o's new shares may use (at most the calendar's
     maximum overtime; an s-batch uses its chosen operation's); None: no overtime, as for the rules. `join[q]`: False
-    keeps q out of another operation's s-batch (q stays ready and may lead its own); None: every partner joins."""
+    keeps q out of another operation's s-batch (q stays ready and may lead its own); None: every partner joins.
+    `choose(eligible, state) -> index`: picks the operation of an iteration from its candidates (t, o, m, p) that can
+    start by the reach, in place of the sequencing rule (a tree search or a learned policy, math/11 §5); load and
+    s-batch partners are still ranked by `sequencing`. None: the sequencing rule picks."""
     if overtime is not None and ci.calendar is not None and max(overtime, default=0) > ci.calendar.max_overtime:
         raise ValueError(f"overtime allowance {max(overtime)} exceeds the maximum overtime "
                          f"{ci.calendar.max_overtime}")
@@ -388,10 +392,9 @@ def dispatch_plan(
         candidates = [(earliest(o, m), o, m, p) for o, mps in ready.items() for m, p in mps]
         reach = min(c[0] for c in candidates) + (delay[zeta] if delay is not None else 0)
         zeta += 1
-        t, o, m, p = min(
-            (c for c in candidates if c[0] <= reach),
-            key=lambda c: (*sequencing(ci, state, c[1], c[2], c[3]), c[1], c[2] is None, c[2] or 0),
-        )
+        eligible = [c for c in candidates if c[0] <= reach]
+        t, o, m, p = eligible[choose(eligible, state)] if choose is not None else min(
+            eligible, key=lambda c: (*sequencing(ci, state, c[1], c[2], c[3]), c[1], c[2] is None, c[2] or 0))
         batch = [o]
         if ci.batch_capacity[o] > 1:  # greedy: the ready operations of its step on m with the same duration join
             mates = [(q, mp) for q, mps in ready.items() for mp in mps if q != o and ci.batch_capacity[q] > 1
