@@ -1,11 +1,12 @@
 """Biased random-key genetic algorithm (BRKGA) with the dispatcher as decoder (math/14_genetic-algorithm.md).
 
-A chromosome is a vector of 4|O| keys in [0, 1) (Bean 1994): per operation a priority key, a machine key, a delay key
-and an overtime key. `decode` turns any vector into a feasible plan through `dispatch_plan`: the priority key is the
+A chromosome is a vector of 5|O| keys in [0, 1) (Bean 1994): per operation a priority key, a machine key, a delay key,
+an overtime key and a join key. `decode` turns any vector into a feasible plan through `dispatch_plan`: the priority key is the
 sequencing rule (smaller first), the machine key picks the machine from M_o, delay key ζ lets scheduling iteration ζ
 look D_ζ = (D^max + 1)^key - 1 minutes past the earliest start (parameterized active schedules, Gonçalves et al. 2005;
 the logarithmic map is own: most keys give a few minutes), and
-the overtime key lets o's shares run up to key · max overtime past shift end (own). So no operator needs repair:
+the overtime key lets o's shares run up to key · max overtime past shift end (own), and a join key of at least 1/2 keeps
+o out of other operations' s-batches (own; 0, as encoded, joins like the rules). So no operator needs repair:
 every child is a valid vector and decodes to a feasible plan. From a snapshot the decoder keeps the frozen part.
 
 One generation (Gonçalves et al. 2011): the N^el best are copied, N^mut new random vectors are added, the rest are
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
 
 type Chromosome = list[float]
 type Rank = tuple[int, int]  # (machine changes beyond the budget, objective value), smaller is better
-N_KEYS = 4  # keys per operation: priority, machine, delay, overtime
+N_KEYS = 5  # keys per operation: priority, machine, delay, overtime, join
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +43,7 @@ class GaParams:
     mutants: float = 0.2  # N^mut / N^pop (ibid.: BOT 20 %)
     inherit: float = 0.7  # α^in, probability of a key from the elite parent (ibid.: CProb 0.7)
     delay_max: int = 100  # D^max, minutes of the longest delay (user 2026-11-20; median key 0.5 gives 9 minutes)
+    join: bool = True  # False: the join keys are ignored, every partner joins (greedy, as the rules; for comparisons)
     generations: int | None = None  # stop after this many generations; None: only the time limit
     time_limit: float | None = 10.0  # seconds, checked after every decode; None: only the generation limit
     seed: int = 0
@@ -78,8 +80,10 @@ def delay(key: float, delay_max: int) -> int:
     return round((delay_max + 1) ** key - 1)
 
 
-def decode(ci: CompiledInstance, genes: Sequence[float], delay_max: int, snapshot: Snapshot | None = None) -> Plan:
-    """The feasible plan of a chromosome (module docstring); from a snapshot with its frozen part."""
+def decode(ci: CompiledInstance, genes: Sequence[float], delay_max: int, snapshot: Snapshot | None = None,
+           join: bool = True) -> Plan:
+    """The feasible plan of a chromosome (module docstring); from a snapshot with its frozen part. `join` False:
+    the join keys are ignored, every partner joins."""
     n = ci.n_ops
     seq, mach = genes[:n], genes[n:2 * n]
 
@@ -92,12 +96,13 @@ def decode(ci: CompiledInstance, genes: Sequence[float], delay_max: int, snapsho
 
     max_ot = ci.calendar.max_overtime if ci.calendar is not None else 0
     return dispatch_plan(ci, sequencing, assignment, snapshot, delay=[delay(g, delay_max) for g in genes[2 * n:3 * n]],
-                         overtime=[round(g * max_ot) for g in genes[3 * n:]])
+                         overtime=[round(g * max_ot) for g in genes[3 * n:4 * n]],
+                         join=[g < 0.5 for g in genes[4 * n:5 * n]] if join else None)
 
 
 def encode(ci: CompiledInstance, plan: Sequence[Assignment]) -> Chromosome:
-    """Keys that rank the plan's operations by start, pick its machines, wait nowhere and plan no overtime (delay and
-    overtime keys 0). Operations the plan lacks (arrived since) rank after all others, machine key 0.5. Decoding the
+    """Keys that rank the plan's operations by start, pick its machines, wait nowhere, plan no overtime and join every
+    s-batch (delay, overtime and join keys 0). Operations the plan lacks (arrived since) rank after all others, machine key 0.5. Decoding the
     keys need not give the plan back exactly: the decoder only reproduces what a non-delay pass reaches."""
     n = ci.n_ops
     by_op = {ci.op_index[a.order_id, a.op_id]: a for a in plan}
@@ -109,7 +114,7 @@ def encode(ci: CompiledInstance, plan: Sequence[Assignment]) -> Chromosome:
         a = by_op.get(o)
         m = ci.machine_index.get(a.machine) if a is not None and a.machine is not None else None
         mach.append((ms.index(m) + 0.5) / len(ms) if m in ms else 0.5)
-    return [(rank[o] + 0.5) / n for o in range(n)] + mach + [0.0] * (2 * n)
+    return [(rank[o] + 0.5) / n for o in range(n)] + mach + [0.0] * (3 * n)
 
 
 def rule_plans(ci: CompiledInstance, snapshot: Snapshot | None = None) -> Iterator[Plan]:
@@ -145,7 +150,7 @@ def solve_ga(
         return over, objective.evaluate(ci, plan.assignments, plan.breaks)
 
     def scored(genes: Chromosome) -> tuple[Rank, Chromosome, Plan]:
-        plan = decode(ci, genes, unit, snapshot)
+        plan = decode(ci, genes, unit, snapshot, params.join)
         return rank(plan), genes, plan
 
     def random_vector() -> Chromosome:

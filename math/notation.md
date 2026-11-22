@@ -114,7 +114,7 @@ calendar ([04](04_workers.md)).
 | $\mathrm{wr}_k$ | work remaining of order $k$ (MWKR): $\sum \underline{p}_o$ over its unscheduled operations | [11](11_dispatching-rules.md) |
 | $\ell_o$ | longest remaining path from $o$ (inclusive) within its order, measured with $\underline{p}$ | [11](11_dispatching-rules.md) |
 | $m(o)$ | machine assigned to $o$ by the assignment rule | [11](11_dispatching-rules.md) |
-| $\upsilon = (\upsilon^{\mathrm{seq}}, \upsilon^{\mathrm{mach}}, \upsilon^{\mathrm{del}}, \upsilon^{\mathrm{ot}})$ | GA chromosome in $[0,1)^{4\lvert O \rvert}$: priority, machine, delay and overtime key per operation (not $g$: the slot machine $g_{j,m}$; not $\gamma$: a nesting time in [07](07_order-arrivals.md)) | [14](14_genetic-algorithm.md) |
+| $\upsilon = (\upsilon^{\mathrm{seq}}, \upsilon^{\mathrm{mach}}, \upsilon^{\mathrm{del}}, \upsilon^{\mathrm{ot}}, \upsilon^{\mathrm{join}})$ | GA chromosome in $[0,1)^{5\lvert O \rvert}$: priority, machine, delay, overtime and join key per operation (not $g$: the slot machine $g_{j,m}$; not $\gamma$: a nesting time in [07](07_order-arrivals.md)) | [14](14_genetic-algorithm.md) |
 | $\zeta$ | scheduling iteration of the decoder (not $\ell$: the remaining path $\ell_o$) | [14](14_genetic-algorithm.md) |
 | $D_\zeta$ | delay of iteration $\zeta$ in minutes, $\operatorname{round}((D^{\max} + 1)^{\upsilon^{\mathrm{del}}_\zeta} - 1)$ (not $\Delta$: the shifts $\Delta_o$) | [14](14_genetic-algorithm.md) |
 | $D^{\max}$ | GA: longest delay in minutes, the delay of key 1 (not $D_S$: the start deviation) | [14](14_genetic-algorithm.md) |

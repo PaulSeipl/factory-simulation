@@ -134,11 +134,13 @@ def dispatch_plan(
     snapshot: Snapshot | None = None,
     delay: Sequence[int] | None = None,
     overtime: Sequence[int] | None = None,
+    join: Sequence[bool] | None = None,
 ) -> Plan:
     """The rule plan with the breaks it booked (empty without a calendar or without workers). `delay[ζ]`: minutes
     iteration ζ may look past the earliest start (one entry per operation is enough: an iteration places at least
     one); None: non-delay. `overtime[o]`: minutes past shift end that o's new shares may use (at most the calendar's
-    maximum overtime; an s-batch uses its chosen operation's); None: no overtime, as for the rules."""
+    maximum overtime; an s-batch uses its chosen operation's); None: no overtime, as for the rules. `join[q]`: False
+    keeps q out of another operation's s-batch (q stays ready and may lead its own); None: every partner joins."""
     if overtime is not None and ci.calendar is not None and max(overtime, default=0) > ci.calendar.max_overtime:
         raise ValueError(f"overtime allowance {max(overtime)} exceeds the maximum overtime "
                          f"{ci.calendar.max_overtime}")
@@ -398,7 +400,7 @@ def dispatch_plan(
             batch += [q for q, _ in mates[:ci.batch_capacity[o] - 1]]
         elif ci.s_setup[o] is not None:  # s-batch (math/08): ready ops of its step on m join while units, shift allow
             mates = sorted(((q, mp) for q, mps in ready.items() for mp in mps if q != o and ci.step[q] == ci.step[o]
-                            and mp[0] == m and state.ready_at[q] <= t),
+                            and mp[0] == m and state.ready_at[q] <= t and (join is None or join[q])),
                            key=lambda qm: (*sequencing(ci, state, qm[0], m, qm[1]), qm[0]))
             units = ci.units[o]
             for q, _ in mates:

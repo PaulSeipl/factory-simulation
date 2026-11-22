@@ -77,14 +77,14 @@ def test_hand_chromosome_waits_and_batches():
     # keys: J1/a, J2/a, J2/b, J1/b; iteration 3 sees J2/b (start 2) within its delay, it leads, J1/b joins
     ci = wait_for_batch()
     seq = {("J1", "a"): 0.1, ("J2", "a"): 0.2, ("J2", "b"): 0.3, ("J1", "b"): 0.4}
-    genes = [seq[k] for k in ci.op_keys] + [0.5] * ci.n_ops + [0.5] * ci.n_ops + [0.0] * ci.n_ops
+    genes = [seq[k] for k in ci.op_keys] + [0.5] * ci.n_ops + [0.5] * ci.n_ops + [0.0] * (2 * ci.n_ops)
     plan = decode(ci, genes, 100)
     by_key = {(a.order_id, a.op_id): a for a in plan.assignments}
     j1, j2 = by_key["J1", "b"], by_key["J2", "b"]
     assert (j1.start, j1.end) == (2, 10) == (j2.start, j2.end)
     assert by_key["J1", "b"].batch == by_key["J2", "b"].batch is not None
     assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
-    without_delay = decode(ci, genes[:2 * ci.n_ops] + [0.0] * (2 * ci.n_ops), 100)
+    without_delay = decode(ci, genes[:2 * ci.n_ops] + [0.0] * (3 * ci.n_ops), 100)
     assert MAKESPAN.evaluate(ci, without_delay.assignments) == 11
 
 
@@ -135,7 +135,7 @@ def test_machine_key_picks_the_machine():
     o = ci.op_index["J1", "1"]
     names = [ci.machine_ids[m] for m, _ in ci.options[o]]
     for key, machine in ((0.2, names[0]), (0.7, names[1])):
-        genes = [0.5] * ci.n_ops + [0.5] * ci.n_ops + [0.0] * (2 * ci.n_ops)
+        genes = [0.5] * ci.n_ops + [0.5] * ci.n_ops + [0.0] * (3 * ci.n_ops)
         genes[ci.n_ops + o] = key
         plan = decode(ci, genes, 100)
         assert next(a.machine for a in plan.assignments if (a.order_id, a.op_id) == ("J1", "1")) == machine
@@ -146,7 +146,7 @@ def test_encode_ranks_by_start_and_keeps_the_machines():
     plan = dispatch_plan(ci, spt, ect)
     genes = encode(ci, plan.assignments)
     assert len(genes) == N_KEYS * ci.n_ops and all(0 <= g < 1 for g in genes)
-    assert genes[2 * ci.n_ops:] == [0.0] * (2 * ci.n_ops)
+    assert genes[2 * ci.n_ops:] == [0.0] * (3 * ci.n_ops)
     by_op = {ci.op_index[a.order_id, a.op_id]: a for a in plan.assignments}
     order = sorted(range(ci.n_ops), key=lambda o: genes[o])
     assert [by_op[o].start for o in order] == sorted(a.start for a in plan.assignments)
@@ -270,3 +270,74 @@ def test_delay_map_by_hand():
     # D = round(101^key - 1): 0 at key 0, 100 at key 1, sqrt(101) - 1 = 9.05 at the median, 101^0.9 - 1 = 62.6
     assert [delay(k, 100) for k in (0.0, 0.5, 0.9, 1.0)] == [0, 9, 63, 100]
     assert delay(0.7, 0) == 0  # D^max 0: non-delay
+
+
+# --- join key: an operation may decline another's s-batch ----------------------------------------------------------
+
+
+def join_hurts():
+    """Two orders, polish on M2 (5 min incl. setup 2, an s-batch step), J1 then ships on M3 (10 min). Both polishes
+    are ready at 0, so every rule batches them: [0, 2 + 3 + 3) = [0, 8), J1 ships [8, 18), makespan 18. If J2 declines,
+    J1 polishes alone [0, 5) and ships [5, 15) while J2 polishes [5, 10): makespan 15, optimal (J1 ships after a
+    polish of at least 5)."""
+    return compile_instance(Instance.model_validate({
+        "schema_version": "0.8", "name": "join", "machines": ["M2", "M3"],
+        "orders": [{"id": "J1", "operations": [{"id": "polish", "step": "polish", "options": {"M2": 5}},
+                                               {"id": "ship", "step": "ship", "options": {"M3": 10},
+                                                "predecessors": ["polish"]}]},
+                   {"id": "J2", "operations": [{"id": "polish", "step": "polish", "options": {"M2": 5}}]}],
+        "s_batch_steps": {"polish": {"setup": 2}}}))
+
+
+def test_every_rule_joins_and_cpsat_confirms_fifteen():
+    ci = join_hurts()
+    assert min(MAKESPAN.evaluate(ci, p.assignments) for p in rule_plans(ci)) == 18
+    cp = solve(ci, MAKESPAN, time_limit=10)
+    assert cp.status == "OPTIMAL" and cp.objective == 15
+
+
+def test_declining_join_key_keeps_the_partner_out():
+    ci = join_hurts()
+    n, seq = ci.n_ops, {("J1", "polish"): 0.1, ("J1", "ship"): 0.2, ("J2", "polish"): 0.3}
+    genes = [seq[k] for k in ci.op_keys] + [0.5] * n + [0.0] * (3 * n)
+    joined = decode(ci, genes, 100)
+    assert MAKESPAN.evaluate(ci, joined.assignments) == 18
+    genes[4 * n + ci.op_index["J2", "polish"]] = 0.5  # J2 declines (keys >= 1/2)
+    plan = decode(ci, genes, 100)
+    by_key = {(a.order_id, a.op_id): (a.start, a.end, a.batch) for a in plan.assignments}
+    assert by_key == {("J1", "polish"): (0, 5, None), ("J1", "ship"): (5, 15, None), ("J2", "polish"): (5, 10, None)}
+    assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
+    # the lead's own key is not asked: J1 declining changes nothing, J1 leads and J2 joins
+    genes[4 * n + ci.op_index["J2", "polish"]], genes[4 * n + ci.op_index["J1", "polish"]] = 0.0, 0.9
+    assert decode(ci, genes, 100) == joined
+
+
+def test_ga_declines_the_join():
+    ci = join_hurts()
+    result = solve_ga(ci, MAKESPAN, FAST)
+    assert result.value == 15 == MAKESPAN.evaluate(ci, result.plan.assignments)
+    greedy = GaParams(population=20, generations=15, time_limit=None, join=False)  # join keys ignored: 18 as the rules
+    assert solve_ga(ci, MAKESPAN, greedy).value == 18
+
+
+def test_all_join_is_the_greedy_plan_and_none_declined_replays():
+    ci = INSTANCES["s-batches"]()
+    assert dispatch_plan(ci, spt, ect, join=[True] * ci.n_ops) == dispatch_plan(ci, spt, ect)
+    # every operation declines: no s-batch with two members; the DES realizes such a plan unchanged
+    plan = dispatch_plan(ci, spt, ect, join=[False] * ci.n_ops)
+    assert all(a.batch is None for a in plan.assignments) and any(a.batch for a in dispatch_plan(ci, spt, ect).assignments)
+    assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
+    rows = lambda s: sorted((a.order_id, a.op_id, a.machine, a.start, a.end, a.workers, a.batch) for a in s)  # noqa: E731
+    assert rows(replay(ci, plan.assignments, breaks=plan.breaks).schedule) == rows(plan.assignments)
+
+
+def test_random_join_keys_mix_batches_and_replay():
+    import random
+    ci, rng = INSTANCES["s-batches"](), random.Random(5)
+    genes = [rng.random() for _ in range(N_KEYS * ci.n_ops)]
+    plan = decode(ci, genes, 100)
+    declined = [o for o in range(ci.n_ops) if genes[4 * ci.n_ops + o] >= 0.5 and ci.s_setup[o] is not None]
+    assert declined and plan != decode(ci, genes[:4 * ci.n_ops] + [0.0] * ci.n_ops, 100)
+    assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
+    rows = lambda s: sorted((a.order_id, a.op_id, a.machine, a.start, a.end, a.workers, a.batch) for a in s)  # noqa: E731
+    assert rows(replay(ci, plan.assignments, breaks=plan.breaks).schedule) == rows(plan.assignments)

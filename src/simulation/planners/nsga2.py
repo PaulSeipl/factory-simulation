@@ -34,6 +34,7 @@ class NsgaParams:
     crossover: float = 0.9  # probability that a child is a crossover of its parents, else a copy of the first (own)
     mutation: float | None = None  # probability per key of a new random key; None: 1 / number of keys (own)
     delay_max: int = 100  # D^max, as in the BRKGA
+    join: bool = True  # False: join keys ignored (greedy join), as GaParams.join
     generations: int | None = None
     time_limit: float | None = 60.0  # seconds, checked after every decode
     seed: int = 0
@@ -115,7 +116,7 @@ def nsga2(
     def scored(genes: Chromosome) -> tuple[Values, Chromosome, Plan]:
         nonlocal evaluations
         evaluations += 1
-        plan = decode(ci, genes, unit, snapshot)
+        plan = decode(ci, genes, unit, snapshot, params.join)
         return tuple(f.evaluate(ci, plan.assignments, plan.breaks) for f in objectives), genes, plan
 
     def random_vector() -> Chromosome:

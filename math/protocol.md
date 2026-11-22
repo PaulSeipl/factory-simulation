@@ -8,7 +8,7 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-22 (86) — RL/MCTS discussion, GA evaluation cost, planner "ga" in the experiments — uncommitted
+## 2026-11-22 (88) — RL/MCTS discussion, GA evaluation cost, planner "ga" in the experiments — uncommitted
 
 - **Decided (user):**
   - An RL planner should be an alternative to CP-SAT and the GA that builds the plan step by step from the snapshot.
@@ -47,6 +47,51 @@ the commits and the change logs of the component files and are therefore shorter
   - Thesis sections affected: none written yet.
 
 ---
+
+## 2026-11-20 (87) — NSGA-II and the join key: four seeds — uncommitted
+
+**Decided.** User: check whether the join key hurts NSGA-II (the fidentis overtime front had got worse in (86)).
+
+**Done.** `NsgaParams.join` (False ignores the join keys, as `GaParams.join`), test
+`test_join_keys_reach_the_declined_batch` (hand example 3: front {(15, 0)} with, {(18, 0)} without join keys).
+`notebooks/nsga_join_check.py`: fidentis with s-batches, (makespan, overtime), 120 s, seeds 1 to 4, join keys used and
+ignored; results in `notebooks/results/nsga_join_check.json`. Docs: [14](14_genetic-algorithm.md) §5b, §5c (new),
+§6, change log.
+
+**Found.** With join keys every seed stays on the slower working day (24520 to 24560 fastest); without, seed 1
+reaches the faster day (23180), seeds 2 to 4 do not. The earlier 23200 was that seed. On the slower day the fronts
+with join keys need less overtime. So no evidence that the join key hurts; NSGA-II at 120 s mostly misses the day
+the BRKGA reaches in 60 s. The threshold 1/2 stays.
+
+**Open.** If the fronts go into the thesis: seed NSGA-II with the BRKGA's best plan, or more time and seeds.
+
+## 2026-11-20 (86) — GA join key: a partner may decline an s-batch — uncommitted
+
+**Decided.** User: add the join key (2026-11-20, after notebook 09 showed that s-batches lengthened the balanced
+makespan under the greedy join). Own: one key per operation, $\upsilon^{\mathrm{join}}_o \ge 1/2$ keeps $o$ out of
+other operations' s-batches, key 0 joins (as encoded, so rule plans keep their batches); the lead's own key is not
+asked; p-batches unchanged (a partner adds no length). Not a model change: format, checker, DES and CP-SAT unchanged,
+so the Definition of Done does not apply. `GaParams(join=False)` ignores the keys, for the comparison.
+
+**Done.** `dispatch_plan(..., join=None)` (`planners/dispatching.py`: the flag filters the s-batch candidates);
+`planners/ga.py`: `N_KEYS = 5`, `decode` reads the join keys (and the overtime keys only from their own slice),
+`encode` writes 0, `GaParams.join`. Tests (`tests/test_ga.py`): hand example 3 `join_hurts` (every rule 18, CP-SAT
+proves 15, a hand chromosome with J2 declining gives the hand plan, a declining lead changes nothing, the GA finds 15,
+with `join=False` 18), all-join equals the greedy plan, all-decline gives no batch of two and replays unchanged,
+random join keys change the plan, pass the checker and replay unchanged. Without the filter four of the five new tests
+fail (mutation check). 1803 tests pass. Notebook 09 rerun with a third setting "GA greedy join"; tick labels wrapped,
+greedy join dotted in the convergence plot, fronts legend moved. Docs: [14](14_genetic-algorithm.md) §2, §3
+(join key), §3a ($1/(5\lvert O \rvert)$), §3b, §5 (hand example 3), §5b (new table), §6, change log;
+[notation](notation.md) (υ with five parts).
+
+**Found.** Balanced with s-batches: GA 22170 to 22230 on every seed against 23080 to 23130 with the greedy join and
+23680 for CP-SAT, level with the GA without s-batches (22180); the GA forms fewer batches (20 against 34). So
+s-batches no longer cost makespan, but do not shorten it either; their saving is worker minutes. Fidentis: no clear
+effect. NSGA-II's fidentis overtime front got worse in this run (24540 at 50 against 23200 at 10 with four keys).
+
+**Open.** Whether the declining half of random vectors hurts NSGA-II (several seeds, or a lower threshold); a
+join decision per pair or per lead; the warm start does not encode declines; the lexicographic objective and the DES
+comparison as before. Thesis: the GA chapter is not written yet, nothing to update.
 
 ## 2026-11-20 (85) — Decoder: fewer calls in the gap search — uncommitted
 

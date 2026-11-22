@@ -51,7 +51,8 @@ RECOMPUTE = False  # True: compute everything again (after a change of planners 
 SEEDS = range(1, 7)
 DIGEST = hashlib.sha256((FIDENTIS.model_dump_json() + repr((CASES, SETTINGS, TIME_LIMIT, FRONT_TIME, list(SEEDS))))
                         .encode()).hexdigest()[:12]
-COLORS = {"best rule": "#2a78d6", "CP-SAT": "#eb6834", "GA": "#1baf7a", "GA no-delay": "#eda100"}  # fixed order
+COLORS = {"best rule": "#2a78d6", "CP-SAT": "#eb6834", "GA": "#1baf7a", "GA no-delay": "#eda100",
+          "GA greedy join": "#008300"}  # fixed order; slots 5 and 7 are the instances in figure 3
 PLANNERS = list(COLORS)
 DAY = 1440
 
@@ -76,8 +77,9 @@ working days a week, given in calendar days)."""),
 
 Per instance and variant: the best of the 15 rule plans (5 sequencing x 3 assignment variants), CP-SAT (60 s on all
 cores, hinted with the best rule plan), and the GA (60 s on one core, 6 seeds, 6 runs in parallel so each keeps a
-core) with the delay window (D^max = 100 minutes, logarithmic, [14](../math/14_genetic-algorithm.md) §3) and
-without it (D^max = 0). Every plan passes the checker."""),
+core) in three settings: all keys (delay window up to D^max = 100 minutes, logarithmic, and the join key,
+[14](../math/14_genetic-algorithm.md) §3), without the delay (D^max = 0), and without the join key (greedy join).
+Every plan passes the checker."""),
 ("code", """def compare():
     rows = [rule_run(c, sb) for c in CASES for sb in (False, True)]
     rows += [cpsat_run(c, sb) for c in CASES for sb in (False, True)]
@@ -112,7 +114,7 @@ for i, case in enumerate(CASES):
             ax.scatter([x] * len(vals), vals, s=36, color=COLORS[planner], edgecolor="white", linewidth=1.5,
                        zorder=3)
             ax.hlines(mean(vals), x - 0.25, x + 0.25, color=COLORS[planner], linewidth=2)
-        ax.set_xticks(range(len(PLANNERS)), PLANNERS, fontsize=9)
+        ax.set_xticks(range(len(PLANNERS)), [p.replace("GA ", "GA\\n") for p in PLANNERS], fontsize=9)
         ax.set_title(f"{case}, {'with' if sb else 'without'} s-batches", fontsize=10)
         ax.grid(axis="y", color="#e4e3dc", linewidth=0.8)
         ax.set_axisbelow(True)
@@ -130,6 +132,7 @@ for ax, case in zip(axes, CASES, strict=True):
     for setting in SETTINGS:
         for k, r in enumerate(r for r in ROWS if r["case"] == case and r["s_batches"] and r["planner"] == setting):
             ax.plot(range(len(r["history"])), [v / DAY for v in r["history"]], color=COLORS[setting], linewidth=1.5,
+                    linestyle=":" if setting == "GA greedy join" else "-",
                     alpha=0.8, label=setting if k == 0 else None)
     cp = next(r for r in ROWS if r["case"] == case and r["s_batches"] and r["planner"] == "CP-SAT")
     ax.axhline(cp["makespan"] / DAY, color=COLORS["CP-SAT"], linewidth=1.5, linestyle="--", label="CP-SAT (60 s)")
@@ -170,42 +173,53 @@ for ax, kind, ylabel, scale in ((axes[0], "overtime", "overtime (minutes)", 1),
     ax.grid(color="#e4e3dc", linewidth=0.8)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    ax.legend(frameon=False, fontsize=9)
+    ax.legend(frameon=False, fontsize=9, loc="upper right")
 fig.tight_layout()
 plt.show()
 for f in FRONTS:
     print(f"{f['case']:9} {f['kind']:9} {f['front']}")"""),
-("md", """## Findings (run of 2026-11-20)
+("md", """## Findings (run of 2026-11-20, with the join key)
 
-**GA against CP-SAT.** At equal wall time (60 s; GA on one core, CP-SAT on 12 threads) the GA reaches CP-SAT's level
-on the fidentis instance (with s-batches 23100 to 23280 against 23110; without 23130 to 23480 against 23060) and is
-better on the balanced instance with s-batches on every seed (23070 to 23100 against 23270). On the balanced
-instance without s-batches CP-SAT is better (22170; GA mean 22482 to 22918, the seeds split between about 22200 and
-23080, one working day apart). The GA now runs 14 to 25 generations, after the decoder became 2 to 4 times faster.
+"GA" uses all five keys per operation; "GA no-delay" ignores the delay keys; "GA greedy join" ignores the join keys,
+so every ready s-batch partner joins as in the rules ([14](../math/14_genetic-algorithm.md) §3).
 
-**CP-SAT and its hint.** With the best rule plan as hint (MWKR, 24850) CP-SAT reaches 23110 with s-batches; notebook
-08, hinted with SPT/ECT (30730), got 24500. The earlier finding "the GA beats CP-SAT with s-batches"
-([14](../math/14_genetic-algorithm.md) §5a) came mostly from the weak hint.
+**The join key.** On the balanced instance with s-batches the GA reaches 22170 to 22230 (mean 22193) against 23080 to
+23130 with the greedy join and 23680 for CP-SAT: every seed is a working day better than the greedy join, and level
+with the GA without s-batches (22180). With the greedy join a ready partner lengthens a batch and delays the lead's
+successors; declining it removes that coupling. The GA then forms fewer batches (20 against 34) and saves fewer
+setup minutes (335 against 545): it gives up batching where batching costs makespan. Without s-batches the join keys
+have nothing to decide, and GA and greedy join give the same values. On fidentis with s-batches the join key brings
+no clear gain (best 23060 against 23100, means 23443 against 23362, one seed of each stays a day behind).
 
-**s-batches and the makespan.** On fidentis they leave the best makespan unchanged (23100 either way) and save 515 to
-725 setup minutes. On the balanced instance they make it longer for both CP-SAT (22170 to 23270) and the GA (22180 to
-23070), though they save about 600 worker minutes: a batch couples operations of different orders, which then start
-together. For the GA every ready partner joins (greedy join, [14](../math/14_genetic-algorithm.md) §6); CP-SAT may
-leave a slot empty, so its worse value is a matter of search, not of the model.
+**GA against CP-SAT.** At equal wall time (60 s; GA on one core, CP-SAT on 12 threads, hinted with the best rule
+plan) the GA is level with CP-SAT on fidentis (with s-batches best 23060 against 23120; without 23080 to 23190
+against 23060) and better on balanced with s-batches on every seed. On balanced without s-batches the seeds split
+between about 22180 and 23080, one working day apart; CP-SAT reaches 22170. CP-SAT's value on balanced with
+s-batches varies between runs (23270 in the run before, 23680 now: 12 threads are not deterministic).
 
-**Delay window.** With the logarithmic map (at most 100 minutes) the delay no longer hurts on fidentis (means 23140
-against 23155 with s-batches) but brings no gain under makespan either; on balanced without s-batches its mean is
-worse (22918 against 22482), with 6 seeds a weak difference.
+**CP-SAT and its hint.** With the best rule plan as hint (MWKR, 24850) CP-SAT reaches 23120 on fidentis with
+s-batches; notebook 08, hinted with SPT/ECT (30730), got 24500. The earlier finding "the GA beats CP-SAT with
+s-batches" ([14](../math/14_genetic-algorithm.md) §5a) came mostly from the weak hint.
 
-**Convergence.** The best makespan falls in steps of about a working day; most seeds reach their level within 5 to 10
-generations, one seed on fidentis stayed a day behind until generation 21. On the balanced instance with s-batches
-the seeding is already within 0.2 days of the end result.
+**s-batches and the makespan.** With the join key s-batches no longer lengthen the makespan, but they do not shorten
+it either (balanced 22170 with against 22180 without; fidentis 23060 against 23080, a difference of minutes). They
+save setup time (300 to 400 worker minutes in the GA's best plans), which shows in worker minutes, not in the
+makespan: the makespan moves in steps of a working day.
 
-**Fronts.** Makespan against overtime: on fidentis 10 minutes of overtime save a whole working day (24640 to 23200);
-on balanced 90 minutes save 70 minutes. Makespan against start deviation from the best rule plan: within one day
-step the deviation falls to almost nothing for little makespan (fidentis: 24660 at 18590 summed minutes, 24850 at
-0), while the next day step costs a move of most operations (about 400000 summed minutes): stability is cheap within
-a day, expensive across one, in line with Wu et al. (1993) for small changes.
+**Delay window.** As before it brings no gain under makespan (balanced with s-batches: means 22193 with, 22209
+without; fidentis: 23443 against 23272).
+
+**Convergence.** The best makespan falls in steps of about a working day. On balanced with s-batches the greedy join
+(dotted) never leaves the 16-day level, the GA with join keys drops to 15.4 days within 3 to 11 generations.
+
+**Fronts** (NSGA-II, 120 s, with s-batches and join keys). Balanced, makespan against overtime: 22250 at 447 minutes
+of overtime, 23100 at 20, 23130 at 0; a working day costs about 430 minutes of overtime. Fidentis: the run stayed on
+the slow side (24540 at 50, 24570 at 0), worse than the run before with four keys (23200 at 10). Four seeds with and without join keys
+(`notebooks/nsga_join_check.py`, [14](../math/14_genetic-algorithm.md) §5c): without them one seed of four reaches the
+faster day (that 23200 was it), with them none; on the slower day the join keys need less overtime. So the seed, not
+the join key: NSGA-II at 120 s mostly misses the day the BRKGA reaches in 60 s. Makespan against start deviation from the best rule plan:
+within one day step the deviation falls to almost nothing for little makespan (fidentis 24720 at 5500, 24840 at 0;
+balanced 24540 at 67959, 24630 at 7415), a day step moves most operations (balanced 22205 at 452225).
 
 Limits: 6 seeds, wall-clock limits, makespan only (the thesis objective is lexicographic with tardiness), static
 instances; one NSGA-II run per front (120 s). Own reading of the numbers."""),
