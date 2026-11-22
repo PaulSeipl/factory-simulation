@@ -222,7 +222,7 @@ def run(cells):
             outputs, count = [], None
             while True:
                 try:
-                    msg = kc.get_iopub_msg(timeout=1800)
+                    msg = kc.get_iopub_msg(timeout=4 * 3600)  # long computing cells print nothing until they end
                 except queue.Empty as e:
                     raise RuntimeError("cell timed out") from e
                 if msg["parent_header"].get("msg_id") != msg_id:

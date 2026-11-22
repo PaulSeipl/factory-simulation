@@ -8,6 +8,31 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-22 (88) — GA rescheduling with arrivals in the DES (notebook 09 §6) — uncommitted
+
+**Decided.** User: add rescheduling runs to notebook 09 (after finding that no GA run used arrivals or forecasts).
+Own (advisor-checked): the arrival episodes of notebook 08 (nesting, bind all or norm 3 d with forecast), rates 0.6
+and 1.0, 4 seeds; the same CP-SAT start plan for all planners of a seed; rule SPT/ECT, CP-SAT as in the experiments
+(one thread, 5 deterministic seconds per level), GA with 30 generations per rescheduling (generation limit, so
+reproducible; 35 to 57 s per call, within CP-SAT's 27 to 176 s); worker objective with a 60-minute buffer; own cache key.
+
+**Done.** `ga_planner.last["wall_limited"]` (`run_metrics` needed it; a missing key crashed the metrics,
+mutation-checked); `horizon_bound` computed once per instance object (`objectives.py`; it took 98 % of a lexicographic
+evaluation); test `test_ga_reschedules_arrivals_with_nesting` (dental example). `notebooks/ga_runs.py`:
+`resched_run`, norm as in notebook 08. `notebooks/build_09_ga.py` §6 (table, tardy-days figure, findings);
+`cached` takes a digest. Cell timeout of the notebook runner (`build_08_s_batches_and_forecast.run`) raised from 30
+min to 4 h (the rescheduling cell runs about 40 min without output). 1805 tests pass.
+Docs: [14](14_genetic-algorithm.md) §5d, change log.
+
+**Found.** Tardy days, means over 4 seeds (rule / CP-SAT / GA): rate 0.6 bind all 12.8 / 5.5 / 1.8, norm 9.0 / 8.8 /
+4.0; rate 1.0 bind all 41.5 / 50.0 / 17.8, norm 36.2 / 38.2 / 28.8. The GA is best in every setting, with the
+shortest makespan too. CP-SAT is stopped by its deterministic budget (never by the wall clock) and is no better than
+the rule above capacity. The norm helps the rule, but makes the GA worse.
+
+**Open.** More seeds and longer episodes (4 to 11 orders); CP-SAT with a larger budget or the GA's plan as hint; the
+GA in the experiment CLI (a new policy field changes every configuration hash, handle deliberately); the thesis GA
+chapter is not written yet.
+
 ## 2026-11-20 (87) — NSGA-II and the join key: four seeds — uncommitted
 
 **Decided.** User: check whether the join key hurts NSGA-II (the fidentis overtime front had got worse in (86)).

@@ -42,7 +42,8 @@ import matplotlib.pyplot as plt
 from simulation.model.schedule import Schedule
 from simulation.viz import plot_days
 
-from ga_runs import (CASES, FIDENTIS, FRONT_TIME, SETTINGS, TIME_LIMIT, cpsat_run, front_run, ga_run, instance,
+from ga_runs import (CASES, FIDENTIS, FRONT_TIME, GA_GENERATIONS, RATES, RESCHED_PLANNERS, RESCHED_SEEDS, SETTINGS,
+                     TIME_LIMIT, WINDOWS, cpsat_run, front_run, ga_run, instance, resched_run,
                      loads, rule_run)
 
 ROOT = Path.cwd().parent if Path.cwd().name == "notebooks" else Path.cwd()
@@ -57,15 +58,15 @@ PLANNERS = list(COLORS)
 DAY = 1440
 
 
-def cached(name, compute):
+def cached(name, compute, digest=DIGEST):
     # compute() as JSON in RESULTS/<name>.json: loaded if stored for the same parameters, else computed
     path = RESULTS / f"{name}.json"
-    if not RECOMPUTE and path.exists() and (data := json.loads(path.read_text(encoding="utf-8")))["digest"] == DIGEST:
+    if not RECOMPUTE and path.exists() and (data := json.loads(path.read_text(encoding="utf-8")))["digest"] == digest:
         print(f"loaded {path.relative_to(ROOT)}")
         return data["value"]
     value = compute()
     RESULTS.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"digest": DIGEST, "value": value}) + "\\n", encoding="utf-8")
+    path.write_text(json.dumps({"digest": digest, "value": value}) + "\\n", encoding="utf-8")
     return value"""),
 ("md", """## 1. The two instances
 
@@ -233,6 +234,90 @@ plan = Schedule.model_validate(best["plan"])
 plot_days(instance("fidentis", True), plan.assignments, plan.breaks, days=3, rows="workers",
           title=f"fidentis, best GA plan ({best['planner']}, seed {best['seed']}, makespan {best['makespan']})")
 plt.show()"""),
+("md", """## 6. Rescheduling with arrivals
+
+The comparison above plans once on a static instance. Here the planners work inside the DES
+([05](../math/05_rescheduling-frozen-part.md)): orders are accepted over 10 working days (Poisson, 0.6 or 1.0 a
+working day; the mill manages about 0.77, notebook 08), two orders are known at the start, due 10 working days after
+acceptance. Nesting binds them at 12:00 on working days ([33](../math/33_order-release-interface.md)), all at once or under the
+norm with a 3-day window and the arrival rate as forecast. Durations are disturbed (sigma 0.2, keyed per operation, the
+same for every planner of a seed). Between nesting times the plan is only repaired (shifted); at every nesting time
+with new orders the planner reschedules completely from the snapshot. Disturbances alone trigger no rescheduling, so
+the comparison is about placing arrivals.
+
+All planners of a seed start from the same CP-SAT plan of the first orders. Objective of CP-SAT and the GA: the
+worker objective of the experiments (tardiness, then the cutoff buffer of 60 minutes, overtime, breaks, activity
+clock; [06](../math/06_due-dates.md)). Effort per rescheduling: CP-SAT one thread, 5 deterministic seconds per level,
+as in the experiments; the GA a fixed number of generations (both reproducible); the rule SPT/ECT. 4 seeds."""),
+("code", """RESCHED_DIGEST = hashlib.sha256(repr((FIDENTIS.model_dump_json(), RATES, WINDOWS, RESCHED_PLANNERS,
+                                       list(RESCHED_SEEDS), GA_GENERATIONS)).encode()).hexdigest()[:12]
+
+
+def rescheduling():
+    jobs = [(rate, w, pl, seed, GA_GENERATIONS) for rate in RATES for w in WINDOWS for pl in RESCHED_PLANNERS
+            for seed in RESCHED_SEEDS]
+    with ProcessPoolExecutor(max_workers=6) as pool:
+        return list(pool.map(resched_run, *zip(*jobs, strict=True)))
+
+
+EPISODES = cached("rescheduling", rescheduling, RESCHED_DIGEST)
+print(f"{'rate':>4} {'release':8} {'planner':7} {'orders':>6} {'tardy':>5} {'tardy d':>7} {'overtime':>8} "
+      f"{'makespan':>8} {'resched':>7} {'s/call':>6}")
+for rate in RATES:
+    for release in ("bind all", *(f"norm {w} d" for w in WINDOWS if w)):
+        for pl in RESCHED_PLANNERS:
+            es = [e for e in EPISODES if (e["rate"], e["release"], e["planner"]) == (rate, release, pl)]
+            calls = sum(e["reschedulings"] for e in es)
+            print(f"{rate:4} {release:8} {pl:7} {mean(e['orders'] for e in es):6.1f} "
+                  f"{mean(e['tardy_orders'] for e in es):5.1f} {mean(e['tardy_days'] for e in es):7.1f} "
+                  f"{mean(e['overtime'] for e in es):8.0f} {mean(e['makespan'] for e in es) / DAY:8.1f} "
+                  f"{calls / len(es):7.1f} {sum(e['planner_time'] for e in es) / max(calls, 1):6.1f}")"""),
+("md", """Tardy days per seed (dots, one colour per planner; a line joins the planners of one seed) and their mean (bar),
+per arrival rate and release."""),
+("code", """fig, axes = plt.subplots(1, 4, figsize=(12, 3.4), sharey=True)
+panels = [(rate, release) for rate in RATES for release in ("bind all", *(f"norm {w} d" for w in WINDOWS if w))]
+for ax, (rate, release) in zip(axes, panels, strict=True):
+    for seed in RESCHED_SEEDS:
+        ys = [next(e["tardy_days"] for e in EPISODES if (e["rate"], e["release"], e["planner"], e["seed"])
+                   == (rate, release, pl, seed)) for pl in RESCHED_PLANNERS]
+        ax.plot(range(len(ys)), ys, color="#c3c2b7", linewidth=1, zorder=1)
+    for x, pl in enumerate(RESCHED_PLANNERS):
+        ys = [e["tardy_days"] for e in EPISODES if (e["rate"], e["release"], e["planner"]) == (rate, release, pl)]
+        color = COLORS["best rule" if pl == "rule" else pl]
+        ax.scatter([x] * len(ys), ys, s=36, color=color, edgecolor="white", linewidth=1.5, zorder=3)
+        ax.hlines(mean(ys), x - 0.25, x + 0.25, color=color, linewidth=2, zorder=2)
+    ax.set_xticks(range(len(RESCHED_PLANNERS)), ["SPT/ECT", "CP-SAT", "GA"], fontsize=9)
+    ax.set_title(f"rate {rate}, {release}", fontsize=10)
+    ax.grid(axis="y", color="#e4e3dc", linewidth=0.8)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+axes[0].set_ylabel("tardy days (summed over orders)")
+fig.tight_layout()
+plt.show()"""),
+("md", """**Findings (run of 2026-11-22).** Means over 4 seeds (tardy days summed over orders):
+
+| rate | release | SPT/ECT | CP-SAT | GA |
+|---|---|---|---|---|
+| 0.6 | bind all | 12.8 | 5.5 | 1.8 |
+| 0.6 | norm 3 d | 9.0 | 8.8 | 4.0 |
+| 1.0 | bind all | 41.5 | 50.0 | 17.8 |
+| 1.0 | norm 3 d | 36.2 | 38.2 | 28.8 |
+
+- **The GA has the fewest tardy days in every setting** and on 13 of 16 seed and setting pairs at most as many as
+  CP-SAT; above capacity with bind all it cuts them to less than half of both others (17.8 against 41.5 and 50.0).
+  Its makespan is also shortest in every setting (16.1 to 26.5 days against 18.9 to 28.9).
+- **CP-SAT is not better than the rule above capacity.** With 5 deterministic seconds per level (as in the
+  experiments) it never hit the 120 s wall clock, so the budget, not a failure, stopped it; per call it used 27 to 176
+  s of wall time, the GA 35 to 57 s (30 generations). At 0.6 bind all it beats the rule (5.5 against 12.8).
+- **The norm helps the rule, not the optimizers.** It lowers the rule's tardy days (12.8 to 9.0, 41.5 to 36.2) but
+  raises the GA's (1.8 to 4.0, 17.8 to 28.8): a planner that sequences well gains more from seeing the orders early
+  than from a short queue.
+- **Overtime** stays small for all (means 20 to 90 minutes over a run); no planner is consistently higher (the GA
+  more with bind all, less under the norm).
+
+Limits: 4 seeds, 4 to 11 orders per episode (seed 3 at rate 1.0 only 4), one CP-SAT budget, the rule optimizes no
+objective; disturbances are only repaired. Own reading of the numbers."""),
 ]
 
 if __name__ == "__main__":
