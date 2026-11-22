@@ -8,6 +8,42 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-22 (90) — MCTS step M2: the planner — uncommitted
+
+- **Decided (user):** do M2.
+- **Decided (Claude, stated to the user):**
+  - Root commitment as in Li et al. 2021 (`7VCTD9GM`, p. 4).
+  - UCB selection on values normalized over the search.
+  - Fixed-width expansion ($N^{\mathrm{wid}}$) in rollout-rule order; rollout with the best joint rule.
+  - Commitment to the child with the best value seen.
+  - Incumbent from the warm start and the 15 rule plans.
+  - No randomness, and the iteration limit decides the result, as with the GA's generations.
+  - Default $\beta = \sqrt 2$ (UCB1 form) after a sweep; the UCB1 source is not in the library, **[uncertain]**.
+- **Done:**
+  - `planners/mcts.py`.
+  - `ga.budget_excess` extracted and shared with the GA.
+  - Planner `"mcts"` with `PolicyConfig.iterations`; the digest leaves it out where unset (all 7 configuration
+    hashes unchanged).
+  - `tests/test_mcts.py` (23 tests) and two more in `tests/test_experiment.py`.
+  - [15](15_mcts.md) new; [notation.md](notation.md) ($\mathcal{U}$, $\vartheta$, $N^{\mathrm{it}}$, $N^{\mathrm{wid}}$,
+    $N^{\mathrm{vis}}$, $\bar f$, $f^{\min}$, $f^{\max}$, $\beta$; $\omega$ and $c$ were taken).
+  - [references.md](references.md) (Lv et al. 2025; Li et al. 2021 usage); README; [07](07_order-arrivals.md) §6.
+- **Found:**
+  - At $\beta = 0.5$ the search never left the rule's first decision on toy-dag-3x4 within 200 iterations: one
+    makespan unit spans the whole normalized range. At $\beta = \sqrt 2$ it found the optimum 11 with 100 iterations.
+  - Hand case: all rule plans 12; 108 non-delay plans enumerated, best 11 = CP-SAT optimum.
+  - On toy-3x3 the optimum 10 needs a delay: the best of all 174 non-delay plans is 11.
+  - Dental example (makespan, $N^{\mathrm{it}} = 10$): MCTS 1122 against the best rule 1138 and CP-SAT 1251 at
+    10 s, in 10 s and 1336 evaluations.
+  - mk01: 42, as the rules (CP-SAT 40).
+- **Open:**
+  - M3, the comparison at equal wall time against the GA and CP-SAT with the worker objective, including tuning
+    $N^{\mathrm{it}}$, $N^{\mathrm{wid}}$, $\beta$.
+  - M4 (overtime in the action) after M3.
+  - Thesis sections affected: none written yet.
+
+---
+
 ## 2026-11-22 (89) — MCTS step M1: candidate hook in the dispatcher — uncommitted
 
 - **Decided (user):** merge the main session's branch (`2031859`, join key) into this worktree, then start M1.

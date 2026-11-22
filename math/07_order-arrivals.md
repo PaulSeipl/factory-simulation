@@ -144,7 +144,8 @@ generation limit per complete rescheduling (`PolicyConfig.generations`, required
 limit that decides the result, the configuration's `time_limit` as the wall-clock safety net (a run it cuts counts as
 `wall_limited`), and the run's seed; the start plan comes from CP-SAT as for every policy
 ([14](14_genetic-algorithm.md) §3b). The configuration hash leaves `generations` out where it is unset, so the
-configurations before it keep their hash and their result rows. `execute(..., keep_history=True)` records the start plan and every
+configurations before it keep their hash and their result rows. MCTS (planner `"mcts"`, [15](15_mcts.md)) in the same way, with the required
+`PolicyConfig.iterations` ($N^{\mathrm{it}}$) in place of the generations. `execute(..., keep_history=True)` records the start plan and every
 plan the factory receives as a change set (time, cause, changed assignments, breaks), the basis for an animation of
 the plan over time later. Metrics (M8), (M9) in [23](23_metrics.md). Configurations: load levels 4, 6, 8 orders per
 working day and 8 with doubled machines and workers; 6 undisturbed (the gap to hindsight is pure information); daily
@@ -211,6 +212,7 @@ file. The commit is not part of "done": after a code change, rerun with `--resta
 | 2026-11-16 | uncommitted | Wall limit per CP-SAT call 30 s → 120 s ($N_C^{\mathrm{wall}} = 22$ of 189 with 30 s). |
 | 2026-11-16 | uncommitted | Which limit stopped CP-SAT (`wall_limited`); plan metrics in the history; commit read at the run start. |
 | 2026-11-13 | uncommitted | Command line `experiment` (list, run, task, merge); one row file per run; host column. |
+| 2026-11-22 | uncommitted | Planner `"mcts"` with `iterations`; hash unchanged for older configurations. |
 | 2026-11-22 | uncommitted | Planner `"ga"` in `PolicyConfig` with `generations`; hash unchanged for older configurations. |
 | 2026-11-19 | uncommitted | `run` continues the runs this host has not done (`--restart`), `list --missing`, `--policy`/`--seed`. |
 | 2026-11-18 | uncommitted | §3a: with a norm the arrival comes from the run ([33](33_order-release-interface.md) step B3). |

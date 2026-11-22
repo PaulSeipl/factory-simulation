@@ -47,13 +47,14 @@ from simulation.objectives import worker_objective_with_slack
 from simulation.planners.cpsat import CpSatResult, cpsat_planner, solve
 from simulation.planners.dispatching import dispatch_planner, ect, spt
 from simulation.planners.ga import GaParams, ga_planner
+from simulation.planners.mcts import MctsParams, mcts_planner
 from simulation.sim.scenario import sample_scenario
 
 
 class PolicyConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    # complete rescheduling with the worker objective: CP-SAT, SPT + ECT, or the GA (math/14)
-    planner: Literal["cpsat", "rule", "ga"]
+    # complete rescheduling with the worker objective: CP-SAT, SPT + ECT, the GA (math/14) or MCTS (math/15)
+    planner: Literal["cpsat", "rule", "ga", "mcts"]
     # hindsight: start from a plan of the full instance (every arrival known) and never see arrivals as events
     hindsight: bool = False
     max_makespan_change: NonNegativeInt | None = None  # thresholds of math/05 §3
@@ -62,11 +63,14 @@ class PolicyConfig(BaseModel):
     # GA only, and required there: generations per complete rescheduling (decide the result, as CP-SAT's
     # deterministic time does; the configuration's time_limit is the wall-clock safety net)
     generations: PositiveInt | None = None
+    # MCTS only, and required there: iterations per decision N^it (decide the result, as generations do)
+    iterations: PositiveInt | None = None
 
     @model_validator(mode="after")
-    def check_generations(self):
-        if (self.planner == "ga") != (self.generations is not None):
-            raise ValueError("generations is required for planner 'ga' and only allowed there")
+    def check_search_limits(self):
+        for name, planner in (("generations", "ga"), ("iterations", "mcts")):
+            if (self.planner == planner) != (getattr(self, name) is not None):
+                raise ValueError(f"{name} is required for planner '{planner}' and only allowed there")
         return self
 
 
@@ -94,8 +98,10 @@ class ExperimentConfig(BaseModel):
         return self
 
     def digest(self) -> str:
-        # generations (added 2026-11-22) only where set: older configurations keep their hash and so their result rows
-        unset = {"policies": {k: {"generations"} for k, p in self.policies.items() if p.generations is None}}
+        # generations, iterations (added 2026-11-22) only where set: older configurations keep their hash and so their
+        # result rows
+        unset = {"policies": {k: {f for f in ("generations", "iterations") if getattr(p, f) is None}
+                              for k, p in self.policies.items()}}
         return hashlib.sha256(self.model_dump_json(exclude=unset).encode()).hexdigest()[:12]
 
 
@@ -123,6 +129,7 @@ def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) ->
         "rule": lambda: dispatch_planner(spt, ect),
         "ga": lambda: ga_planner(objective, GaParams(generations=pc.generations, time_limit=config.time_limit,
                                                      seed=seed)),
+        "mcts": lambda: mcts_planner(objective, MctsParams(iterations=pc.iterations, time_limit=config.time_limit)),
     }[pc.planner]()
     policy = ReschedulingPolicy(planner=planner, max_makespan_change=pc.max_makespan_change,
                                 max_shift=pc.max_shift, period=pc.period)
