@@ -8,6 +8,7 @@ import pytest
 from mes_bridge import once
 from mes_bridge.api import ProblemOut
 from mes_bridge.client import MesClient, MesError
+from mes_bridge.instance import MAPPED
 from fake_mes import FakeMes
 
 DATA = Path(__file__).parent / "data"
@@ -31,7 +32,7 @@ def test_a_feasible_rule_plan_is_published_one_step_per_open_mes_step(name):
     fake, outcome = _run(raw)
     assert outcome.violations == [] and fake.published == [outcome.schedule]
     p = ProblemOut.model_validate(raw)
-    open_keys = {o.key for o in p.instance.operations if not o.done and o.task_type != "REWORK"}
+    open_keys = {o.key for o in p.instance.operations if not o.done and o.task_type in MAPPED}
     s = outcome.schedule
     assert {st.key for st in s.steps} == open_keys
     assert s.variant == "BOUND" and s.snapshot_as_of == p.as_of

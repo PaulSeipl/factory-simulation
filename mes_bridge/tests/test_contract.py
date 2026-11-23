@@ -55,7 +55,7 @@ def test_model_matches_the_mes_schema(model):
 
 def test_every_problem_and_schedule_schema_has_a_model():
     """A new MES schema of these endpoints needs a model (or a deliberate exception here)."""
-    unused = {"ScheduleVariantEnum"}
+    unused = {"ScheduleVariantEnum", "SchedulerStateEnum"}  # enums (strings here); the second is the plan's
     wanted = {n for n in SCHEMAS if n.startswith(("Problem", "Schedule"))} - unused
     assert wanted == {m.__name__ for m in MODELS}
 

@@ -103,13 +103,18 @@ def test_nothing_arrived_is_nothing_to_plan():
 
 
 def test_a_longer_print_that_moves_nothing_publishes_nothing():
-    """The plan as executed already holds the fact; the MES shows started steps by their facts."""
+    """A print running longer within its slack before the removal moves nothing: nothing is republished (the plan as
+    executed already holds the fact; the MES shows started steps by their facts)."""
     raw, fake, factory = _setup()
     anchor = step(factory, POLICY, None, [])
-    task = next(t for t in raw["snapshot"]["tasks"] if t["key"] == _print_key(raw))
-    task["expected_end"] = (datetime.fromisoformat(task["expected_end"]) + timedelta(minutes=60)).isoformat()
+    steps = {s.key: s for s in fake.published[-1].steps}
+    key = _print_key(raw)
+    removal = next(k for k in steps if k.endswith(":PART_POWDER_REMOVAL"))
+    slack = steps[removal].start - steps[key].end
+    task = next(t for t in raw["snapshot"]["tasks"] if t["key"] == key)
+    task["expected_end"] = (datetime.fromisoformat(task["expected_end"]) + slack).isoformat()
     step(factory, POLICY, anchor, [])
-    assert len(fake.published) == 1
+    assert len(fake.published) == 1, slack
 
 
 def test_a_step_started_by_another_worker_is_planned_with_that_worker():

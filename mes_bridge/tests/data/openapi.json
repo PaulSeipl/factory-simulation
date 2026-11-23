@@ -9216,7 +9216,7 @@
           "Planning"
         ],
         "summary": "Read Plan",
-        "description": "The computed plan (ADR 0002): open steps overlapping [from, to), optionally one worker's.\n\nRebuilt from now on every read; `order_finish` covers every planned order regardless of\nthe window.",
+        "description": "The plan (ADR 0002, 0003): open steps overlapping [from, to), optionally one worker's.\n\nRebuilt from now on every read: the latest bound schedule with the facts laid over it, the\nMES fill for the rest (`source` per step; `scheduler` says whether a schedule is served).\n`order_finish` covers every planned order regardless of the window.",
         "operationId": "read_plan",
         "parameters": [
           {
@@ -18626,6 +18626,10 @@
             },
             "type": "array",
             "title": "Order Finish"
+          },
+          "scheduler": {
+            "$ref": "#/components/schemas/SchedulerStateEnum",
+            "default": "NONE"
           }
         },
         "type": "object",
@@ -18634,6 +18638,14 @@
           "order_finish"
         ],
         "title": "PlanOut"
+      },
+      "PlanSourceEnum": {
+        "type": "string",
+        "enum": [
+          "SCHEDULER",
+          "MES_FILL"
+        ],
+        "title": "PlanSourceEnum"
       },
       "PlanStepStatusEnum": {
         "type": "string",
@@ -18768,6 +18780,10 @@
               }
             ],
             "title": "Waits For End"
+          },
+          "source": {
+            "$ref": "#/components/schemas/PlanSourceEnum",
+            "default": "MES_FILL"
           }
         },
         "type": "object",
@@ -18785,7 +18801,7 @@
           "status"
         ],
         "title": "PlannedStepOut",
-        "description": "One open step in the computed plan (ADR 0002): never stored, rebuilt on every read.\n\n`key` is `order:<id>:<task type>` or, once data prep created its job, `job:<id>:<task type>`.\n`attended_end` is when the worker is free again; `end` includes the unattended run."
+        "description": "One open step in the computed plan (ADR 0002): never stored, rebuilt on every read.\n\n`key` is `order:<id>:<task type>` or, once data prep created its job, `job:<id>:<task type>`;\na scheduled plate step `carrier:<am job id>:<quadrant>:<task type>` (`services/planning/problem.py`).\n`attended_end` is when the worker is free again; `end` includes the unattended run."
       },
       "PlanningSettingsOut": {
         "properties": {
@@ -20397,6 +20413,18 @@
               }
             ],
             "title": "Carrier"
+          },
+          "mill_job_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mill Job Id"
           }
         },
         "type": "object",
@@ -20405,7 +20433,8 @@
           "order_id",
           "part_type",
           "units",
-          "carrier"
+          "carrier",
+          "mill_job_id"
         ],
         "title": "ProblemPartOut"
       },
@@ -21975,6 +22004,15 @@
           "FREE"
         ],
         "title": "ScheduleVariantEnum"
+      },
+      "SchedulerStateEnum": {
+        "type": "string",
+        "enum": [
+          "NONE",
+          "ONLINE",
+          "OFFLINE"
+        ],
+        "title": "SchedulerStateEnum"
       },
       "ScrapEventOut": {
         "properties": {

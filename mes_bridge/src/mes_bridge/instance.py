@@ -49,6 +49,12 @@ PRINT, MILL = "AM_PRINT", "MILL_SECONDARY"  # instance steps of the two run kind
 OP_OF = {"AM_PREP": PRINT, "PART_POWDER_REMOVAL": PRINT, "MILL_PREP_SECONDARY": MILL, "SECONDARY_PLATE_REMOVAL": MILL}
 PLATE_STEPS = ("PART_CLEANING", "HEAT_TREATMENT", "SAND_BLASTING")  # carrier steps without runs
 CARRIER_TASKS = {*OP_OF, *PLATE_STEPS}
+# shortcut: the export covers the whole route since 3.1a; the bridge maps the slice-1 steps until 3.1b maps the rest
+# (the PRIMARY lane on blanks, QM, sawing, the part and order steps); the others stay the MES fill's
+MAPPED = {
+    "DATA_PREP_SEC_MILL", "AM_PREP", "PART_POWDER_REMOVAL", "PART_CLEANING", "HEAT_TREATMENT", "SAND_BLASTING",
+    "MILL_PREP_SECONDARY", "SECONDARY_PLATE_REMOVAL",
+}
 LEFT_OUT = {"REWORK"}  # its predecessor QM is out of scope until slice 3 (decision 8: it comes with the verdict)
 LANE = "SECONDARY"
 # shortcut: today's MES break 12:00, 60 min (decision 21), hard-coded until the break settings exist (task 4.3)
@@ -98,7 +104,7 @@ class _Params:
 
 def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -> Instance:
     inst = problem.instance
-    ops = [o for o in inst.operations if o.task_type not in LEFT_OUT]
+    ops = [o for o in inst.operations if o.task_type in MAPPED and o.task_type not in LEFT_OUT]
     for o in ops:
         if o.lane != LANE:
             raise MappingError(f"{o.key}: lane {o.lane} is not mapped in slice 1")

@@ -18,7 +18,7 @@ from simulation.model.compiled import CompiledInstance
 from simulation.sim.snapshot import FrozenOperation, Snapshot
 
 from mes_bridge.api import ProblemOperationOut, ProblemOut, ProblemTaskOut
-from mes_bridge.instance import LEFT_OUT, MILL, PRINT, MappingError, at, carrier_id, mill_run, print_run
+from mes_bridge.instance import LEFT_OUT, MAPPED, MILL, PRINT, MappingError, at, carrier_id, mill_run, print_run
 
 OpKey = tuple[str, str]
 
@@ -33,7 +33,7 @@ class IdMap:
 
 def _candidates(o: ProblemOperationOut) -> list[OpKey] | None:
     tt = o.task_type
-    if tt in LEFT_OUT:
+    if tt in LEFT_OUT or tt not in MAPPED:
         return None
     kind, _, rest = o.key.partition(":")
     if kind == "order":
@@ -64,7 +64,7 @@ def build_snapshot(problem: ProblemOut, ci: CompiledInstance, ids: IdMap, *, epo
     tasks = {task.key: task for task in problem.snapshot.tasks}
     frozen: list[FrozenOperation] = []
     for o in problem.instance.operations:
-        if o.key not in ids.ops:
+        if not ids.ops.get(o.key):  # not mapped (or of 0 minutes)
             continue
         task = tasks.get(o.key)
         if task is None:

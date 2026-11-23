@@ -33,6 +33,7 @@ class ProblemPartOut(_Model):
     part_type: str  # PRIMARY | SECONDARY
     units: int  # tooth links (secondary: telescopes), at least 1
     carrier: str | None  # ProblemCarrierOut.key
+    mill_job_id: UUID | None  # once a data prep formed it: a secondary part's plate mill job, a primary part's blank
 
 
 class ProblemJobOut(_Model):

@@ -64,7 +64,7 @@ def test_record(client, db_session, with_task_planning_params, worker):
     db_session.commit()
     _write(client, "problem_mill_prep.json")
 
-    # printing: b's mill data prep done after a's, then the print set up and handed off (330 minutes entered)
+    # printing: b's mill data prep done after a's, then the print set up and handed off (3000 minutes entered, so its end lies after any recording time)
     db_session.query(TaskPart).filter_by(task_id=running.id).delete()
     db_session.query(WorkTask).filter_by(id=running.id).delete()
     db_session.flush()
@@ -79,7 +79,7 @@ def test_record(client, db_session, with_task_planning_params, worker):
         equipment_id=am.id,
         started_at=NOW + timedelta(minutes=25),
         handoff_at=NOW + timedelta(minutes=45),
-        est_unattended_minutes=330,
+        est_unattended_minutes=3000,
     )
     db_session.commit()
     _write(client, "problem_printing.json")

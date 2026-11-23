@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- The MES export covers the whole route since 3.1a; `ProblemPartOut.mill_job_id` added (model, `openapi.json`
+  copy, recordings re-made). Until 3.1b the bridge maps only the slice-1 steps (`instance.MAPPED`, a marked
+  shortcut); the rest stays the MES fill's. The recorded print runs 3000 min, so its expected end lies after any
+  recording time (the MES floors an end in the past to now + 15 min). Contract test: `SchedulerStateEnum` (the
+  plan's) excluded.
 - End-to-end (task 2.4): `tests/e2e/mes_driver.py` (MES side: seed an arrived order, then start / finish the mill
   data prep and start and hand off the print through the MES's services, each commit posting its event). Passed
   against this branch's MES and a running `mes_bridge.runner`: every transition woke the bridge within 0.5 s, the

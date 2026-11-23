@@ -85,7 +85,7 @@ def test_a_handed_off_print_freezes_its_setup_done_and_its_run_running():
     f = _frozen(snap)
     setup, main = f[f"R:{am}", "setup"], f[f"R:{am}", PRINT]
     assert (setup.start, setup.end, setup.running) == (625, 645, False)
-    assert (main.start, main.end, main.running) == (645, 645 + 330, True)  # the entered 330 minutes
+    assert (main.start, main.end, main.running) == (645, 645 + 3000, True)  # the entered 3000 minutes
     assert setup.machine == main.machine == _task(raw, ":AM_PREP")["equipment_id"]
     assert setup.workers and main.workers == ()  # the print runs unattended
     assert (f"R:{am}", "removal") not in f
