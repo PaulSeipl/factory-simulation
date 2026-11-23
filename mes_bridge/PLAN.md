@@ -134,60 +134,54 @@ baseline a CI error.
 - Can `fill.py` take one break per worker without a structural change?
 - Does the MES test setup tolerate an `after_commit` listener (session fixtures, rollbacks)?
 - Does the seed data hold orders past `DATA_PREP_SECONDARY`? If not, the integration tests seed them.
+- Is `OrderPart.quadrant` set and unique per plate within an AM job for every secondary part from
+  `DATA_PREP_SECONDARY` on? The carrier key depends on it (check at the start of 1.4).
 - How does a rework clone or a repeated step map to a unique `Operation.id` within an order?
 - Do scrap and the rework clone change a `WorkTask` or `Equipment` row? If not, the listener misses them and
   only the safety poll catches them; extend the listener to those rows.
 
+## Later (not in the slices; user, 2026-11-23)
+
+- The planner receives plate status and assigns parts to plates (forms the carriers itself). Carrier keys for
+  carriers the MES does not have yet then come from the planner.
+- Plate sets: an AM job points to a `build_plate_set_id`; one load uses plates of one set only (enforced in the
+  MES); a set is refurbished once all its plates are free again (after sawing, or unused), which makes them ready
+  again. A resource constraint the thesis model does not have yet.
+
 ## Blocked
 
-### B1 (2026-11-23, task 1.5, rewritten 2026-11-23): grain of the mapping MES ↔ `Instance`
+### B1 (2026-11-23, task 1.5): grain of the mapping MES ↔ `Instance` — **answered 2026-11-23**
 
-**First version was wrong** about durations: it claimed the format carries per-instance durations only via
-`Run.duration`. `Operation.duration` is per instance, and a `per_carrier` estimator over `Part.times`
-(`share=1, fixed=0`: no clamp effect) gives every carrier its own `base + Σ part times`. The real issue is grain.
+**Answer (user, chat 2026-11-23), with the facts it rests on:**
+- **Grain, not durations.** The MES holds the real data; the bridge takes every minute from
+  `GET /planning/problem`, never from `data/generator/fidentis.json`. MES plan logic and params are partly
+  outdated; updating them is separate from this integration.
+- **Carrier = one plate of one print, key `carrier:<am_job_id>:<quadrant>:<TASK>`** (user: "this, or the plate
+  id?"; settled on the facts): the key must exist from the arrival (`DATA_PREP_SECONDARY` done) on, but
+  `OrderPart.build_plate_id` is stamped only at `AM_PREP`, references the physical plate (`config.build_plate`),
+  which is reused across prints, and will become a planner decision (see Later). So the physical plate is a
+  resource attribute of a carrier step (like `equipment_id`), not part of its identity. A reprint overwrites
+  `OrderPart.quadrant` and is an instance change. Run-level steps stay `job:<id>:<TASK>`, order steps
+  `order:<id>:<TASK>`.
+- **A job's load is splittable** (one task per job is today's ad-hoc MES planning). With carrier keys a split
+  oven load is two keys, a cross-print s-batch several keys in one window; `schedule_step` stays unique on
+  (schedule, key).
+- **MES change limited to the problem export and the schedule** (user: yes). `fill.py` keeps its job grain as
+  the fallback; its overhaul is a later task. Until then 1.7 shows scheduled carrier steps and falls back to
+  job-grain fill steps.
+- **One mill job per plate** (8-telescope cap per plate = the `DATA_PREP_SEC_MILL` cap); until a worker forms
+  the mill jobs, assume one per plate.
+- **Durations per carrier (no thesis change in slice 1).** Carrier-bound steps already vary per carrier with
+  parts or telescopes: `per_carrier` runs (mill, QM, rework, saw, Gegenbetten, separation) take
+  `base + Σ Part.times` (`model/instance.py`, `operation_graph`, per-carrier branch); the bridge sets `Part.times` so each
+  carrier's sum equals the MES minutes. Only `runs="none"` carrier steps (clean, blast, oven) take one value per
+  step, by the user's decision of 2026-11-17 (full base per plate, `math/21` §4). The bridge fails loudly if the
+  MES gives such a step different minutes per carrier (shortcut: lifted by per-carrier durations for batch steps,
+  a thesis format change, once the MES computes them per part or telescope).
 
-**Settled by the user (chat, 2026-11-23):**
-- Durations are not the point; grain is. The MES holds the real data, the planner plans with it: the bridge takes
-  minutes from `GET /planning/problem`, never from `data/generator/fidentis.json`. MES plan logic and params are
-  partly outdated, the simulation's numbers are usually more accurate (e.g. secondary milling: simulation 30 min
-  per part is right, the MES seed 120 is not); updating the MES params is separate from this integration.
-- One task per job (`job:<id>:HEAT_TREATMENT`) is today's MES planning logic, built ad hoc and due for an
-  overhaul, not a constraint. **A job's load must be splittable** (e.g. 4 plates, oven cap 2).
-- A carrier can hold several parts (secondary plates, primary blanks), so a carrier step's minutes may vary per
-  carrier; "one unit per plate" holds only for today's seed.
-- Mill: no mill job over part of a plate. The print gets a cap of 8 telescopes per plate, the same cap as
-  `DATA_PREP_SEC_MILL`, so one mill job per plate. Until a worker forms the mill jobs, assume one per plate.
-
-**Facts (checked):**
-- `OrderPart.build_plate_id` references the physical, reusable plate (`config.build_plate`) and is stamped only
-  at `AM_PREP`; before that the MES groups a plate's parts by (AM job, quadrant)
-  (`_reject_mixed_plate_group_for_data_prep_sec_mill`). A thesis carrier is one plate of one print, so its id is
-  (AM job, quadrant), not `build_plate_id`.
-- The format already covers the lane at plate grain: plate → `Carrier`; AM job → given `Run` of its plates
-  (`Run.duration` = entered time, else the export's minutes); AM_PREP / PART_POWDER_REMOVAL → run setup / removal
-  (`setup_per_carrier`, `removal_per_carrier`); clean, blast → s-batch carrier steps; oven → p-batch carrier step;
-  mill prep / mill / plate removal → `per_carrier` run with `Part.times`; REWORK and order steps →
-  `Operation.duration`.
-- Format gap: s-batch and p-batch carrier steps take one duration per step (`CarrierStep.options` / `duration`),
-  so minutes that differ between carriers of the same step (several parts per carrier, PART-unit params) are not
-  expressible. Not hit by today's seed (all plate steps are PLATE-unit).
-
-**What follows (my derivation, not yet confirmed):**
-1. **Key grain = carrier.** Export and schedule name carrier steps per plate:
-   `carrier:<am_job_id>:<quadrant>:<TASK>`; run-level steps stay `job:<id>:<TASK>`, order steps `order:<id>:<TASK>`.
-   A split oven load is then two schedule steps on two keys, and a cross-print s-batch is several keys in one
-   window (a `batch` id on `schedule_step` can show it later). `schedule_step` stays unique on (schedule, key).
-2. **Scope of the MES change:** only `GET /planning/problem` and the schedule split job nodes into carrier nodes
-   (1.4 reopened, together with "jobs with their parts"). `fill.py` keeps its job grain as the fallback; the plan
-   overhaul at carrier grain is its own later task. Until then 1.7 shows scheduled carrier steps and falls back to
-   job-grain fill steps, so plan and schedule differ in grain on that path.
-3. **No thesis model change for slice 1.** The bridge checks that every carrier of an s-/p-batch step gets the same
-   minutes and fails loudly otherwise (shortcut: lifted by per-carrier durations for batch steps, a thesis format
-   change, once a PART-unit plate step or slice 3 blanks need it).
-
-**Question:** confirm 1–3 (carrier keys with (AM job, quadrant), MES change limited to export + schedule, no
-thesis change in slice 1), or say what to change. Recommendation: confirm. Answer in chat or on
-PaulSeipl/factory-simulation#1; the loop stays stopped until then.
+**Corrections to the first two versions:** durations were never the gap (`Operation.duration` and `Part.times`
+carry per-instance minutes). The secondary mill time is no mismatch: MES 120 per secondary part = simulation 30
+per telescope (`math/21` §4, 2026-11-16); the earlier table compared parts with telescopes.
 
 ## Log
 
@@ -202,3 +196,4 @@ PR comments read until: 2026-11-22T23:20Z
 | 2026-11-23 | 1.4 | MES 41bbf81 | `GET /planning/problem` (`services/planning/problem.py`, `schemas/problem.py`): `build_plan` split into `gather` + fill (planning tests 96 green before the export was added); `ARRIVAL` = done `DATA_PREP_SECONDARY` (arrival = its `finished_at`), `SCOPE` = SECONDARY lane `DATA_PREP_SEC_MILL`..`SECONDARY_PLATE_REMOVAL` + `REWORK`; done steps stay in the instance (`done`) with real times in the snapshot, a done step without a task (skipped REWORK) is left out; one REPEATABLE READ read-only transaction via `SnapshotDBSession` (tests override it; isolation checked on a fresh session). 11 tests (shared print node, pre-arrival order excluded, no open predecessor cut off, running / handed-off / finished snapshot, machine options). Gates: backend 1206 passed, ruff/format/mypy clean; client regenerated, svelte-check 0/0, lint 0 errors, vitest 116. Findings: (a) `fill.py` books a job's machine for every job-level step (also powder removal, cleaning); the export uses the step's params `resource` instead, so plan and schedule differ there until 1.7; (b) `_MACHINE_TYPE` maps only AM and MILL, OVEN / COM steps get no machine options; (c) until 3.1 no order finishes inside the instance (QM and tail are out), tardiness from `spt` is meaningless; (d) accepted-not-started tasks set the plan's worker but are not exported yet (needed for bound pins, 6.1); (e) 1.5 needs a recorded response: build it from the `two_nested` test state. |
 | 2026-11-23 | 1.5 (blocked) | — | MES CI green on 41bbf81. Mapping onto `Instance` needs a model decision (Blocked B1): the format carries per-instance durations only via `Run.duration`, MES grains differ (plate steps per print, mill per plate), secondary mill jobs never mix prints. 1.4 reopened: `jobs with their parts` (decision 11) missing from the export. Loop stopped. |
 | 2026-11-23 | B1 rewritten | — | First B1 blamed durations; wrong (`Operation.duration`, `per_carrier` + `Part.times` carry per-instance minutes). User: grain matters, MES data is the source, job loads must be splittable, one mill job per plate (8-telescope cap). Found: `build_plate_id` is the physical plate, stamped at AM_PREP; carrier id = (AM job, quadrant). Remaining question: carrier-grain keys, MES change limited to export + schedule, no thesis change in slice 1. `fixed 66` is current on every branch (math/21). |
+| 2026-11-23 | B1 answered | — | Carrier key `carrier:<am_job_id>:<quadrant>:<TASK>` (plate id is a later planner decision and a resource attribute), MES change limited to export + schedule, no thesis change in slice 1: `per_carrier` steps already vary per carrier via `Part.times`, clean/blast/oven constant per plate by the 2026-11-17 decision. Corrected: mill 120 per part = 30 per telescope, no mismatch. Plate sets and planner-formed carriers recorded under Later. |
