@@ -51,9 +51,12 @@ class Snapshot(BaseModel):
 
 
 def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
-             breaks: Sequence[Break] = (), share_len: Sequence[Sequence[int]] = ()) -> Snapshot:
+             breaks: Sequence[Break] = (), share_len: Sequence[Sequence[int]] = (),
+             finished: dict[tuple[str, str], "FrozenOperation"] | None = None) -> Snapshot:
     """`breaks`: the planned breaks of the run, in the order of state.break_start. `share_len`: the realized share
-    lengths of the DES, read only for shares that are done (the past)."""
+    lengths of the DES, read only for shares that are done (the past). `finished`: the entries of finished operations
+    from earlier snapshots of the same run, reused and filled in (a finished operation's entry never changes: its
+    times, workers and share lengths are realized, and a new plan must keep it, C7)."""
     machine = {(a.order_id, a.op_id): a.machine for a in plan}
     workers = {(a.order_id, a.op_id): a.workers for a in plan}
     batch = {(a.order_id, a.op_id): a.batch for a in plan}
@@ -62,6 +65,9 @@ def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
     for o, (order_id, op_id) in enumerate(ci.op_keys):
         start, end = state.start[o], state.end[o]
         if start is None:
+            continue
+        if end is not None and finished is not None and (hit := finished.get((order_id, op_id))) is not None:
+            frozen.append(hit)
             continue
         m = machine[order_id, op_id]
         first = leader.get(o, o)  # a batch's shares are carried by its first operation
@@ -95,6 +101,8 @@ def snapshot(ci: CompiledInstance, plan: Sequence[Assignment], state: SimState,
             workers=tuple(w if done else None for w, done in zip(workers[order_id, op_id], started, strict=True)),
             share_lengths=tuple(lengths) if ci.shares[o] else (), batch=batch[order_id, op_id],
         ))
+        if state.end[o] is not None and finished is not None:  # `end` above may be an expected end
+            finished[order_id, op_id] = frozen[-1]
     taken = tuple(Break(worker=b.worker, start=s) for b, s in zip(breaks, state.break_start, strict=True)
                   if s is not None)
     return Snapshot(instance=ci.name, t=state.t, frozen=tuple(frozen), breaks=taken)

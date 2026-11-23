@@ -126,6 +126,7 @@ class Simulation:
         OVERDUE events (they only give a planning tool time points; for a replay without one, faster)."""
         self.overdue = overdue
         self._plan: list[Assignment] | None = None  # cache of current_plan()
+        self._finished: dict = {}  # snapshot entries of finished operations, by key (stable under grow)
         self.breaks = tuple(breaks)
         self.visible = visible or (lambda _t: ci)
         # waiting would silently repair a broken plan, so it is validated first (C1-C5, C11-C14)
@@ -273,7 +274,7 @@ class Simulation:
     # --- interface to the planning tool ----------------------------------------------------------
 
     def snapshot(self) -> Snapshot:
-        return snapshot(self.ci, self.current_plan(), self.state, self.breaks, self.share_len)
+        return snapshot(self.ci, self.current_plan(), self.state, self.breaks, self.share_len, self._finished)
 
     def current_plan(self) -> list[Assignment]:
         """The plan the factory currently executes (the one last sent to it). Cached: the planning tool asks at every

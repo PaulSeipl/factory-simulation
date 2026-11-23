@@ -8,6 +8,25 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-23 (101) — Incremental snapshot — uncommitted
+
+**Decided.** User: build the snapshot incrementally (rebuilding finished operations is redundant), then the
+experiment config.
+
+**Done.** `sim/snapshot.snapshot(..., finished=)` reuses and fills the entries of finished operations;
+`Simulation._finished` keeps them by key (stable under `grow`). First version cached running operations too (the
+builder overwrites `end` with the expected end); the equality test caught it, fixed by checking the DES state's
+realized end. Test `tests/test_snapshot_cache.py` (2): at every time point the snapshot equals a fresh one, with a
+repaired plan applied every fifth time point, on toy-workers and dental workers with offsets. Docs: [13](13_des.md)
+change log.
+
+**Found.** One `execute` run (dental example, repair only, profiled): 26 s → 18 s (36 s before (100)); snapshot
+7 s → 3.5 s; the repair runs 724 times, the 692 other time points were on plan. The repair still rebuilds the
+precedences, share intervals and worker chains of every operation, finished ones included, on each call (6 s).
+
+**Open.** A repair over the operations not started only (finished ones enter as fixed times); the experiment
+config.
+
 ## 2026-11-23 (100) — Speed of `execute` — uncommitted
 
 **Decided.** User: speed up `execute`; Pydantic also validates, so check what it checks before dropping it; the DES

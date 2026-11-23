@@ -249,6 +249,7 @@ Snapshots are Pydantic models (`Snapshot`, `FrozenOperation`) and can be stored 
 | 2026-11-09 | 7274636 | `update_plan(plan, breaks)`, `current_breaks()`: taken breaks kept, pending ones replaced. |
 | 2026-11-09 | 7274636 | `FrozenOperation.share_lengths`; swap-rule worker written $z' \in W_o$; $\overline{\mathrm{ot}}$. |
 | 2026-11-11 | uncommitted | Every start is an event: the planning tool is called again after the start step (`start_operations` returns the number of starts; user). |
+| 2026-11-23 | uncommitted | Snapshot reuses the entries of finished operations (`Simulation._finished`, by key; a finished operation's entry never changes, C7); test `tests/test_snapshot_cache.py` (equal to a fresh snapshot at every time point, with plan updates). |
 | 2026-11-23 | uncommitted | `current_plan` cached (cleared by `_apply` and swaps); `replay_from` moved to `objectives` (the planner's lookahead is not part of the DES); `Simulation(..., validate_from=)` checks a plan against a snapshot. |
 | 2026-11-22 | uncommitted | Start step repeated at $t$ until nothing starts (user); `replay` without OVERDUE events (`Simulation(..., overdue=False)`), equality test. |
 | 2026-11-22 | uncommitted | WAKE at the order release for an early-released operation (§8); unfinished-predecessor counter per operation (`Simulation.open_preds`, decremented on COMPLETE, recomputed in `grow`): same results, replay 1.3 to 2 times faster. |
