@@ -155,7 +155,7 @@ baseline a CI error.
 ### Slice 4: breaks
 
 - [x] 4.1 MES: break settings in `planning_setting` (migration, `GET/PUT /planning/settings`, settings UI).
-- [ ] 4.2 MES: `fill.py` plans one break per worker and day (rule + test in `test_planning_fill.py`).
+- [x] 4.2 MES: `fill.py` plans one break per worker and day (rule + test in `test_planning_fill.py`).
 - [ ] 4.3 Bridge: calendar from the problem incl. breaks (decision 20); schedule PUT carries breaks.
 - [ ] 4.4 Frontend: breaks as gaps in My plan, the ribbon and Team plan (design pass first).
 
@@ -175,7 +175,8 @@ baseline a CI error.
 
 - Does `repair_plan` fail when the current plan holds operations missing from the instance? (Decision 18 assumes
   it does.)
-- Can `fill.py` take one break per worker without a structural change?
+- ~~Can `fill.py` take one break per worker without a structural change?~~ Yes (4.2): the worker calendar's
+  windows split around the break; `fill` itself is unchanged.
 - ~~Does the MES test setup tolerate an `after_commit` listener?~~ Yes (2026-11-23): the tests' session commits a
   savepoint and `after_commit` fires on it; the listener is a no-op without `SCHEDULER_URL`; full suite green.
 - ~~Does the seed data hold orders past `DATA_PREP_SECONDARY`?~~ No (2026-11-23, scratch database from
@@ -341,3 +342,4 @@ PR comments read until: 2026-11-23T13:40Z
 | 2026-11-23 | 3.3a | MES 7011c25 | 3.3 split. `planning_setting.scheduler_task_types` (ARRAY, NULL = whole route after the arrival; migration b7c41d2e9a10, round trip and `alembic check` clean on a scratch DB, dropped after); `PUT /planning/settings` sets it (deduplicated, sorted), keeps it when the field is left out, rejects a type done before the arrival (422) and an unknown one (422); the export filters on it. 4 new tests. Gates: backend 1247 passed, ruff / mypy clean, client regenerated, svelte-check 0/0, vitest 116; bridge contract copy refreshed. Findings: (oo) a narrowed scope can cut a carrier chain the bridge maps (e.g. cleaning without the print): the bridge's mapping then fails loudly (V14 / MappingError) rather than planning a partial chain; which scopes are sensible (prefixes of a lane, whole lanes) is for the settings UI to offer, not built here; (pp) no settings UI for the scope yet (spec: editable in the planning settings later). |
 | 2026-11-23 | 3.3b | sim (this commit) | `mes_bridge.config.SchedulerConfig`: solver (sequencing + assignment rule), policy thresholds, safety poll; `--config` on `mes_bridge.runner` and `mes_bridge.once` (default: SPT, no thresholds, 5 min). No `horizon` field: the frozen horizon is decision 19 / task 5.2 and has no meaning before; an unknown key fails loudly. 10 tests (defaults, a file, 6 invalid configs, three rules plan the recording feasibly). Gates: bridge 117 passed + 1 skipped, simulation 1811 passed; MES CI green on 7011c25. **Slice 3 complete**: summary comment on both PRs. |
 | 2026-11-23 | 4.1 | MES 3f07b1d | `planning_setting.break_earliest`, `break_latest`, `break_minutes` (default 12:00, 12:00, 60; check constraint; migration c3e8a1f04b22, round trip and `alembic check` clean on a scratch DB, dropped after); `PUT /planning/settings` sets them together (422: one missing, latest before earliest, 0 or > 240 min) and keeps them when left out. Settings UI: design pass (wording and place only: the Plan section, next to the day start, same Carbon TimePicker / house NumberInput, its own save button; en / de). 5 new tests. Gates: backend 1251 passed, ruff / mypy clean, client regenerated, svelte-check 0/0, lint 0 errors, vitest 116. Not checked: the page in a browser (no browser in this session). |
+| 2026-11-23 | 4.2 | MES 4b15706 | `WorkerCalendar` gets the break (start, minutes); a working day becomes two windows around it and is lengthened by it (daily minutes stay working time); `plan._calendars` reads `break_earliest` and `break_minutes`. The break sits at its earliest start, as the thesis dispatching rule places it (the scheduler may place it later within its window, 4.3); a step never straddles it. `fill` itself unchanged. 4 new fill tests. Gates: backend 1255 passed, ruff / mypy clean. Finding: (qq) the MES plan shows no break as an item yet, only as the gap it leaves; 4.4 decides whether My plan needs explicit breaks (then `PlanOut` gets them). |
