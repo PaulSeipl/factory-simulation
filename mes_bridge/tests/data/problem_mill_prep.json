@@ -1,0 +1,536 @@
+{
+  "as_of": "2026-11-23T09:44:44.251619Z",
+  "instance": {
+    "assignments": [],
+    "calendar": {
+      "day_start": "07:00:00",
+      "time_zone": "Europe/Berlin"
+    },
+    "carriers": [
+      {
+        "am_job_id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "key": "11533553-2597-4072-8e98-f1dfbd81f61a:1",
+        "mill_job_id": "70b724a6-2322-4249-bf1e-97e25ed563ee",
+        "part_ids": [
+          "b3be3e15-d5f8-46e2-b427-26ad9ffc1b81"
+        ],
+        "quadrant": "1"
+      },
+      {
+        "am_job_id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "key": "11533553-2597-4072-8e98-f1dfbd81f61a:2",
+        "mill_job_id": null,
+        "part_ids": [
+          "411c9d0a-2c19-4e98-8085-c8d2814ac793"
+        ],
+        "quadrant": "2"
+      }
+    ],
+    "jobs": [
+      {
+        "build_plate_set_id": null,
+        "equipment_id": "aefc4377-d623-4c84-9e49-72fe14c31445",
+        "estimated_duration_minutes": null,
+        "id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "kind": "AM"
+      },
+      {
+        "build_plate_set_id": null,
+        "equipment_id": null,
+        "estimated_duration_minutes": null,
+        "id": "70b724a6-2322-4249-bf1e-97e25ed563ee",
+        "kind": "MILL"
+      }
+    ],
+    "machines": [
+      {
+        "equipment_type": "MILL",
+        "id": "6b20030c-f917-41e8-9936-be0fa10fc928",
+        "name": "Problem-Mill",
+        "status": "IDLE"
+      },
+      {
+        "equipment_type": "AM_SYSTEM",
+        "id": "aefc4377-d623-4c84-9e49-72fe14c31445",
+        "name": "Problem-AM",
+        "status": "IDLE"
+      }
+    ],
+    "operations": [
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": true,
+        "job_id": null,
+        "key": "order:79732352-4287-4654-b5bd-f12b75830030:DATA_PREP_SEC_MILL",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "79732352-4287-4654-b5bd-f12b75830030"
+        ],
+        "predecessors": [],
+        "task_type": "DATA_PREP_SEC_MILL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 95.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "key": "job:11533553-2597-4072-8e98-f1dfbd81f61a:AM_PREP",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "aefc4377-d623-4c84-9e49-72fe14c31445"
+        ],
+        "order_ids": [
+          "79732352-4287-4654-b5bd-f12b75830030",
+          "a99b6f52-7d56-469c-b03c-1eee8fe90113"
+        ],
+        "predecessors": [
+          "order:79732352-4287-4654-b5bd-f12b75830030:DATA_PREP_SEC_MILL",
+          "order:a99b6f52-7d56-469c-b03c-1eee8fe90113:DATA_PREP_SEC_MILL"
+        ],
+        "task_type": "AM_PREP",
+        "unattended_minutes": 195.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "key": "job:11533553-2597-4072-8e98-f1dfbd81f61a:PART_POWDER_REMOVAL",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "79732352-4287-4654-b5bd-f12b75830030",
+          "a99b6f52-7d56-469c-b03c-1eee8fe90113"
+        ],
+        "predecessors": [
+          "job:11533553-2597-4072-8e98-f1dfbd81f61a:AM_PREP"
+        ],
+        "task_type": "PART_POWDER_REMOVAL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 25.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "key": "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:1:PART_CLEANING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "79732352-4287-4654-b5bd-f12b75830030"
+        ],
+        "predecessors": [
+          "job:11533553-2597-4072-8e98-f1dfbd81f61a:PART_POWDER_REMOVAL"
+        ],
+        "task_type": "PART_CLEANING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 25.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "key": "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:2:PART_CLEANING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "a99b6f52-7d56-469c-b03c-1eee8fe90113"
+        ],
+        "predecessors": [
+          "job:11533553-2597-4072-8e98-f1dfbd81f61a:PART_POWDER_REMOVAL"
+        ],
+        "task_type": "PART_CLEANING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 35.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "key": "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:1:HEAT_TREATMENT",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "79732352-4287-4654-b5bd-f12b75830030"
+        ],
+        "predecessors": [
+          "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:1:PART_CLEANING"
+        ],
+        "task_type": "HEAT_TREATMENT",
+        "unattended_minutes": 180.0
+      },
+      {
+        "attended_minutes": 35.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "key": "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:2:HEAT_TREATMENT",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "a99b6f52-7d56-469c-b03c-1eee8fe90113"
+        ],
+        "predecessors": [
+          "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:2:PART_CLEANING"
+        ],
+        "task_type": "HEAT_TREATMENT",
+        "unattended_minutes": 180.0
+      },
+      {
+        "attended_minutes": 10.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "key": "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:1:SAND_BLASTING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "79732352-4287-4654-b5bd-f12b75830030"
+        ],
+        "predecessors": [
+          "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:1:HEAT_TREATMENT"
+        ],
+        "task_type": "SAND_BLASTING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 10.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "11533553-2597-4072-8e98-f1dfbd81f61a",
+        "key": "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:2:SAND_BLASTING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "a99b6f52-7d56-469c-b03c-1eee8fe90113"
+        ],
+        "predecessors": [
+          "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:2:HEAT_TREATMENT"
+        ],
+        "task_type": "SAND_BLASTING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 15.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "70b724a6-2322-4249-bf1e-97e25ed563ee",
+        "key": "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:1:MILL_PREP_SECONDARY",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "6b20030c-f917-41e8-9936-be0fa10fc928"
+        ],
+        "order_ids": [
+          "79732352-4287-4654-b5bd-f12b75830030"
+        ],
+        "predecessors": [
+          "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:1:SAND_BLASTING"
+        ],
+        "task_type": "MILL_PREP_SECONDARY",
+        "unattended_minutes": 120.0
+      },
+      {
+        "attended_minutes": 5.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "70b724a6-2322-4249-bf1e-97e25ed563ee",
+        "key": "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:1:SECONDARY_PLATE_REMOVAL",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "6b20030c-f917-41e8-9936-be0fa10fc928"
+        ],
+        "order_ids": [
+          "79732352-4287-4654-b5bd-f12b75830030"
+        ],
+        "predecessors": [
+          "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:1:MILL_PREP_SECONDARY"
+        ],
+        "task_type": "SECONDARY_PLATE_REMOVAL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:a99b6f52-7d56-469c-b03c-1eee8fe90113:DATA_PREP_SEC_MILL",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "a99b6f52-7d56-469c-b03c-1eee8fe90113"
+        ],
+        "predecessors": [],
+        "task_type": "DATA_PREP_SEC_MILL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 15.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:2:MILL_PREP_SECONDARY",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "6b20030c-f917-41e8-9936-be0fa10fc928"
+        ],
+        "order_ids": [
+          "a99b6f52-7d56-469c-b03c-1eee8fe90113"
+        ],
+        "predecessors": [
+          "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:2:SAND_BLASTING"
+        ],
+        "task_type": "MILL_PREP_SECONDARY",
+        "unattended_minutes": 120.0
+      },
+      {
+        "attended_minutes": 5.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:2:SECONDARY_PLATE_REMOVAL",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "6b20030c-f917-41e8-9936-be0fa10fc928"
+        ],
+        "order_ids": [
+          "a99b6f52-7d56-469c-b03c-1eee8fe90113"
+        ],
+        "predecessors": [
+          "carrier:11533553-2597-4072-8e98-f1dfbd81f61a:2:MILL_PREP_SECONDARY"
+        ],
+        "task_type": "SECONDARY_PLATE_REMOVAL",
+        "unattended_minutes": 0.0
+      }
+    ],
+    "orders": [
+      {
+        "arrival": "2026-11-23T07:00:00Z",
+        "due_date": null,
+        "id": "79732352-4287-4654-b5bd-f12b75830030",
+        "short_id": "79732352"
+      },
+      {
+        "arrival": "2026-11-23T07:00:00Z",
+        "due_date": null,
+        "id": "a99b6f52-7d56-469c-b03c-1eee8fe90113",
+        "short_id": "a99b6f52"
+      }
+    ],
+    "params": [
+      {
+        "base_minutes_attended": 0.0,
+        "base_minutes_unattended": 150.0,
+        "has_handoff": false,
+        "job_kind": "AM",
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 45.0,
+        "resource": "AM",
+        "task_type": null,
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 0.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": "MILL",
+        "max_batch_size": 20,
+        "part_type": "PRIMARY",
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 120.0,
+        "resource": "MILL",
+        "task_type": null,
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 0.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": "MILL",
+        "max_batch_size": 2,
+        "part_type": "SECONDARY",
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 120.0,
+        "resource": "MILL",
+        "task_type": null,
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 90.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": true,
+        "job_kind": null,
+        "max_batch_size": 4,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "AM",
+        "task_type": "AM_PREP",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 1,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "DATA_PREP_SEC_MILL",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 30.0,
+        "base_minutes_unattended": 180.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 2,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "OVEN",
+        "task_type": "HEAT_TREATMENT",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": true,
+        "job_kind": null,
+        "max_batch_size": 4,
+        "part_type": null,
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "MILL",
+        "task_type": "MILL_PREP_SECONDARY",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 4,
+        "part_type": null,
+        "per_unit_minutes_attended": 10.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "PART_CLEANING",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 4,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "PART_POWDER_REMOVAL",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 20.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": true,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 10.0,
+        "per_unit_minutes_unattended": 60.0,
+        "resource": "MILL",
+        "task_type": "REWORK",
+        "unit_kind": "PART"
+      },
+      {
+        "base_minutes_attended": 5.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 4,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "SAND_BLASTING",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 5.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 1,
+        "part_type": null,
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "MILL",
+        "task_type": "SECONDARY_PLATE_REMOVAL",
+        "unit_kind": "PLATE"
+      }
+    ],
+    "parts": [
+      {
+        "carrier": "11533553-2597-4072-8e98-f1dfbd81f61a:2",
+        "id": "411c9d0a-2c19-4e98-8085-c8d2814ac793",
+        "order_id": "a99b6f52-7d56-469c-b03c-1eee8fe90113",
+        "part_type": "SECONDARY",
+        "units": 1
+      },
+      {
+        "carrier": "11533553-2597-4072-8e98-f1dfbd81f61a:1",
+        "id": "b3be3e15-d5f8-46e2-b427-26ad9ffc1b81",
+        "order_id": "79732352-4287-4654-b5bd-f12b75830030",
+        "part_type": "SECONDARY",
+        "units": 1
+      }
+    ],
+    "workers": [
+      {
+        "daily_minutes": 480,
+        "id": "9eb0026c-19b5-44f3-87cb-dd3a6ba84724",
+        "workdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      }
+    ]
+  },
+  "snapshot": {
+    "tasks": [
+      {
+        "equipment_id": null,
+        "expected_attended_end": null,
+        "expected_end": null,
+        "finished_at": "2026-11-23T09:00:00Z",
+        "handoff_at": null,
+        "key": "order:79732352-4287-4654-b5bd-f12b75830030:DATA_PREP_SEC_MILL",
+        "started_at": "2026-11-23T08:40:00Z",
+        "task_id": "1a16fd2e-d572-4490-8c16-165cd3abd63f",
+        "worker_id": null
+      },
+      {
+        "equipment_id": null,
+        "expected_attended_end": "2026-11-23T09:59:44.251619Z",
+        "expected_end": "2026-11-23T09:59:44.251619Z",
+        "finished_at": null,
+        "handoff_at": null,
+        "key": "order:a99b6f52-7d56-469c-b03c-1eee8fe90113:DATA_PREP_SEC_MILL",
+        "started_at": "2026-11-23T08:55:00Z",
+        "task_id": "8dd0eee4-87f2-45c9-b69c-cfdc7a3aba28",
+        "worker_id": "9eb0026c-19b5-44f3-87cb-dd3a6ba84724"
+      }
+    ]
+  }
+}

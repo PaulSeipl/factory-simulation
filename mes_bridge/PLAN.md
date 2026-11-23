@@ -77,10 +77,22 @@ baseline a CI error.
   service user. Tests incl. one negative test per validation rule.
 - [x] 1.4 MES: `GET /planning/problem` for the SECONDARY lane (decision 11), one read transaction, reusing the
   node gathering of `services/planning/plan.py`. Tests. **Reopened 2026-11-23:** add jobs (prints, mill jobs) with their parts and each order's secondary parts (decision 11); carrier-grain keys (B1). Done 2026-11-23.
-- [ ] 1.5 Bridge: hand-written models + contract test against a copied `openapi.json`; problem → `Instance`
-  (schema of `src/simulation/model/instance.py`) + `Snapshot`; id map instance ids ↔ MES node keys; time epoch
-  (decision 17: `Calendar.origin = 0`, the default 480 would shift everything by 8 h without an error). Unit
-  tests on a recorded problem response.
+- [ ] 1.5 Split 2026-11-23 into three rounds (too big for one):
+  - [x] 1.5a MES: `params` in the problem export (the `task_planning_params` rows of `SCOPE` and the AM / MILL job
+    rows; an extension of decision 11, decision 8 already rests on them). Bridge: hand-written models for problem
+    and schedule + contract test against a copied `openapi.json` (decision 15); a recorded problem response from the
+    `two_plates` test state. MES test: params and the exported units reproduce each carrier's minutes.
+  - [ ] 1.5b Bridge: problem → `Instance` (schema of `src/simulation/model/instance.py`). Global step shape from
+    `params` (`setup + setup_per_carrier × carriers` is the PLATE formula); per-instance values only where the format
+    is per instance: print and mill as given runs (one per AM job, one per plate), `Run.duration` = exported main
+    minutes; order operations `Operation.duration`. Time epoch (decision 17: Monday 00:00 Europe/Berlin of the
+    bridge's start week, `Calendar.origin = 0`, minutes rounded up, aware subtraction). Calendar (decision 20) with
+    today's break 12:00 / 60 min hard-coded until 4.3 (stopgap). REWORK left out until slice 3 (its predecessor QM
+    is out of scope). Times before the epoch clamp to 0; an overdue due date clamps to the first cutoff at or after
+    release (tardiness understated, logged). `Instance` validation is the loud failure; tested.
+  - [ ] 1.5c Bridge: `Snapshot` and the id map instance ids ↔ MES keys, matching how `operation_graph` and
+    `snapshot()` name carrier and run operations (setup / main / removal); AM_PREP = print setup + main (handoff
+    ends the setup), PART_POWDER_REMOVAL = removal, the mill chain likewise. Unit tests on the recorded response.
 - [ ] 1.6 Bridge: one-shot command: fetch problem → `spt` → `check_schedule` → `PUT`. Integration test against
   the local MES.
 - [ ] 1.7 MES: `GET /planning/plan` serves the latest schedule with the facts overlay, `source` field, fallback to
@@ -201,3 +213,5 @@ PR comments read until: 2026-11-23T09:30Z
 | 2026-11-23 | B1 answered | — | Carrier key `carrier:<am_job_id>:<quadrant>:<TASK>` (plate id is a later planner decision and a resource attribute), MES change limited to export + schedule, no thesis change in slice 1: `per_carrier` steps already vary per carrier via `Part.times`, clean/blast/oven constant per plate by the 2026-11-17 decision. Corrected: mill 120 per part = 30 per telescope, no mismatch. Plate sets and planner-formed carriers recorded under Later. |
 | 2026-11-23 | B1 follow-up | — | User corrections: the planner will assign physical plates, not form carriers; a plate set due for refurbishment is unusable until refurbished, which needs all its plates free; quadrant unique per plate per AM job. |
 | 2026-11-23 | 1.4 (reopened) | MES d38956c | Export at carrier grain: plate steps after the print and the secondary mill chain (`CARRIER_STEPS`: cleaning, heat treatment, blasting, mill prep, plate removal, rework) split per carrier (AM job, `TaskPart.quadrant`), key `carrier:<am job>:<quadrant>:<task>`; minutes (`_durations` on the carrier's parts), done state (all its parts DONE), tasks and predecessors (own plate) per carrier; assignments fan out; the mill chain keeps its key when the mill job forms. `parts` (units, carrier), `jobs` (kind, machine, entered minutes, plate set), `carriers` (parts, mill job) added. Schedule accepts carrier keys (5 negative/positive tests). A job's machine now binds only steps of its kind. 13 new tests. Gates: backend 1219 passed, ruff/format/mypy clean; client regenerated, svelte-check 0/0, lint 0 errors, vitest 116. Findings: (f) PLATE units count distinct `build_plate_id`, unset before AM_PREP, so the job-level AM_PREP / PART_POWDER_REMOVAL of a 4-plate print are computed for 1 plate (also in `fill.py`); the bridge can count the print's carriers instead (1.5); (g) a running carrier task has an expected end only when it is the gathered node's task, else None; (h) assignment fan-out has no test; (i) a plate whose parts sit in several mill jobs reports no mill job (not intended, user). |
+| 2026-11-23 | 1.5 split | — | 1.5 split into 1.5a (params export, models, contract, recording), 1.5b (`Instance`), 1.5c (`Snapshot`, id map). Decided on the facts: global step shape from exported params, not inferred from node minutes (finding f would make inference silently wrong); print and mill as given runs; REWORK out of the slice-1 instance; break 12:00 / 60 min as a stopgap until 4.3. MES CI green on d38956c. |
+| 2026-11-23 | 1.5a | MES 9a3b829, sim (this commit) | MES: `params` in `GET /planning/problem` (the rows of `SCOPE` and the AM / MILL job rows, `ProblemParamsOut`); test that params + exported units reproduce every carrier's minutes. Bridge: `mes_bridge.api` (problem and schedule models, `extra="forbid"`), `tests/test_contract.py` against `tests/data/openapi.json` (caught a real drift on the first run: `ScheduleOut.created_at` is nullable), two recorded responses (`problem_mill_prep.json`, `problem_printing.json`) from the MES test helpers via a temporary test. Gates: MES backend 1220 passed, ruff/format/mypy clean, client regenerated, svelte-check 0/0, lint 0 errors, vitest 116; bridge 26 passed; simulation 1807 passed. Findings: (j) the recordings' `as_of` is the DB clock while the helpers' task times use a fixed NOW, so `as_of` lies after the task times by the recording delay (harmless; 1.5c must not assume `as_of` = NOW); (k) the MES `_mill_data_prep` test helper now sets a start time, so done mill data preps reach the snapshot. |
