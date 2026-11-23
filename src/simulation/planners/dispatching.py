@@ -43,7 +43,7 @@ started by t are kept (C7^b); a break of the snapshot's day not yet started is p
 
 from bisect import bisect_left, insort
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 from typing import TYPE_CHECKING
 
@@ -65,6 +65,8 @@ class DispatchState:
     backlog: list[int]  # per machine: processing time assigned but not yet scheduled
     work_left: list[int]  # per order: sum of min_m p_{o,m} over its unscheduled operations
     remaining_path: list[int]  # per op: longest path to the end of its order with min_m p (static)
+    # per worker: share minutes booked so far, V_z (the dispatcher's own list; for a learned policy, math/16)
+    worker_load: list[int] = field(default_factory=list)
 
 
 # rule(ci, state, o, m, p) -> priority; the smallest wins, ties broken by operation, then machine index
@@ -152,10 +154,11 @@ class Checkpoint:
     ot: list[int]  # overtime allowance per operation (the given one, or chosen with an overtime candidate)
 
     def restore(self) -> tuple:
-        s = self.state
+        s, worker_load = self.state, self.worker_load[:]  # the state and the dispatcher share one list
         return (DispatchState(s.ready_at[:], s.machine_free[:], s.load[:], s.backlog[:], s.work_left[:],
-                              s.remaining_path), self.open_preds[:], dict(self.ready), [b[:] for b in self.busy],
-                self.fixed, self.frozen_time, self.worker_load[:], self.longest[:], self.max_end, self.log[:],
+                              s.remaining_path, worker_load), self.open_preds[:], dict(self.ready),
+                [b[:] for b in self.busy], self.fixed, self.frozen_time, worker_load, self.longest[:], self.max_end,
+                self.log[:],
                 {k: v[:] for k, v in self.cached.items()}, self.out[:], self.zeta, self.ot[:])
 
 
@@ -230,16 +233,16 @@ def _dispatch(ci, sequencing, assignment, snapshot, delay, overtime, join, choos
         duration[head] = {m: sum(duration[q][m] for q in group) for m in duration[head]}
     # the mutable state (a Checkpoint): fresh, or copied from the checkpoint to resume
     if resume is None:
+        worker_load = [0] * len(ci.worker_ids)
         state = DispatchState(
             [max(r, t0) for r in ci.release], [t0] * ci.n_machines, [0] * ci.n_machines, [0] * ci.n_machines,
-            work_left, remaining_path,
+            work_left, remaining_path, worker_load,
         )
         open_preds = [len(preds) for preds in ci.predecessors]
         ready: dict[int, tuple[tuple[int, int], ...]] = {}  # ready operation -> machines it may still use
         busy: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # per worker: everything booked, sorted
         fixed: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # frozen shares, started breaks, removals
         frozen_time: list[list[tuple[int, int]]] = [[] for _ in ci.worker_ids]  # started shares of the frozen part
-        worker_load = [0] * len(ci.worker_ids)
         longest = [0] * len(ci.worker_ids)  # per worker: longest interval in busy, bounds the clash search
         max_end = 0  # latest end in busy over all workers (worker_start's give-up limit)
         log: list[tuple[int, int, int]] = []  # every booking (w, s, e) in order: what a cached earliest start has seen

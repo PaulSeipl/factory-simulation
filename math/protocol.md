@@ -8,6 +8,28 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-23 (95) — RL step R1: features — uncommitted
+
+- **Decided (user):** do R1. Training may move to Kaggle if it takes long.
+- **Decided (Claude):**
+  - 18 scale-free features per candidate: times in units of $\bar p$, loads relative to their mean, some values
+    relative to the other candidates, two global values.
+  - No order or step identity, so the policy can transfer across instances.
+  - `DispatchState.worker_load` shares the dispatcher's own list.
+  - Symbols $\mathcal{C}_\zeta$, $\bar p$, $\mathrm{ft}$. Policy and parameter symbols come with R2: $\pi$ (plan),
+    $\theta$ (lexicographic weights), $\omega$ and $\phi$ are taken.
+- **Done:**
+  - `planners/rl_features.py` (`Featurizer`, `NAMES`, `FEATURE_VERSION`).
+  - `DispatchState.worker_load`.
+  - `tests/test_rl_features.py` (7 tests).
+  - Docs: [16](16_rl.md) new; [11](11_dispatching-rules.md) §5; [notation.md](notation.md); README;
+    [references.md](references.md).
+- **Found:** `dispatch_speed.py` gives all 1710 plans equal; a resumed run sees the same worker loads as the
+  uninterrupted one; 1930 tests pass.
+- **Open:**
+  - R2: policy and training. A script that runs standalone, so it can also run on Kaggle (`uv sync`, CPU or GPU).
+  - Thesis sections affected: none written yet.
+
 ## 2026-11-23 (94) — RL step R0: PyTorch as a dependency — uncommitted
 
 - **Decided (user):**

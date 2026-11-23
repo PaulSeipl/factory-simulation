@@ -125,6 +125,9 @@ calendar ([04](04_workers.md)).
 | $N^{\mathrm{it}}$, $N^{\mathrm{wid}}$, $N^{\mathrm{vis}}_\vartheta$ | MCTS iterations per decision, children per node, visits of node $\vartheta$ | [15](15_mcts.md) |
 | $\bar f_\vartheta$, $f^{\min}$, $f^{\max}$ | mean rollout value through $\vartheta$; best and worst rollout value of the search (variants of the objective $f$) | [15](15_mcts.md) |
 | $\beta$ | MCTS exploration weight of the UCB term (not $c$: the batch capacity $c_s$) | [15](15_mcts.md) |
+| $\mathcal{C}_\zeta$ | eligible candidates of decision $\zeta$ (RL features, also MCTS's children) | [16](16_rl.md) |
+| $\bar p$ | mean shortest processing time $\frac{1}{\lvert O \rvert}\sum_o \underline{p}_o$, time unit of the RL features | [16](16_rl.md) |
+| $\mathrm{ft}(c)$ | RL feature vector of candidate $c$ (not $\phi$: machine free time; not $x$: CP-SAT assignment) | [16](16_rl.md) |
 
 ## Correspondence to the sources
 
