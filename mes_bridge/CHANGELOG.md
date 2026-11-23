@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+- `mes_bridge.state`: `id_map` (MES key → its compiled operations in time order: AM_PREP = print setup + run,
+  PART_POWDER_REMOVAL = removal, the mill chain likewise, every other step one operation) and `build_snapshot`
+  (a started MES task freezes its operations: done with real times, running with the MES's expected end, at
+  least t + 1; the handoff ends a setup and starts the run). A done step without a start, a started task without
+  a worker, a worker outside the instance or a machine the operation cannot use raise `MappingError`. Tests:
+  both recordings replan with `spt` from the snapshot and pass `check_schedule`; setup still running, handed off
+  and finished; one negative test per rule. Recordings re-made with a consistent timeline (one worker, no
+  overlap, the print after its mill data preps) by `tests/data/record_problems.py`, now kept here.
 - `mes_bridge.instance.build_instance`: MES problem → thesis `Instance` (slice 1, SECONDARY lane). Plates are
   carriers; the print a given run per AM job (AM_PREP = setup + main, PART_POWDER_REMOVAL = removal), the
   secondary mill a given run per plate (MILL_PREP_SECONDARY = setup + main, SECONDARY_PLATE_REMOVAL = removal);

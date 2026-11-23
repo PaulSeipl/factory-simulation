@@ -77,7 +77,7 @@ baseline a CI error.
   service user. Tests incl. one negative test per validation rule.
 - [x] 1.4 MES: `GET /planning/problem` for the SECONDARY lane (decision 11), one read transaction, reusing the
   node gathering of `services/planning/plan.py`. Tests. **Reopened 2026-11-23:** add jobs (prints, mill jobs) with their parts and each order's secondary parts (decision 11); carrier-grain keys (B1). Done 2026-11-23.
-- [ ] 1.5 Split 2026-11-23 into three rounds (too big for one):
+- [x] 1.5 Split 2026-11-23 into three rounds (too big for one):
   - [x] 1.5a MES: `params` in the problem export (the `task_planning_params` rows of `SCOPE` and the AM / MILL job
     rows; an extension of decision 11, decision 8 already rests on them). Bridge: hand-written models for problem
     and schedule + contract test against a copied `openapi.json` (decision 15); a recorded problem response from the
@@ -90,7 +90,7 @@ baseline a CI error.
     today's break 12:00 / 60 min hard-coded until 4.3 (stopgap). REWORK left out until slice 3 (its predecessor QM
     is out of scope). Times before the epoch clamp to 0; an overdue due date clamps to the first cutoff at or after
     release (tardiness understated, logged). `Instance` validation is the loud failure; tested.
-  - [ ] 1.5c Bridge: `Snapshot` and the id map instance ids ↔ MES keys, matching how `operation_graph` and
+  - [x] 1.5c Bridge: `Snapshot` and the id map instance ids ↔ MES keys, matching how `operation_graph` and
     `snapshot()` name carrier and run operations (setup / main / removal); AM_PREP = print setup + main (handoff
     ends the setup), PART_POWDER_REMOVAL = removal, the mill chain likewise. Unit tests on the recorded response.
 - [ ] 1.6 Bridge: one-shot command: fetch problem → `spt` → `check_schedule` → `PUT`. Integration test against
@@ -149,6 +149,11 @@ baseline a CI error.
 - ~~Is `OrderPart.quadrant` set for every secondary part from `DATA_PREP_SECONDARY` on?~~ Checked 2026-11-23: only
   when the submit sends `part_quadrant_assignments` (optional, default `{}`); the export reads `TaskPart.quadrant`
   and keeps job keys for a print with a part lacking one. Unique per plate within an AM job: yes (user).
+- What does the bridge do when the MES facts themselves break a model rule (a worker on two tasks at once, a
+  step started before its predecessor finished)? `check_schedule` flags violations among frozen operations too,
+  so decision 23 would block every publish while such a fact is in the snapshot. Look at real task data in 1.6;
+  if it happens, the policy (e.g. publish when every violation is among frozen operations, log the rest) is a
+  Blocked entry.
 - How does a rework clone or a repeated step map to a unique `Operation.id` within an order?
 - Do scrap and the rework clone change a `WorkTask` or `Equipment` row? If not, the listener misses them and
   only the safety poll catches them; extend the listener to those rows.
@@ -216,3 +221,4 @@ PR comments read until: 2026-11-23T09:30Z
 | 2026-11-23 | 1.5 split | — | 1.5 split into 1.5a (params export, models, contract, recording), 1.5b (`Instance`), 1.5c (`Snapshot`, id map). Decided on the facts: global step shape from exported params, not inferred from node minutes (finding f would make inference silently wrong); print and mill as given runs; REWORK out of the slice-1 instance; break 12:00 / 60 min as a stopgap until 4.3. MES CI green on d38956c. |
 | 2026-11-23 | 1.5a | MES 9a3b829, sim (this commit) | MES: `params` in `GET /planning/problem` (the rows of `SCOPE` and the AM / MILL job rows, `ProblemParamsOut`); test that params + exported units reproduce every carrier's minutes. Bridge: `mes_bridge.api` (problem and schedule models, `extra="forbid"`), `tests/test_contract.py` against `tests/data/openapi.json` (caught a real drift on the first run: `ScheduleOut.created_at` is nullable), two recorded responses (`problem_mill_prep.json`, `problem_printing.json`) from the MES test helpers via a temporary test. Gates: MES backend 1220 passed, ruff/format/mypy clean, client regenerated, svelte-check 0/0, lint 0 errors, vitest 116; bridge 26 passed; simulation 1807 passed. Findings: (j) the recordings' `as_of` is the DB clock while the helpers' task times use a fixed NOW, so `as_of` lies after the task times by the recording delay (harmless; 1.5c must not assume `as_of` = NOW); (k) the MES `_mill_data_prep` test helper now sets a start time, so done mill data preps reach the snapshot. |
 | 2026-11-23 | 1.5b | sim (this commit) | `mes_bridge.instance.build_instance` (plates = carriers, print and mill as given runs, plate steps without runs, s-batches for cleaning and blasting from the MES linear form, step shape from `params`, run and order minutes from the operations; epoch, calendar, due cutoffs). Both recordings map, compile, plan with `spt` and pass `check_schedule` (0 violations). 19 new tests (hand values, epoch / DST / clamp, due cutoffs incl. weekend and overdue, one negative per `MappingError` rule, a V14 failure surfacing). Gates: bridge 45 passed, simulation 1807 passed; MES CI green on 9a3b829. Findings: (l) the format needs a carrier chain to end in a separating operation (V14); slice 1 stops before SAWING, so the last carrier operation in scope takes `role="separate"` (validation only, no planning effect; slice 3 maps SAWING); (m) the oven has no machine in the export (finding b), so it is a worker step with an unattended rest and no p-batch: unlimited parallel ovens until OVEN is mapped; (n) a given run may be planned on any printer / mill of its step, not only its job's machine (the step's options are global); bound pins (6.1) or a format change fix it; harmless with one printer and one mill; (o) shift = daily minutes + the hard-coded break, so a worker keeps the capacity `fill.py` plans with. |
+| 2026-11-23 | 1.5c | MES ace061b, sim (this commit) | `mes_bridge.state`: `id_map` (MES key → compiled operations: AM_PREP = print setup + run, the handoff in between; PART_POWDER_REMOVAL = removal; mill chain likewise) and `build_snapshot` (finished / running, expected end ≥ t + 1). Both recordings replan with `spt` from the snapshot and pass `check_schedule` (0 violations). 11 new tests incl. 4 negative. MES: `_mill_data_prep` test helper takes a worker and a finish time. Gates: bridge 56 passed, MES backend 1220 passed, simulation 1807 passed. Findings: (p) the first recordings broke model rules themselves (one worker on two overlapping tasks, the print before its mill data preps), and `check_schedule` flagged them although they are facts: added as a known unknown for 1.6 (decision 23 could block every publish); recordings re-made with a consistent timeline by `tests/data/record_problems.py`, now checked in; (q) a running carrier task without an MES expected end (export finding g) gets start + planned, at least t + 1. 1.5 complete. |

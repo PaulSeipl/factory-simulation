@@ -55,6 +55,19 @@ LANE = "SECONDARY"
 BREAK_START, BREAK_LENGTH = 720, 60
 
 
+def carrier_id(key: str) -> str:
+    """Instance id of the MES carrier `<am job>:<quadrant>`."""
+    return f"C:{key}"
+
+
+def print_run(am_job: UUID | str) -> str:
+    return f"R:{am_job}"
+
+
+def mill_run(carrier_key: str) -> str:
+    return f"M:{carrier_key}"
+
+
 def epoch_of(t: datetime, tz: ZoneInfo) -> datetime:
     """Monday 00:00 (local time in `tz`) of the week holding `t`."""
     local = t.astimezone(tz)
@@ -107,7 +120,7 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
     s_batches: dict[str, SBatchStep] = {}
     machines: set[str] = set()
     runs: list[Run] = []
-    carrier_of = {c.key: f"C:{c.key}" for c in inst.carriers}
+    carrier_of = {c.key: carrier_id(c.key) for c in inst.carriers}
     carriers_of_job: dict[UUID, list[str]] = defaultdict(list)
     for c in inst.carriers:
         carriers_of_job[c.am_job_id].append(c.key)
@@ -127,7 +140,7 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
             mains[job.id] = span(entered if entered is not None else o.unattended_minutes)
             runs.append(
                 Run(
-                    id=f"R:{job.id}",
+                    id=print_run(job.id),
                     step=PRINT,
                     carriers=tuple(carrier_of[k] for k in sorted(carriers_of_job[job.id])),
                     duration=mains[job.id],
@@ -144,7 +157,7 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
         for o in mills:
             key = _carrier_key(o)
             mains[key] = span(o.unattended_minutes)  # the mill job's entered minutes, else its params (MES)
-            runs.append(Run(id=f"M:{key}", step=MILL, carriers=(carrier_of[key],), duration=mains[key]))
+            runs.append(Run(id=mill_run(key), step=MILL, carriers=(carrier_of[key],), duration=mains[key]))
         carrier_steps[MILL] = _run_step(
             params("MILL_PREP_SECONDARY"), params("SECONDARY_PLATE_REMOVAL"), ms, max(mains.values())
         )
