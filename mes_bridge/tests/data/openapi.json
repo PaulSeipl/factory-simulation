@@ -18809,6 +18809,20 @@
             "type": "string",
             "format": "time",
             "title": "Day Start"
+          },
+          "scheduler_task_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTypeEnum"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Task Types"
           }
         },
         "type": "object",
@@ -18823,6 +18837,20 @@
             "type": "string",
             "format": "time",
             "title": "Day Start"
+          },
+          "scheduler_task_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTypeEnum"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Task Types"
           }
         },
         "type": "object",
