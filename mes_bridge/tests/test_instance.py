@@ -236,6 +236,14 @@ def test_arrival_and_calendar():
     assert cal.working_days == (0, 1, 2, 3, 4)
 
 
+def test_the_calendar_takes_the_mes_break_settings():
+    raw = _raw()
+    raw["instance"]["calendar"] |= {"break_earliest": "11:30:00", "break_latest": "12:30:00", "break_minutes": 45}
+    cal = _build(raw).calendar
+    assert (cal.break_earliest, cal.break_latest, cal.break_length) == (690, 750, 45)
+    assert cal.shift_end == cal.shift_start + raw["instance"]["workers"][0]["daily_minutes"] + 45
+
+
 def test_an_entered_job_estimate_is_the_run_time():
     raw = _raw()
     for j in raw["instance"]["jobs"]:

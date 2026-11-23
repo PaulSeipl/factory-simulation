@@ -94,8 +94,6 @@ LEFT_OUT: set[str] = set()
 # has no MES key until QM reopens, so it is planned but not published.
 REWORK, RECHECK = "REWORK", "RECHECK"
 LANE = "SECONDARY"
-# shortcut: today's MES break 12:00, 60 min (decision 21), hard-coded until the break settings exist (task 4.3)
-BREAK_START, BREAK_LENGTH = 720, 60
 
 
 def carrier_id(key: str) -> str:
@@ -434,20 +432,21 @@ def _per_carrier_step(
 
 
 def _calendar(inst: ProblemInstanceOut) -> Calendar:
-    """Decision 20: global; the most common daily minutes and workdays; no overtime. The shift is the daily minutes
-    plus the break, so a worker keeps the capacity the MES plans with (fill.py has no break yet)."""
+    """Decision 20: global; the most common daily minutes and workdays; no overtime. The break window and length are
+    the MES's settings (decision 21); the shift is the daily minutes plus the break, as fill.py lengthens the day."""
     if not inst.workers:
         raise MappingError("no workers")
     daily = Counter(w.daily_minutes for w in inst.workers).most_common(1)[0][0]
     days = Counter(tuple(sorted(w.workdays)) for w in inst.workers).most_common(1)[0][0]
-    start = inst.calendar.day_start.hour * 60 + inst.calendar.day_start.minute
+    c = inst.calendar
+    start = c.day_start.hour * 60 + c.day_start.minute
     return Calendar(
         origin=0,
         shift_start=start,
-        shift_end=start + daily + BREAK_LENGTH,
-        break_earliest=BREAK_START,
-        break_latest=BREAK_START,
-        break_length=BREAK_LENGTH,
+        shift_end=start + daily + c.break_minutes,
+        break_earliest=c.break_earliest.hour * 60 + c.break_earliest.minute,
+        break_latest=c.break_latest.hour * 60 + c.break_latest.minute,
+        break_length=c.break_minutes,
         max_overtime=0,
         working_days=tuple(d - 1 for d in days),  # ISO 1 = Monday -> 0
     )

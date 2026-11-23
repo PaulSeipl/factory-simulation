@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- 4.3: breaks (decision 21). The calendar takes the break window and length from the problem (the MES's
+  `planning_setting`, no longer hard-coded 12:00 / 60 min); the published schedule carries the plan's breaks (one
+  per worker and day, `schedule_breaks`), from the one-shot command and the runner. Recordings re-made with the
+  new calendar fields.
 - 3.3b: `mes_bridge.config.SchedulerConfig` (decision 9; Pydantic, `extra="forbid"`, JSON via `--config` on the runner
   and the one-shot command): the solver (a sequencing and an assignment rule of the thesis), the rescheduling policy's
   thresholds (math/05 §3) and the safety-poll interval. CP-SAT and the GA join in 5.1, the frozen horizon in 5.2.

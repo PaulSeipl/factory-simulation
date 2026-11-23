@@ -103,6 +103,9 @@ class ProblemAssignmentOut(_Model):
 class ProblemCalendarOut(_Model):
     day_start: time
     time_zone: str
+    break_earliest: time  # one break per worker and day (decision 21), starting in [earliest, latest]
+    break_latest: time
+    break_minutes: int
 
 
 class ProblemInstanceOut(_Model):

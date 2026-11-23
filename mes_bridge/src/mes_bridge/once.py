@@ -17,7 +17,7 @@ from simulation.check.feasibility import Violation, check_schedule
 from simulation.model.compiled import CompiledInstance, compile_instance
 from simulation.model.schedule import Assignment, Plan
 
-from mes_bridge.api import ProblemOut, ScheduleIn, ScheduleStepIn
+from mes_bridge.api import ProblemOut, ScheduleBreakIn, ScheduleIn, ScheduleStepIn
 from mes_bridge.client import MesClient, http
 from mes_bridge.config import SchedulerConfig
 from mes_bridge.instance import build_instance, epoch_of
@@ -44,12 +44,26 @@ def solve(
     plan = (config or SchedulerConfig()).solver.planner()(ci, snap, [])
     if violations := check_schedule(ci, plan.assignments, snapshot=snap, breaks=plan.breaks):
         return Outcome(None, violations)
-    return Outcome(_schedule(problem, solved_at, steps(problem, ci, ids, plan, epoch)), [])
+    return Outcome(
+        _schedule(problem, solved_at, steps(problem, ci, ids, plan, epoch), schedule_breaks(problem, plan, epoch)), []
+    )
 
 
-def _schedule(problem: ProblemOut, solved_at: datetime, steps_: list[ScheduleStepIn]) -> ScheduleIn:
-    # shortcut: no breaks until the MES has break settings (task 4.3); the plan's own breaks are dropped
-    return ScheduleIn(variant=VARIANT, snapshot_as_of=problem.as_of, solved_at=solved_at, steps=steps_)
+def _schedule(
+    problem: ProblemOut, solved_at: datetime, steps_: list[ScheduleStepIn], breaks_: list[ScheduleBreakIn] = ()
+) -> ScheduleIn:
+    return ScheduleIn(
+        variant=VARIANT, snapshot_as_of=problem.as_of, solved_at=solved_at, steps=steps_, breaks=list(breaks_)
+    )
+
+
+def schedule_breaks(problem: ProblemOut, plan: Plan, epoch: datetime) -> list[ScheduleBreakIn]:
+    """The plan's breaks (decision 21): one per worker and day, `break_minutes` long."""
+    length = timedelta(minutes=problem.instance.calendar.break_minutes)
+    return [
+        ScheduleBreakIn(worker_id=b.worker, start=_dt(epoch, b.start), end=_dt(epoch, b.start) + length)
+        for b in sorted(plan.breaks, key=lambda b: (b.start, b.worker))
+    ]
 
 
 def steps(problem: ProblemOut, ci: CompiledInstance, ids: IdMap, plan: Plan, epoch: datetime) -> list[ScheduleStepIn]:

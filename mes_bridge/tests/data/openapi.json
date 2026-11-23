@@ -18823,6 +18823,23 @@
               }
             ],
             "title": "Scheduler Task Types"
+          },
+          "break_earliest": {
+            "type": "string",
+            "format": "time",
+            "title": "Break Earliest",
+            "default": "12:00:00"
+          },
+          "break_latest": {
+            "type": "string",
+            "format": "time",
+            "title": "Break Latest",
+            "default": "12:00:00"
+          },
+          "break_minutes": {
+            "type": "integer",
+            "title": "Break Minutes",
+            "default": 60
           }
         },
         "type": "object",
@@ -18851,6 +18868,43 @@
               }
             ],
             "title": "Scheduler Task Types"
+          },
+          "break_earliest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Break Earliest"
+          },
+          "break_latest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Break Latest"
+          },
+          "break_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 240.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Break Minutes"
           }
         },
         "type": "object",
@@ -19934,12 +19988,29 @@
           "time_zone": {
             "type": "string",
             "title": "Time Zone"
+          },
+          "break_earliest": {
+            "type": "string",
+            "format": "time",
+            "title": "Break Earliest"
+          },
+          "break_latest": {
+            "type": "string",
+            "format": "time",
+            "title": "Break Latest"
+          },
+          "break_minutes": {
+            "type": "integer",
+            "title": "Break Minutes"
           }
         },
         "type": "object",
         "required": [
           "day_start",
-          "time_zone"
+          "time_zone",
+          "break_earliest",
+          "break_latest",
+          "break_minutes"
         ],
         "title": "ProblemCalendarOut"
       },

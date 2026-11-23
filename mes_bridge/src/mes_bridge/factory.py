@@ -26,7 +26,7 @@ from simulation.sim.snapshot import Snapshot
 from mes_bridge.api import ProblemOut, ScheduleIn
 from mes_bridge.client import MesClient
 from mes_bridge.instance import build_instance
-from mes_bridge.once import VARIANT, steps
+from mes_bridge.once import VARIANT, schedule_breaks, steps
 from mes_bridge.state import IdMap, build_snapshot, id_map
 
 
@@ -108,6 +108,7 @@ class MesFactory:
                 snapshot_as_of=self.problem.as_of,
                 solved_at=self._clock(),
                 steps=steps(self.problem, self.ci, self.ids, Plan(list(plan), new_breaks), self.epoch),
+                breaks=schedule_breaks(self.problem, Plan(list(plan), new_breaks), self.epoch),
             )
         )
         # in operation order, as the DES returns its plan: adapt_plan compares plans position by position

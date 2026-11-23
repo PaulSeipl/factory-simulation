@@ -77,6 +77,22 @@ def test_nothing_arrived_publishes_an_empty_schedule():
     assert fake.published and fake.published[0].steps == []
 
 
+def test_the_schedule_carries_the_plans_breaks_and_no_step_overlaps_them():
+    """Task 4.3 (decision 21): one break per worker and day, the MES's length; the worker's steps leave it free."""
+    raw = _raw("problem_blank.json")
+    _, outcome = _run(raw)
+    s = outcome.schedule
+    assert s.breaks
+    length = timedelta(minutes=raw["instance"]["calendar"]["break_minutes"])
+    days = [(b.worker_id, b.start.date()) for b in s.breaks]
+    assert len(days) == len(set(days))
+    for b in s.breaks:
+        assert b.end - b.start == length
+        for st in s.steps:
+            if st.worker_id == b.worker_id:
+                assert st.attended_end <= b.start or st.start >= b.end, (st.key, b)
+
+
 def test_a_dry_run_does_not_publish():
     fake, outcome = _run(_raw("problem_mill_prep.json"), dry_run=True)
     assert outcome.schedule is not None and fake.published == []
