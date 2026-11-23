@@ -9216,7 +9216,7 @@
           "Planning"
         ],
         "summary": "Read Plan",
-        "description": "The plan (ADR 0002, 0003): open steps overlapping [from, to), optionally one worker's.\n\nRebuilt from now on every read: the latest bound schedule with the facts laid over it, the\nMES fill for the rest (`source` per step; `scheduler` says whether a schedule is served).\n`order_finish` covers every planned order regardless of the window.",
+        "description": "The plan (ADR 0002, 0003): open steps overlapping [from, to), optionally one worker's.\n\nRebuilt from now on every read: the latest bound schedule with the facts laid over it, the\nMES fill for the rest (`source` per step; `scheduler` says whether a schedule is served).\n`breaks`: every worker's breaks overlapping the window (decision 21), the steps leave them free.\n`order_finish` covers every planned order regardless of the window.",
         "operationId": "read_plan",
         "parameters": [
           {
@@ -9267,6 +9267,17 @@
               "title": "Tz"
             },
             "description": "Time zone worker hours are read in"
+          },
+          {
+            "name": "variant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ScheduleVariantEnum",
+              "description": "BOUND: assignments are pins; FREE: the scheduler ignored them",
+              "default": "BOUND"
+            },
+            "description": "BOUND: assignments are pins; FREE: the scheduler ignored them"
           }
         ],
         "responses": {
@@ -18627,9 +18638,33 @@
             "type": "array",
             "title": "Order Finish"
           },
+          "breaks": {
+            "items": {
+              "$ref": "#/components/schemas/PlannedBreakOut"
+            },
+            "type": "array",
+            "title": "Breaks",
+            "default": []
+          },
           "scheduler": {
             "$ref": "#/components/schemas/SchedulerStateEnum",
             "default": "NONE"
+          },
+          "scheduler_solved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Solved At"
+          },
+          "variant": {
+            "$ref": "#/components/schemas/ScheduleVariantEnum",
+            "default": "BOUND"
           }
         },
         "type": "object",
@@ -18656,6 +18691,37 @@
           "WAITING"
         ],
         "title": "PlanStepStatusEnum"
+      },
+      "PlannedBreakOut": {
+        "properties": {
+          "worker_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Worker Id"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "source": {
+            "$ref": "#/components/schemas/PlanSourceEnum"
+          }
+        },
+        "type": "object",
+        "required": [
+          "worker_id",
+          "start",
+          "end",
+          "source"
+        ],
+        "title": "PlannedBreakOut",
+        "description": "A worker's break (spec decision 21): one per working day; the plan's steps leave it free."
       },
       "PlannedStepOut": {
         "properties": {
@@ -18784,6 +18850,11 @@
           "source": {
             "$ref": "#/components/schemas/PlanSourceEnum",
             "default": "MES_FILL"
+          },
+          "assigned": {
+            "type": "boolean",
+            "title": "Assigned",
+            "default": false
           }
         },
         "type": "object",
@@ -18840,6 +18911,11 @@
             "type": "integer",
             "title": "Break Minutes",
             "default": 60
+          },
+          "scheduler_stale_minutes": {
+            "type": "integer",
+            "title": "Scheduler Stale Minutes",
+            "default": 30
           }
         },
         "type": "object",
@@ -18905,6 +18981,19 @@
               }
             ],
             "title": "Break Minutes"
+          },
+          "scheduler_stale_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1440.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Stale Minutes"
           }
         },
         "type": "object",

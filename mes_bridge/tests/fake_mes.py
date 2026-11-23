@@ -13,6 +13,8 @@ class FakeMes:
         self.published: list[ScheduleIn] = []
         self.outs: list[dict] = []  # the stored publications, as GET /planning/schedule serves them
         self.logins = 0
+        self.stale_minutes = 30  # scheduler_stale_minutes of GET /planning/settings
+        self.settings_status = 200
         self.problem_status = 200  # set to e.g. 500 to make the problem fail
 
     def __call__(self, method, path, body, headers):
@@ -24,6 +26,10 @@ class FakeMes:
             return 401, {"detail": "Not authenticated"}
         if (method, path) == ("GET", "/api/v1/planning/problem"):
             return (200, self.problem) if self.problem_status == 200 else (self.problem_status, {"detail": "down"})
+        if (method, path) == ("GET", "/api/v1/planning/settings"):
+            if self.settings_status != 200:
+                return self.settings_status, {"detail": "down"}
+            return 200, {"scheduler_stale_minutes": self.stale_minutes, "break_start": "12:00", "day_start": "07:00"}
         if (method, path) == ("PUT", "/api/v1/planning/schedule"):
             s = ScheduleIn.model_validate(body)
             self.published.append(s)

@@ -105,6 +105,7 @@ class Runner:
     decisions: list[dict] = field(default_factory=list)
     log: Callable[[str], None] = print
     store: Store | None = None
+    stale_minutes: int | None = None  # the MES's scheduler_stale_minutes as last read (keep-alive deadline)
     _logged: int = 0  # decisions already written to the store
 
     def tick(self, now: datetime, reason: str) -> None:
@@ -125,7 +126,20 @@ class Runner:
                 f = self.factory
                 saved = Saved(f.epoch, self.anchor, list(f.current_plan()), tuple(f.current_breaks()), f.publication)
                 self.store.save(saved)
-        self.log(f"{now.isoformat()} {reason}: {len(merged)} events, {published} published, {rejected} not published")
+        kept = self._keep_alive()
+        self.log(
+            f"{now.isoformat()} {reason}: {len(merged)} events, {published} published, {rejected} not published"
+            + (f", {kept} kept alive" if kept else "")
+        )
+
+    def _keep_alive(self) -> int:
+        """Republish an unchanged plan before the MES calls the scheduler stale; a failure is logged, not raised."""
+        try:
+            self.stale_minutes = self.factory.client.settings().scheduler_stale_minutes
+            return int(self.factory.keep_alive(self.stale_minutes))
+        except Exception as e:  # the step itself went through
+            self.log(f"keep-alive failed: {e}")
+            return 0
 
     def resume(self) -> bool:
         """Decision 22: continue from the saved state if the MES still serves its publication, else start fresh
@@ -154,6 +168,10 @@ class Runner:
                 at = f.epoch + timedelta(minutes=t)
                 if now < at < best[0]:
                     best = (at, why)
+        if f.last_published_at is not None and self.stale_minutes is not None and f.ci is not None and f.current_plan():
+            at = f.last_published_at + timedelta(minutes=self.stale_minutes / 2)
+            if now < at < best[0]:
+                best = (at, "keep_alive")
         if self.anchor is not None and self.policy.period is not None:
             at = f.epoch + timedelta(minutes=self.anchor.t + self.policy.period)
             if now < at < best[0]:

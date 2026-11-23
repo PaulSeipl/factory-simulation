@@ -16,6 +16,7 @@ from mes_bridge import api
 DATA = Path(__file__).parent / "data"
 SCHEMAS = json.loads((DATA / "openapi.json").read_text(encoding="utf-8"))["components"]["schemas"]
 REQUESTS = {api.ScheduleIn, api.ScheduleStepIn, api.ScheduleBreakIn}  # validation mode, the rest are responses
+PARTIAL = {api.PlanningSettingsOut}  # reads only some fields (extra="ignore"): its fields must be a subset
 MODELS = [
     m
     for m in vars(api).values()
@@ -50,14 +51,19 @@ def test_model_matches_the_mes_schema(model):
     mine = model.model_json_schema(
         mode="validation" if model in REQUESTS else "serialization", ref_template="#/components/schemas/{model}"
     )
-    assert _shape(mine, mine.get("$defs", {})) == _shape(SCHEMAS[model.__name__], SCHEMAS)
+    fields, required = _shape(mine, mine.get("$defs", {}))
+    theirs, their_required = _shape(SCHEMAS[model.__name__], SCHEMAS)
+    if model in PARTIAL:  # every field it reads is the MES's, as the MES has it
+        assert all(theirs.get(k) == v for k, v in fields.items()) and required <= their_required
+    else:
+        assert (fields, required) == (theirs, their_required)
 
 
 def test_every_problem_and_schedule_schema_has_a_model():
     """A new MES schema of these endpoints needs a model (or a deliberate exception here)."""
     unused = {"ScheduleVariantEnum", "SchedulerStateEnum"}  # enums (strings here); the second is the plan's
     wanted = {n for n in SCHEMAS if n.startswith(("Problem", "Schedule"))} - unused
-    assert wanted == {m.__name__ for m in MODELS}
+    assert wanted == {m.__name__ for m in MODELS} - {m.__name__ for m in PARTIAL}
 
 
 @pytest.mark.parametrize("name", ["problem_mill_prep.json", "problem_printing.json", "problem_blank.json"])

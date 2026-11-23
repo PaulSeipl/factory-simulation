@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 
-from mes_bridge.api import ProblemOut, ScheduleIn, ScheduleOut
+from mes_bridge.api import ProblemOut, ScheduleIn, ScheduleOut, PlanningSettingsOut
 
 # method, path, JSON body, headers -> (status, parsed JSON body); swapped for a fake in tests
 Send = Callable[[str, str, dict | None, dict[str, str]], tuple[int, object]]
@@ -69,6 +69,9 @@ class MesClient:
 
     def problem(self) -> ProblemOut:
         return ProblemOut.model_validate(self._call("GET", "/planning/problem"))
+
+    def settings(self) -> PlanningSettingsOut:
+        return PlanningSettingsOut.model_validate(self._call("GET", "/planning/settings"))
 
     def publish(self, schedule: ScheduleIn) -> ScheduleOut:
         return ScheduleOut.model_validate(

@@ -16,7 +16,7 @@ Time: minutes since the epoch fixed at the bridge's start (decision 17).
 """
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from simulation.check.feasibility import Violation, check_schedule
@@ -48,6 +48,7 @@ class MesFactory:
         self.rejected: list[list[Violation]] = []  # plans not published (decision 23), newest last
         self.published = 0
         self.publication: UUID | None = None  # id of the last publication in the MES
+        self.last_published_at: datetime | None = None  # `_clock()` at the last publish (None: not since the start)
         self._known: set[tuple[str, str]] | None = None  # the operations of the instance the plan covers
         self._machines: dict | None = None  # machine options per operation of the last instance (a machine went down)
         self._calendar = None  # the last instance's calendar (break window, shift)
@@ -148,6 +149,20 @@ class MesFactory:
         self._breaks = new_breaks
         self.published += 1
         self.publication = out.id
+        self.last_published_at = self._clock()
+
+    def keep_alive(self, stale_minutes: int) -> bool:
+        """Republish the current plan unchanged if the last publication is older than half the MES's stale threshold
+        (`scheduler_stale_minutes`), so a quiet stretch does not mark a healthy scheduler offline. After `restore()`
+        nothing was published yet, so the first call republishes. True if it published."""
+        if not self._plan or self.ci is None or self.problem is None:
+            return False
+        last = self.last_published_at
+        if last is not None and self._clock() - last < timedelta(minutes=stale_minutes / 2):
+            return False
+        before = self.published
+        self.update_plan(self.current_plan(), self.current_breaks())
+        return self.published > before
 
 
 def step(

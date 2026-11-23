@@ -236,17 +236,17 @@ def scenario(mes, env, bridge_state):
 
     # 4 break window
     settings = mes.call("GET", "/planning/settings")
-    mes.call("PUT", "/planning/settings", {"day_start": settings["day_start"], "break_earliest": "11:30:00",
-                                           "break_latest": "13:00:00", "break_minutes": 30})  # fmt: skip
+    mes.call("PUT", "/planning/settings", {"day_start": settings["day_start"], "break_earliest": "12:30:00",
+                                           "break_latest": "13:30:00", "break_minutes": 45})  # fmt: skip
     b4, waited = wait_solved(mes, "BOUND", b3["scheduler_solved_at"], 60)
     from datetime import time as t  # noqa: PLC0415
 
-    bad = breaks_in(b4, t(11, 30), t(13, 0))
+    bad = breaks_in(b4, t(12, 30), t(13, 30))
     check(
-        "4 break window 11:30-13:00 / 30 min: re-solved, breaks inside", not bad, f"{waited:.0f} s, outside {bad[:3]}"
+        "4 break window 12:30-13:30 / 45 min (12:00 outside): re-solved, breaks inside", not bad, f"{waited:.0f} s, outside {bad[:3]}"
     )
     lens = {(ts(x["end"]) - ts(x["start"])).seconds // 60 for x in b4["breaks"]}
-    check("4 breaks last 30 min", lens == {30}, str(lens))
+    check("4 breaks last 45 min", lens == {45}, str(lens))
     check("4 no attended step over a break", not break_clashes(b4), str(break_clashes(b4)[:3]))
 
     # 5 a worker starts the first planned step (as the worker it is planned for)

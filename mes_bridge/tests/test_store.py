@@ -53,7 +53,9 @@ def test_a_restart_resumes_when_the_mes_still_serves_the_publication(tmp_path):
     assert again.resume() and "resumed" in lines[-1]
     assert again.anchor == first.store.load().anchor
     again.tick(now, "start")
-    assert len(fake.published) == 1  # same state, same plan: nothing republished, no complete rescheduling
+    # same state, same plan: no complete rescheduling; only the keep-alive republishes the restored plan unchanged
+    # (the MES does not know the bridge restarted)
+    assert len(fake.published) == 2 and fake.published[1].steps == fake.published[0].steps
     assert all(d["type"] != "REPLAN" for d in again.decisions)
 
 

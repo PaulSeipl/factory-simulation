@@ -85,7 +85,8 @@ def test_events_since_the_last_step_are_merged_into_one():
 
 
 def test_the_next_wake_is_the_earliest_timer_or_the_poll():
-    _, r, now, _ = _runner(poll=timedelta(seconds=30))
+    fake, r, now, _ = _runner(poll=timedelta(seconds=30))
+    fake.stale_minutes = 10**6  # the keep-alive deadline is not under test here
     r.tick(now, "start")
     assert r.next_wake(now) == (now + timedelta(seconds=30), "poll")
     r.poll = timedelta(days=30)
@@ -175,3 +176,73 @@ def test_login_reraises_when_every_attempt_fails():
     with pytest.raises(ConnectionRefusedError):
         _login_when_up(client, "scheduler", "pw", "http://mes", attempts=3, sleep=sleeps.append, log=lines.append)
     assert client.calls == 3 and sleeps == [5.0, 5.0] and len(lines) == 2
+
+
+# --- keep-alive: the MES serves a schedule only while it is younger than scheduler_stale_minutes ---
+
+
+def _clocked():
+    """A runner whose factory clock is a mutable time: (fake, runner, clock cell, log lines)."""
+    fake, r, now, lines = _runner()
+    t = [now]
+    r.factory._clock = lambda: t[0]
+    return fake, r, t, lines
+
+
+def test_keep_alive_does_not_republish_while_the_publication_is_young():
+    fake, r, t, lines = _clocked()
+    r.tick(t[0], "start")
+    n = len(fake.published)
+    t[0] += timedelta(minutes=14)  # < 30 / 2
+    r.tick(t[0], "poll")
+    assert len(fake.published) == n
+    assert "kept alive" not in lines[-1]
+
+
+def test_keep_alive_republishes_the_unchanged_plan_once_when_older_than_half_the_threshold():
+    fake, r, t, lines = _clocked()
+    r.tick(t[0], "start")
+    first = fake.published[-1]
+    n = len(fake.published)
+    t[0] += timedelta(minutes=16)
+    r.tick(t[0], "poll")
+    assert len(fake.published) == n + 1
+    again = fake.published[-1]
+    assert again.steps == first.steps
+    assert again.breaks == first.breaks
+    assert again.solved_at > first.solved_at
+    assert lines[-1].endswith("1 kept alive")
+    r.tick(t[0], "poll")  # just published: nothing more
+    assert len(fake.published) == n + 1
+
+
+def test_the_first_tick_after_restore_republishes():
+    fake, r, t, _ = _clocked()
+    r.tick(t[0], "start")
+    f = r.factory
+    f2 = MesFactory(f.client, epoch=f.epoch, clock=lambda: t[0])
+    f2.restore(f.current_plan(), f.current_breaks(), f.publication)
+    r2 = Runner(f2, POLICY, anchor=r.anchor, log=lambda _m: None)
+    n = len(fake.published)
+    r2.tick(t[0], "start")
+    assert len(fake.published) == n + 1  # the MES does not know the bridge restarted
+    assert f2.last_published_at == t[0]
+
+
+def test_a_failing_settings_call_does_not_break_the_tick():
+    fake, r, t, lines = _clocked()
+    fake.settings_status = 500
+    r.tick(t[0], "start")
+    assert len(fake.published) == 1  # the step itself published
+    assert any("keep-alive failed" in x for x in lines)
+    assert r.stale_minutes is None
+
+
+def test_next_wake_is_the_keep_alive_deadline_when_it_is_the_earliest_timer():
+    fake, r, t, _ = _clocked()
+    fake.stale_minutes = 2  # deadline 1 min after the publication, before any other timer
+    r.tick(t[0], "start")
+    assert r.next_wake(t[0]) == (t[0] + timedelta(minutes=1), "keep_alive")
+    fake.stale_minutes = 2000  # a late deadline loses against the poll
+    r.tick(t[0], "poll")
+    assert r.next_wake(t[0])[1] != "keep_alive"

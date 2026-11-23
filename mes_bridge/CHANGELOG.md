@@ -4,6 +4,15 @@
 
 ## Unreleased
 
+- Keep-alive: the MES serves a schedule only while it is younger than the planning setting `scheduler_stale_minutes`
+  (default 30), else it shows "Scheduler offline"; the bridge published only on a change, so a quiet stretch
+  (overnight, an unchanged FREE variant) marked a healthy scheduler offline. `MesClient.settings()` reads
+  `GET /planning/settings` (`api.PlanningSettingsOut`, other fields ignored); `MesFactory.last_published_at` and
+  `keep_alive(stale_minutes)` republish the current plan unchanged (through `update_plan`, so checked) once the last
+  publication is older than half the threshold (also the first tick after `restore()`); `Runner.tick` calls it per
+  variant after the step (a failure is logged, the step stands) and `next_wake` wakes at the deadline ("keep_alive").
+  Cost: one extra schedule row per variant every stale/2 minutes while nothing changes. Tests `tests/test_runner.py`
+  (5 new), `fake_mes` serves the settings.
 - Startup: `runner._login_when_up` retries the login while the MES is unreachable (`OSError`, e.g. connection
   refused) every 5 s, up to 60 attempts (about 5 min), then re-raises; one log line per retry. An HTTP error
   status (`MesError`, e.g. 401) is raised at once. Tests `tests/test_runner.py` (3 new).

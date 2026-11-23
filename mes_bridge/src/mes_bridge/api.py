@@ -184,6 +184,13 @@ class ScheduleBreakOut(_Model):
     end: datetime
 
 
+class PlanningSettingsOut(BaseModel):
+    """`GET /planning/settings`: only what the bridge reads; the MES returns more (ignored)."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+    scheduler_stale_minutes: int = 30  # an older schedule is not served: "Scheduler offline" (MES default 30)
+
+
 class ScheduleOut(_Model):
     id: UUID
     variant: str
