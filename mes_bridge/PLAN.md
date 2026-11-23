@@ -23,7 +23,9 @@ Driven by a self-paced `/loop`. **Read this file top to bottom at the start of e
 
 - [x] `gh` logged in (checked 2026-11-22).
 - [x] Claude Code permissions allow `git push` and `gh pr …` without a prompt in both worktrees (worked 2026-11-22).
-- [ ] Local MES backend on port 8080 with its database (needed from slice 1, task 1.6).
+- [ ] Local MES backend on port 8080 with its database (needed from slice 1, task 1.6). 2026-11-23: 8080 runs
+  an MES without `/planning/problem` (the main branch, left alone); 1.6 ran this branch's backend on 8091
+  against a scratch database instead (migrated, seeded, scheduler user, dropped after).
 
 ## Each round
 
@@ -93,7 +95,7 @@ baseline a CI error.
   - [x] 1.5c Bridge: `Snapshot` and the id map instance ids ↔ MES keys, matching how `operation_graph` and
     `snapshot()` name carrier and run operations (setup / main / removal); AM_PREP = print setup + main (handoff
     ends the setup), PART_POWDER_REMOVAL = removal, the mill chain likewise. Unit tests on the recorded response.
-- [ ] 1.6 Bridge: one-shot command: fetch problem → `spt` → `check_schedule` → `PUT`. Integration test against
+- [x] 1.6 Bridge: one-shot command: fetch problem → `spt` → `check_schedule` → `PUT`. Integration test against
   the local MES.
 - [ ] 1.7 MES: `GET /planning/plan` serves the latest schedule with the facts overlay, `source` field, fallback to
   `fill.py` when stale. Regenerate the client. Team plan shows it (design pass first). Docs: `architecture.md`
@@ -145,7 +147,9 @@ baseline a CI error.
   it does.)
 - Can `fill.py` take one break per worker without a structural change?
 - Does the MES test setup tolerate an `after_commit` listener (session fixtures, rollbacks)?
-- Does the seed data hold orders past `DATA_PREP_SECONDARY`? If not, the integration tests seed them.
+- ~~Does the seed data hold orders past `DATA_PREP_SECONDARY`?~~ No (2026-11-23, scratch database from
+  `initial_data.py`): the integration round trip publishes an empty schedule. An arrived order is seeded for
+  the end-to-end test 2.4.
 - ~~Is `OrderPart.quadrant` set for every secondary part from `DATA_PREP_SECONDARY` on?~~ Checked 2026-11-23: only
   when the submit sends `part_quadrant_assignments` (optional, default `{}`); the export reads `TaskPart.quadrant`
   and keeps job keys for a print with a part lacking one. Unique per plate within an AM job: yes (user).
@@ -222,3 +226,4 @@ PR comments read until: 2026-11-23T09:30Z
 | 2026-11-23 | 1.5a | MES 9a3b829, sim (this commit) | MES: `params` in `GET /planning/problem` (the rows of `SCOPE` and the AM / MILL job rows, `ProblemParamsOut`); test that params + exported units reproduce every carrier's minutes. Bridge: `mes_bridge.api` (problem and schedule models, `extra="forbid"`), `tests/test_contract.py` against `tests/data/openapi.json` (caught a real drift on the first run: `ScheduleOut.created_at` is nullable), two recorded responses (`problem_mill_prep.json`, `problem_printing.json`) from the MES test helpers via a temporary test. Gates: MES backend 1220 passed, ruff/format/mypy clean, client regenerated, svelte-check 0/0, lint 0 errors, vitest 116; bridge 26 passed; simulation 1807 passed. Findings: (j) the recordings' `as_of` is the DB clock while the helpers' task times use a fixed NOW, so `as_of` lies after the task times by the recording delay (harmless; 1.5c must not assume `as_of` = NOW); (k) the MES `_mill_data_prep` test helper now sets a start time, so done mill data preps reach the snapshot. |
 | 2026-11-23 | 1.5b | sim (this commit) | `mes_bridge.instance.build_instance` (plates = carriers, print and mill as given runs, plate steps without runs, s-batches for cleaning and blasting from the MES linear form, step shape from `params`, run and order minutes from the operations; epoch, calendar, due cutoffs). Both recordings map, compile, plan with `spt` and pass `check_schedule` (0 violations). 19 new tests (hand values, epoch / DST / clamp, due cutoffs incl. weekend and overdue, one negative per `MappingError` rule, a V14 failure surfacing). Gates: bridge 45 passed, simulation 1807 passed; MES CI green on 9a3b829. Findings: (l) the format needs a carrier chain to end in a separating operation (V14); slice 1 stops before SAWING, so the last carrier operation in scope takes `role="separate"` (validation only, no planning effect; slice 3 maps SAWING); (m) the oven has no machine in the export (finding b), so it is a worker step with an unattended rest and no p-batch: unlimited parallel ovens until OVEN is mapped; (n) a given run may be planned on any printer / mill of its step, not only its job's machine (the step's options are global); bound pins (6.1) or a format change fix it; harmless with one printer and one mill; (o) shift = daily minutes + the hard-coded break, so a worker keeps the capacity `fill.py` plans with. |
 | 2026-11-23 | 1.5c | MES ace061b, sim (this commit) | `mes_bridge.state`: `id_map` (MES key → compiled operations: AM_PREP = print setup + run, the handoff in between; PART_POWDER_REMOVAL = removal; mill chain likewise) and `build_snapshot` (finished / running, expected end ≥ t + 1). Both recordings replan with `spt` from the snapshot and pass `check_schedule` (0 violations). 11 new tests incl. 4 negative. MES: `_mill_data_prep` test helper takes a worker and a finish time. Gates: bridge 56 passed, MES backend 1220 passed, simulation 1807 passed. Findings: (p) the first recordings broke model rules themselves (one worker on two overlapping tasks, the print before its mill data preps), and `check_schedule` flagged them although they are facts: added as a known unknown for 1.6 (decision 23 could block every publish); recordings re-made with a consistent timeline by `tests/data/record_problems.py`, now checked in; (q) a running carrier task without an MES expected end (export finding g) gets start + planned, at least t + 1. 1.5 complete. |
+| 2026-11-23 | 1.6 | sim (this commit) | `mes_bridge.once` (login → problem → instance + snapshot → `spt` → `check_schedule` → `PUT` BOUND; `--dry-run`; violations printed, not published) and `mes_bridge.client` (stdlib HTTP). 10 unit tests against a fake MES replaying the recordings (a print step attended until its handoff, the oven 35 attended + 180, facts that break C12 block the publish, empty problem, dry run, auth failures). Integration: this branch's MES on 127.0.0.1:8091 with a scratch database `mes_bridge_it` (`alembic upgrade head`, `initial_data.py`, `create_user.py --allow-no-worker` with a generated password from a scratch file), `tests/test_integration.py` passed (login, problem, publish, read back), dropped after; `mes_db` not touched; 8080 is the main-branch MES, left alone. Gates: bridge 66 passed + 1 integration (passed against 8091, skipped without `MES_IT_URL`), simulation 1807 passed. Findings: (r) the seed has no arrived order, so the integration round trip publishes 0 steps: planning on real wire data first in 2.4; (s) the plan's breaks are not published until 4.3; (t) epoch = Monday of the run's week (one-shot), the long-running loop keeps it from its start (2.2). |

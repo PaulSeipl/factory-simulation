@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- One-shot scheduling: `python -m mes_bridge.once [--url] [--dry-run]` logs in as the scheduler (password from
+  `MES_SCHEDULER_PASSWORD`), fetches the problem, plans with the SPT rule from the snapshot, checks it and
+  publishes it as the BOUND schedule; a plan with violations is printed, not published (decision 23).
+  `mes_bridge.client` (standard-library HTTP, swappable `send` for tests); `once.steps` turns the plan into one
+  schedule step per open MES step (attended until the handoff or the end of the worker's share). Unit tests
+  against a fake MES replaying the recordings; `tests/test_integration.py` against a running MES of this branch
+  (skipped without `MES_IT_URL`).
 - `mes_bridge.state`: `id_map` (MES key → its compiled operations in time order: AM_PREP = print setup + run,
   PART_POWDER_REMOVAL = removal, the mill chain likewise, every other step one operation) and `build_snapshot`
   (a started MES task freezes its operations: done with real times, running with the MES's expected end, at
