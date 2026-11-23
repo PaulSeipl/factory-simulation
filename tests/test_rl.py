@@ -76,10 +76,12 @@ def test_training_runs_repeats_and_learns_something():
     a, log = train(base, MAKESPAN, **kwargs)
     b, _ = train(base, MAKESPAN, **kwargs)
     assert all(torch.equal(x, y) for x, y in zip(a.state_dict().values(), b.state_dict().values(), strict=True))
-    assert len(log) == 3 and log[-1]["validation_ratio"] > 0
-    assert all(np.isfinite(r["loss"]) for r in log)
-    assert not all(torch.equal(x, y) for x, y in zip(a.state_dict().values(), policy(5).state_dict().values(),
-                                                    strict=True))  # the steps moved the weights
+    assert len(log) == 4 and log[0]["iteration"] == -1 and log[0]["checkpoint"]  # the untrained network first
+    assert all(np.isfinite(r["loss"]) for r in log[1:]) and log[-1]["validation_ratio_ot"] > 0
+    # the returned weights are the last checkpoint: the untrained ones unless a later validation beat them
+    untrained = all(torch.equal(x, y) for x, y in zip(a.state_dict().values(), policy(5).state_dict().values(),
+                                                      strict=True))
+    assert untrained == (not any(r["checkpoint"] for r in log[1:]))
 
 
 def test_cli_writes_weights_record_and_log(tmp_path):
@@ -88,7 +90,7 @@ def test_cli_writes_weights_record_and_log(tmp_path):
     main(["--out", str(tmp_path / "m"), "--iterations", "2", "--samples", "2", "--orders", "4", "5",
           "--validation-orders", "4", "--validate-every", "1"])
     record = json.loads((tmp_path / "m.json").read_text())
-    assert record["feature_version"] == 1 and len(record["log"]) == 2 and record["train_seed0"] == 10_000
+    assert record["feature_version"] == 1 and len(record["log"]) == 3 and record["train_seed0"] == 10_000
     assert (tmp_path / "m.npz").exists() and (tmp_path / "m.csv").read_text().startswith("iteration,")
     assert load_policy(tmp_path / "m") is not None
 
@@ -119,3 +121,23 @@ def test_training_on_one_instance_finds_the_optimum_the_rules_miss():
     finally:
         rl_train.instance = original
     assert MAKESPAN.evaluate(ci, rl_plan(ci, trained).assignments) == 11
+
+
+def test_advantage_takes_the_first_level_that_differs():
+    from simulation.rl_train import advantages
+
+    assert advantages([(5, 1), (5, 3), (5, 2)]) == pytest.approx([1.224744871, -1.224744871, 0.0])  # level 2
+    assert advantages([(4, 9), (6, 0)]) == [1.0, -1.0]  # level 1 decides, level 2 ignored
+    assert advantages([(7, 7), (7, 7)]) == [0.0, 0.0]
+
+
+def test_overtime_rule_takes_overtime_when_its_operation_can_use_it():
+    # late_pack (test_ga): every overtime rule starts the pack Monday 16:30 in overtime instead of Tuesday 08:00
+    from test_ga import late_pack, pack_times
+
+    from simulation.rl_train import overtime_rule_plans
+
+    ci = late_pack()
+    plans = list(overtime_rule_plans(ci))
+    assert len(plans) == 5 and all(pack_times(p) == (510, 600) for p in plans)
+    assert all(check_schedule(ci, p.assignments, breaks=p.breaks) == [] for p in plans)

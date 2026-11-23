@@ -8,6 +8,38 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-23 (97) — RL step R2b; RL work paused — uncommitted
+
+- **Decided (user):**
+  - Improve the training (R2b).
+  - Then pause the RL work: no end in sight within two days. Commit, take notes, and have the main session merge this
+    branch.
+  - Questions answered:
+    - The network is fully connected and scores each candidate separately.
+    - No pickle: CLAUDE.md, and loading a pickle can run arbitrary code.
+    - Training already draws a new instance per step, but from one factory layout.
+  - The user proposed imitation learning from CP-SAT plans on generated instances with varied setups; it is
+    recorded as the next step R2c.
+- **Decided (Claude):**
+  - With a lexicographic objective, the advantage comes from the first level on which the samples differ.
+  - 20 validation instances.
+  - A second yardstick: the best of the rule plans and of 5 joint rules that take overtime when their operation can
+    use it.
+  - Return the best checkpoint by that yardstick, the untrained network included.
+- **Done:**
+  - `rl_train.py`: `overtime_rule_plans`, `levels`, `advantages`, the checkpoint, and the log row of iteration −1.
+  - `tests/test_rl.py`: 13 tests, among them the advantage by hand and the overtime rule on `late_pack`.
+  - [16](16_rl.md) §3, §5d.
+- **Found:**
+  - A 1000-step run per objective was stopped unfinished, so there are no R2b numbers. The models are those of (96).
+  - No source on imitation learning for scheduling is in the library.
+- **Open** ([16](16_rl.md) §5d):
+  - R2c, imitation pretraining from CP-SAT or GA plans on generated instances with varied setups;
+  - RL fine-tuning;
+  - attention across the candidates;
+  - R3 (`rl_planner`, `PolicyConfig "rl"`), R4 (evaluation).
+  - Thesis sections affected: none written yet.
+
 ## 2026-11-23 (96) — RL step R2: policy and training — uncommitted
 
 - **Decided (user):** do R2.
