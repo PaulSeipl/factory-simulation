@@ -135,4 +135,6 @@ Expected: `22 / 22 checks passed` in about 4 minutes. `--keep` leaves the MES an
   suggestions are limited to assigned steps.
 - Cleaning and sand blasting are serial batches across orders. My plan shows one row per order with the batch's
   time, so two "Clean part" rows at the same time are one batch, not two parallel tasks.
-- Every restart of the bridge republishes BOUND once (it cannot tell that the saved pins are unchanged).
+- The bridge republishes its unchanged plan as a keep-alive when the last publication is older than half the
+  staleness setting (and once after each restart), so a quiet but healthy scheduler is never shown as offline. Cost:
+  one extra schedule row per variant every 15 min at the default 30 min.

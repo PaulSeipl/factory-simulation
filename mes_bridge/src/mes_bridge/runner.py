@@ -138,7 +138,7 @@ class Runner:
             self.stale_minutes = self.factory.client.settings().scheduler_stale_minutes
             return int(self.factory.keep_alive(self.stale_minutes))
         except Exception as e:  # the step itself went through
-            self.log(f"keep-alive failed: {e}")
+            self.log(f"keep-alive failed: {str(e)[:300]}")
             return 0
 
     def resume(self) -> bool:

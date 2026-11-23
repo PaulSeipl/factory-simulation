@@ -139,7 +139,7 @@ class MesFactory:
             ScheduleIn(
                 variant=self.variant,
                 snapshot_as_of=self.problem.as_of,
-                solved_at=self._clock(),
+                solved_at=max(self._clock(), self.problem.as_of),  # the MES clock may run ahead of ours
                 steps=steps(self.problem, self.ci, self.ids, Plan(list(plan), new_breaks), self.epoch),
                 breaks=schedule_breaks(self.problem, Plan(list(plan), new_breaks), self.epoch),
             )

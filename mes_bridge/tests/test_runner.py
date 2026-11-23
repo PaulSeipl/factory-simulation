@@ -246,3 +246,13 @@ def test_next_wake_is_the_keep_alive_deadline_when_it_is_the_earliest_timer():
     fake.stale_minutes = 2000  # a late deadline loses against the poll
     r.tick(t[0], "poll")
     assert r.next_wake(t[0])[1] != "keep_alive"
+
+
+def test_a_clock_behind_the_mes_never_publishes_a_solve_before_its_snapshot():
+    """Found live: the MES's database clock ran 0.6 s ahead; a keep-alive right after reading the problem was
+    refused (snapshot_as_of after solved_at). solved_at is at least the snapshot's time."""
+    fake, r, t, _ = _clocked()
+    r.factory._clock = lambda: t[0] - timedelta(hours=1)  # far behind the MES
+    r.tick(t[0], "start")
+    s = fake.published[-1]
+    assert s.solved_at >= s.snapshot_as_of
