@@ -199,7 +199,7 @@ def test_one_variant_failing_does_not_stop_the_other():
     from simulation.control.rescheduling import ReschedulingPolicy
     from simulation.planners.dispatching import dispatch_planner, spt
 
-    from mes_bridge.runner import Runner, Runners
+    from mes_bridge.runner import RETRY, Runner, Runners
 
     raw = _raw()
     fake, bound, free = _factories(raw)
@@ -213,4 +213,11 @@ def test_one_variant_failing_does_not_stop_the_other():
     rs = Runners([Runner(bound, policy, log=logs.append), Runner(free, policy, log=logs.append)], log=logs.append)
     rs.tick(datetime.fromisoformat(raw["as_of"]), "poll")
     assert [s.variant for s in fake.published] == [FREE]
-    assert any("BOUND" in line and "step failed: boom" in line for line in logs)
+    assert any("BOUND" in line and "step failed: boom" in line and "Traceback" in line for line in logs)
+    # a failed step is retried soon, not at the safety poll (the MES restarting must not stall the plan 5 min)
+    now = datetime.fromisoformat(raw["as_of"])
+    wake, why = rs.next_wake(now)
+    assert (wake - now, why) == (RETRY, "retry")
+    del bound.refresh  # the MES is back
+    rs.tick(now, "retry")
+    assert not rs.failed and rs.next_wake(now)[1] != "retry"

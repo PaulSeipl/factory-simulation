@@ -19,6 +19,7 @@ import queue
 import sys
 import threading
 import time
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -34,6 +35,7 @@ from mes_bridge.instance import epoch_of
 from mes_bridge.store import Saved, Store, resumable
 
 SAFETY_POLL = timedelta(minutes=5)  # decision 14: a step without any event
+RETRY = timedelta(seconds=30)  # after a failed step (the MES restarting, say): not the safety poll
 STARTUP_ATTEMPTS = 60  # the MES may start after the bridge: 60 x 5 s, about 5 min
 STARTUP_WAIT = 5.0
 
@@ -169,6 +171,7 @@ class Runners:
     runners: list[Runner]
     events: "queue.Queue[dict]" = field(default_factory=queue.Queue)
     log: Callable[[str], None] = print
+    failed: bool = False  # the last tick had a failing variant: retry after RETRY
 
     def resume(self) -> None:
         for r in self.runners:
@@ -184,14 +187,19 @@ class Runners:
                 merged.append(self.events.get_nowait())
             except queue.Empty:
                 break
+        self.failed = False
         for r in self.runners:
             try:
                 r.tick(now, f"{r.factory.variant} {reason} ({len(merged)} events)")
             except Exception as e:  # one variant failing does not stop the other
-                self.log(f"{now.isoformat()} {r.factory.variant} {reason}: step failed: {e}")
+                self.failed = True
+                self.log(f"{now.isoformat()} {r.factory.variant} {reason}: step failed: {e}\n{traceback.format_exc()}")
 
     def next_wake(self, now: datetime) -> tuple[datetime, str]:
-        return min((r.next_wake(now) for r in self.runners), key=lambda w: w[0])
+        wakes = [r.next_wake(now) for r in self.runners]
+        if self.failed:
+            wakes.append((now + RETRY, "retry"))
+        return min(wakes, key=lambda w: w[0])
 
     def run(self, stop: threading.Event, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         _loop(self, self.events, stop, clock)
@@ -226,6 +234,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--state-dir", default="mes_bridge_state", help="anchor.json and decisions.jsonl per variant")
     ap.add_argument("--config", help="SchedulerConfig JSON file (default: the defaults)")
     args = ap.parse_args(argv)
+    if hasattr(sys.stdout, "reconfigure"):  # a log redirected to a file shows every line at once
+        sys.stdout.reconfigure(line_buffering=True)
     password, token = os.environ.get("MES_SCHEDULER_PASSWORD"), os.environ.get("MES_EVENTS_TOKEN")
     if not password or not token:
         print("MES_SCHEDULER_PASSWORD and MES_EVENTS_TOKEN must be set", file=sys.stderr)
