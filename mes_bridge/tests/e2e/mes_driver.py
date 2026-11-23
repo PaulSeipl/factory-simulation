@@ -3,8 +3,12 @@
 Runs in the MES backend's environment (it uses the MES's own services, like the MES's `scripts/seed_intern_order.py`
 whose helpers it reuses), from `backend/`, against a scratch database (`POSTGRESQL_DB_NAME`), never the dev database:
 
-    uv run python <this file> seed
+    uv run python <this file> seed [--both]
     uv run python <this file> act <anchor.json of the running bridge>
+    uv run python <this file> demo
+
+`demo` seeds the showcase of `mes_bridge/DEMO.md`: three arrived orders with due dates, each on its own print (two
+secondary-only, one with both lanes), and every machine plannable.
 
 `seed` creates an intern order of two telescopes and drives it through pre-planning and DATA_PREP_SECONDARY (with
 the plate quadrant), so it has arrived for the scheduler; it makes every machine plannable. `act` performs three
@@ -19,6 +23,7 @@ so a step started early or finished early moves nothing by itself; the overrun o
 
 import sys
 import time
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -102,7 +107,13 @@ def machines(db) -> None:
     db.commit()
 
 
-def seed(composition: CompositionEnum = CompositionEnum.SECONDARY_ONLY) -> None:
+def seed(
+    composition: CompositionEnum = CompositionEnum.SECONDARY_ONLY,
+    *,
+    teeth: tuple[int, ...] = (11, 12),
+    print_no: str = "E2E1",
+    due_in_days: int | None = None,
+) -> None:
     with SessionLocal() as db:
         seed_intern_customer(db)
         seed_routes(db)
@@ -110,13 +121,16 @@ def seed(composition: CompositionEnum = CompositionEnum.SECONDARY_ONLY) -> None:
         order = create_intern_order(
             db,
             obj_in=InternOrderCreate(
-                tooth_list=[11, 12],
+                tooth_list=list(teeth),
                 composition=composition,
                 is_multimat=False,
                 primary_target=None,
                 secondary_target=None,
             ),
         )
+        if due_in_days is not None:
+            order.due_date = date.today() + timedelta(days=due_in_days)
+            db.commit()
         sign_ready_for_data_check(db, order)
         fx = Fixtures(db)
         _drive_preplanning(db, order, fx)
@@ -136,12 +150,35 @@ def seed(composition: CompositionEnum = CompositionEnum.SECONDARY_ONLY) -> None:
             extra = dict(_complete_extra(T.DATA_PREP_SECONDARY.value, fx))
             # the MES seed script's own print number ("SEED-xxxxxx") overflows am_job.print_job_no (VARCHAR(4))
             extra["am_job"] = AmJobSubmit(
-                print_job_no="E2E1", print_version=1, est_non_precious_powder_kg=Decimal("0.020")
+                print_job_no=print_no, print_version=1, est_non_precious_powder_kg=Decimal("0.020")
             )
             extra["part_quadrant_assignments"] = dict.fromkeys(pt.order_part_ids, "1")
             task_service.complete(db, task.id, CompleteTaskInput(results=_ok(pt.order_part_ids), **extra))
             break
         print(f"seeded order {order.short_id} ({order.id}), arrived")
+
+
+def demo() -> None:
+    """The showcase scene (`mes_bridge/DEMO.md`): orders with due dates 2, 3 and 4 days out, so the worker objective
+    has tardiness to weigh; the second one also has a primary part (the PRIMARY lane, its blank, the QM join)."""
+    seed(CompositionEnum.SECONDARY_ONLY, teeth=(11, 12), print_no="D001", due_in_days=2)
+    seed(CompositionEnum.BOTH, teeth=(21, 22), print_no="D002", due_in_days=3)
+    seed(CompositionEnum.SECONDARY_ONLY, teeth=(31, 32, 33), print_no="D003", due_in_days=4)
+    with SessionLocal() as db:  # a second printer, so the plans have a machine choice to show
+        if db.scalar(select(func.count()).select_from(AmSystem)) < 2:
+            idle = db.scalar(select(EEquipmentStatus.id).where(EEquipmentStatus.status == "IDLE"))
+            db.add(
+                AmSystem(
+                    equipment_type=EquipmentTypeEnum.AM_SYSTEM,
+                    name="Demo-AM-2",
+                    manufacturer="Demo",
+                    serial_number="DEMO-AM-2",
+                    status_id=idle,
+                    max_build_plate_slots=4,
+                    plannable=True,
+                )
+            )
+            db.commit()
 
 
 def _wait_for_step(anchor: Path, since: float, timeout: float = 90) -> float:
@@ -208,6 +245,8 @@ def act(anchor: Path) -> int:
 if __name__ == "__main__":
     if sys.argv[1:2] == ["seed"]:
         seed(CompositionEnum.BOTH if "--both" in sys.argv else CompositionEnum.SECONDARY_ONLY)
+    elif sys.argv[1:2] == ["demo"]:
+        demo()
     elif sys.argv[1:2] == ["machines"]:
         with SessionLocal() as session:
             machines(session)

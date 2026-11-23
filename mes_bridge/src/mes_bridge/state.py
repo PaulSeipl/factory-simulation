@@ -366,6 +366,30 @@ def pin(ci: CompiledInstance, problem: ProblemOut, ids: IdMap, started: set[OpKe
     return Pins(replace(ci, options=tuple(options), shares=tuple(shares)), tuple(pinned), tuple(skipped))
 
 
+def out_of_service(ci: CompiledInstance, problem: ProblemOut, started: set[OpKey]) -> CompiledInstance:
+    """No new work on a machine that is DOWN or DECOMMISSIONED. `instance._options` already drops such a machine from
+    a step unless a started task runs on it (the snapshot needs it there); options are per step in the format, so
+    this removes it per operation from every other one, as `pin` does. A run with a started operation keeps its
+    machine (the facts fix it); an operation left without an option keeps its options (a repair follows)."""
+    from mes_bridge.instance import UNAVAILABLE  # noqa: PLC0415  (instance imports state)
+
+    down = {ci.machine_index.get(str(m.id)) for m in problem.instance.machines if m.status in UNAVAILABLE} - {None}
+    if not down:
+        return ci
+    options = list(ci.options)
+    grouped = {o for g in ci.machine_groups for o in g}
+    groups = [*ci.machine_groups, *((o,) for o in range(len(options)) if o not in grouped)]
+    started_idx = {ci.op_index[k] for k in started if k in ci.op_index}
+    for group in groups:  # a run's operations share one machine: filter them together
+        if group_started(group, started_idx):
+            continue
+        keep = {o: tuple(opt for opt in options[o] if opt[0] not in down) for o in group}
+        if all(keep.values()):
+            for o, opts in keep.items():
+                options[o] = opts
+    return replace(ci, options=tuple(options))
+
+
 def with_frozen_horizon(snapshot: Snapshot, current: Sequence[Assignment], minutes: int) -> Snapshot:
     """The snapshot with the frozen horizon (spec decision 19): every operation of the current plan that has not
     started and is planned to start before t + `minutes` is fixed with its planned machine, times and workers, as

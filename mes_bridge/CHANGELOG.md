@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+- `instance._options`: a machine whose MES status is DOWN or DECOMMISSIONED is no option of a step (the export
+  lists it with its status); kept if a started task runs on it (the snapshot freezes that operation there) or if
+  it would leave the step without a machine (warning logged, a repair follows). A status change changes the built
+  instance, so the factory's change detection sees it (a complete rescheduling). `state.out_of_service` then removes
+  such a machine per operation from every operation not started (options are per step in the format, so a started
+  print would otherwise keep it open to the whole step); runner and `once` both apply it.
+- Showcase: `tests/e2e/demo_db.py` (demo database), `mes_driver.py demo` (three arrived orders with due dates, a
+  second printer), `tests/e2e/demo_scenario.py` (the showcase of `DEMO.md` end to end over the MES API: 22 checks).
 - 6.1: bound and free (decision 4). `state.pin`: in BOUND an MES assignment pins every operation of its step that
   has not started: the assigned machine is its only option (for the whole run: setup, main and removal share one
   machine), the assigned worker the only qualified one; on the compiled instance, where both are per operation (in

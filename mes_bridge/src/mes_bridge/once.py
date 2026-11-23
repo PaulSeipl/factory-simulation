@@ -21,7 +21,7 @@ from mes_bridge.api import ProblemOut, ScheduleBreakIn, ScheduleIn, ScheduleStep
 from mes_bridge.client import MesClient, http
 from mes_bridge.config import SchedulerConfig
 from mes_bridge.instance import build_instance, epoch_of
-from mes_bridge.state import IdMap, build_snapshot, id_map, pin
+from mes_bridge.state import out_of_service, IdMap, build_snapshot, id_map, pin
 
 # decision 4: BOUND (the default view) plans with the assignments as pins, FREE without them (suggestions)
 BOUND, FREE = "BOUND", "FREE"
@@ -47,8 +47,10 @@ def solve(
     ci = compile_instance(build_instance(problem, epoch=epoch))
     ids = id_map(problem, ci)
     snap = build_snapshot(problem, ci, ids, epoch=epoch)
+    started = {(f.order_id, f.op_id) for f in snap.frozen}
+    ci = out_of_service(ci, problem, started)  # no new work on a machine that is down
     if variant == BOUND:  # the assignments as pins (state.pin)
-        ci = pin(ci, problem, ids, {(f.order_id, f.op_id) for f in snap.frozen}).ci
+        ci = pin(ci, problem, ids, started).ci
     plan = (config or SchedulerConfig()).solver.planner()(ci, snap, [])
     if violations := check_schedule(ci, plan.assignments, snapshot=snap, breaks=plan.breaks):
         return Outcome(None, violations)

@@ -16,6 +16,7 @@ What the format cannot hold raises `MappingError`, never a silent approximation.
 the second line: an inconsistency the mapping lets through fails there.
 """
 
+import logging
 import math
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
@@ -39,6 +40,11 @@ from simulation.model.instance import (
 )
 
 from mes_bridge.api import ProblemInstanceOut, ProblemOperationOut, ProblemOut, ProblemParamsOut
+
+log = logging.getLogger(__name__)
+
+# a machine in these MES statuses takes no new work (IDLE and RUNNING do; a busy machine is still planned on)
+UNAVAILABLE = frozenset({"DOWN", "DECOMMISSIONED"})
 
 
 class MappingError(ValueError):
@@ -189,7 +195,7 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
     jobs = {j.id: j for j in inst.jobs}
 
     if prints := by_type.get("AM_PREP", []):
-        am = sorted({str(m) for o in prints for m in o.machine_options})
+        am = _options(problem, prints)
         if not am:
             raise MappingError("the print has no plannable machine")
         machines |= set(am)
@@ -211,7 +217,7 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
         carrier_steps[PRINT] = _run_step(params("AM_PREP"), params("PART_POWDER_REMOVAL"), am, max(mains.values()))
 
     if mills := by_type.get("MILL_PREP_SECONDARY", []):
-        ms = sorted({str(m) for o in mills for m in o.machine_options})
+        ms = _options(problem, mills)
         if not ms:
             raise MappingError("the secondary mill has no plannable machine")
         machines |= set(ms)
@@ -236,7 +242,7 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
         ("PREP_MILL_FLIPPED", None, MILL_FLIPPED, flip_run),
     ):
         if group := by_type.get(setup_tt):
-            ms = sorted({str(m) for o in group for m in o.machine_options})
+            ms = _options(problem, group)
             if not ms:
                 raise MappingError(f"{setup_tt}: no plannable mill")
             machines |= set(ms)
@@ -260,11 +266,11 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
     for tt in PER_CARRIER_STEPS:
         if group := by_type.get(tt):
             row = params(tt, group[0].lane)
-            carrier_steps[tt] = _per_carrier_step(tt, group, parts_on, part_times, row)
+            carrier_steps[tt] = _per_carrier_step(problem, tt, group, parts_on, part_times, row)
             machines |= set(carrier_steps[tt].options)
 
     if reworks := by_type.get(REWORK):
-        ms = sorted({str(m) for o in reworks for m in o.machine_options})
+        ms = _options(problem, reworks)
         if not ms:
             raise MappingError("REWORK: no plannable mill")
         if "REWORK_CHECKOUT" not in carrier_steps:
@@ -335,6 +341,26 @@ def _order_of(inst: ProblemInstanceOut, part: UUID) -> UUID:
     return next(p.order_id for p in inst.parts if p.id == part)
 
 
+def _options(problem: ProblemOut, group: list[ProblemOperationOut]) -> list[str]:
+    """The machines a step of `group` may use: the operations' options without machines that are DOWN or
+    DECOMMISSIONED (the export lists every plannable machine with its status). Options are per step in the format, so
+    the filter is on the union. Kept regardless: a machine a started task runs on (the snapshot freezes that
+    operation there, `state._machine_name` needs it as an option), and all of them if none would be left (the only
+    machine is down: plan on it anyway, a repair follows)."""
+    options = {str(m) for o in group for m in o.machine_options}
+    out_of_service = {str(m.id) for m in problem.instance.machines if m.status in UNAVAILABLE}
+    in_use = {str(t.equipment_id) for t in problem.snapshot.tasks if t.equipment_id is not None}
+    usable = {m for m in options if m not in out_of_service or m in in_use}
+    if options and not usable:
+        log.warning(
+            "%s: every machine is down or decommissioned (%s), keeping them as options",
+            sorted({o.task_type for o in group}),
+            sorted(options),
+        )
+        return sorted(options)
+    return sorted(usable)
+
+
 def _run_step(
     prep: ProblemParamsOut,
     removal: ProblemParamsOut | None,
@@ -394,6 +420,7 @@ def _plate_step(
 
 
 def _per_carrier_step(
+    problem: ProblemOut,
     tt: str,
     group: list[ProblemOperationOut],
     parts_on: dict[str, list[UUID]],
@@ -405,7 +432,7 @@ def _per_carrier_step(
     times (fixed 0, share 1: no clamp effect), the rest of the carrier's MES minutes split over its parts (whole
     minutes, the remainder to the first parts). Unattended minutes are a rest at the end (no machine), e.g. curing.
     On the step's machine if the MES names one."""
-    options = sorted({str(m) for o in group for m in o.machine_options})
+    options = _options(problem, group)
     unattended = {span(o.unattended_minutes) if o.unattended_minutes else 0 for o in group}
     if len(unattended) > 1:
         raise MappingError(f"{tt}: unattended minutes differ between carriers {sorted(unattended)}")

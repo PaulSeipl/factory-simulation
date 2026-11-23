@@ -30,7 +30,7 @@ from mes_bridge.api import ProblemOut, ScheduleIn
 from mes_bridge.client import MesClient
 from mes_bridge.instance import build_instance
 from mes_bridge.once import BOUND, FREE, schedule_breaks, steps
-from mes_bridge.state import IdMap, Pins, build_snapshot, id_map, pin
+from mes_bridge.state import IdMap, Pins, build_snapshot, id_map, out_of_service, pin
 
 
 class MesFactory:
@@ -49,6 +49,7 @@ class MesFactory:
         self.published = 0
         self.publication: UUID | None = None  # id of the last publication in the MES
         self._known: set[tuple[str, str]] | None = None  # the operations of the instance the plan covers
+        self._machines: dict | None = None  # machine options per operation of the last instance (a machine went down)
 
     def refresh(self) -> bool:
         """Fetch the problem and rebuild the instance; True if its set of operations changed (or it is the first)."""
@@ -56,13 +57,14 @@ class MesFactory:
         before = self._known
         self.problem = problem
         if not problem.instance.operations:
-            self.ci, self.ids, self._known = None, None, None
+            self.ci, self.ids, self._known, self._machines = None, None, None, None
             return before is not None
         self.ci = compile_instance(build_instance(problem, epoch=self.epoch))
         self.ids = id_map(problem, self.ci)
         changed_pins = False
+        started = {(f.order_id, f.op_id) for f in self.snapshot().frozen}
+        self.ci = out_of_service(self.ci, problem, started)
         if self.variant == BOUND:
-            started = {(f.order_id, f.op_id) for f in self.snapshot().frozen}
             self.pins = pin(self.ci, problem, self.ids, started)
             self.ci = self.pins.ci
             # a new, changed or removed pin on an operation that has not started is an instance change (decision 18)
@@ -72,7 +74,14 @@ class MesFactory:
             changed_pins = values != self._pin_values and before is not None
             self._pin_values = values
         self._known = set(self.ci.op_keys)
-        return before != self._known or changed_pins
+        # a machine going down (or coming back) changes the options of the operations that have not started: the plan
+        # may sit on it, and a repair would keep it there, so it is a complete rescheduling as well
+        machines = {
+            k: tuple(self.ci.machine_ids[m] for m, _ in self.ci.options[self.ci.op_index[k]]) for k in self._known
+        }
+        changed_machines = self._machines is not None and machines != self._machines
+        self._machines = machines
+        return before != self._known or changed_pins or changed_machines
 
     def restore(self, plan: Sequence[Assignment], breaks: Sequence[Break], publication: UUID | None) -> None:
         """Continue from a saved state (decision 22): the plan it published, over the operations that plan covers."""
