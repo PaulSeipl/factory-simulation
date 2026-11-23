@@ -16,8 +16,14 @@ from mes_bridge import api
 DATA = Path(__file__).parent / "data"
 SCHEMAS = json.loads((DATA / "openapi.json").read_text(encoding="utf-8"))["components"]["schemas"]
 REQUESTS = {api.ScheduleIn, api.ScheduleStepIn, api.ScheduleBreakIn}  # validation mode, the rest are responses
-MODELS = [m for m in vars(api).values() if isinstance(m, type) and issubclass(m, BaseModel) and m.__module__ == api.__name__
-          and not m.__name__.startswith("_")]
+MODELS = [
+    m
+    for m in vars(api).values()
+    if isinstance(m, type)
+    and issubclass(m, BaseModel)
+    and m.__module__ == api.__name__
+    and not m.__name__.startswith("_")
+]
 
 
 def _norm(s: dict, defs: dict) -> object:
