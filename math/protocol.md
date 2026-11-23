@@ -8,6 +8,29 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-23 (94) — RL step R0: PyTorch as a dependency — uncommitted
+
+- **Decided (user):**
+  - Move to RL.
+  - No time-based commitment for MCTS: the cut runs of (93) came from the load on the laptop.
+  - Add PyTorch.
+- **Decided (Claude, stated to the user):**
+  - The RL plan: a policy on the `choose` hook that scores each eligible candidate with a small MLP, then a softmax.
+    REINFORCE or PPO; reward relative to the best rule plan.
+  - Training instances from the generator, disjoint from the evaluation instances (dental examples, Fidentis).
+  - Weights as `.npz` with `allow_pickle=False`, no `torch.save` (pickle).
+  - torch pinned to the CPU index on every platform. The PyPI build pulled 15 CUDA packages for Linux (Slurm);
+    the policy is small.
+- **Done:** `uv add torch` (2.15.0, `+cpu`); `[tool.uv.sources]` / `[[tool.uv.index]]` "pytorch-cpu" (explicit) in
+  `pyproject.toml` as in the uv guide "Using uv with PyTorch"; `uv.lock`.
+- **Found:** torch 2.15.0 has wheels for Python 3.14 on win-amd64; the lock has no CUDA package any more.
+- **Open:**
+  - R1: features, worker loads in `DispatchState`.
+  - R2: policy and training.
+  - R3: `rl_planner`, `PolicyConfig "rl"`, tests.
+  - R4: evaluation, `math/16_rl.md`.
+  - Thesis sections affected: none written yet.
+
 ## 2026-11-22 (93) — MCTS step M4: overtime in the action — uncommitted
 
 - **Decided (user):** do overtime in the action.

@@ -10,11 +10,21 @@ requires-python = ">=3.14"
 dependencies = [
     "ortools>=9.15.6755",
     "pydantic>=2.14.1",
+    "torch>=2.15.0",
 ]
 
 [project.scripts]
 simulation = "simulation:main"
 experiment = "simulation.experiment:main"
+
+# torch CPU-only on every platform: the RL policy is a small network; the PyPI build pulls CUDA on Linux
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["uv_build>=0.12.6,<0.13.0"]
