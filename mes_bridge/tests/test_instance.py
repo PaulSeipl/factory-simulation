@@ -244,6 +244,16 @@ def test_the_calendar_takes_the_mes_break_settings():
     assert cal.shift_end == cal.shift_start + raw["instance"]["workers"][0]["daily_minutes"] + 45
 
 
+def test_the_calendar_takes_the_mes_max_overtime_and_defaults_to_none():
+    raw = _raw()
+    assert "max_overtime_minutes" not in raw["instance"]["calendar"]  # a recording from before the setting
+    assert _build(raw).calendar.max_overtime == 0
+    raw["instance"]["calendar"]["max_overtime_minutes"] = 120
+    cal = _build(raw).calendar
+    assert cal.max_overtime == 120
+    assert cal.shift_end == 960  # the overtime lies beyond the shift end, it does not move it
+
+
 def test_an_entered_job_estimate_is_the_run_time():
     raw = _raw()
     for j in raw["instance"]["jobs"]:

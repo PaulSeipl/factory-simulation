@@ -459,8 +459,9 @@ def _per_carrier_step(
 
 
 def _calendar(inst: ProblemInstanceOut) -> Calendar:
-    """Decision 20: global; the most common daily minutes and workdays; no overtime. The break window and length are
-    the MES's settings (decision 21); the shift is the daily minutes plus the break, as fill.py lengthens the day."""
+    """Decision 20: global; the most common daily minutes and workdays; overtime is the MES setting
+    `max_overtime_minutes` (global, default 0). The break window and length are the MES's settings (decision 21); the
+    shift is the daily minutes plus the break, as fill.py lengthens the day."""
     if not inst.workers:
         raise MappingError("no workers")
     daily = Counter(w.daily_minutes for w in inst.workers).most_common(1)[0][0]
@@ -474,7 +475,7 @@ def _calendar(inst: ProblemInstanceOut) -> Calendar:
         break_earliest=c.break_earliest.hour * 60 + c.break_earliest.minute,
         break_latest=c.break_latest.hour * 60 + c.break_latest.minute,
         break_length=c.break_minutes,
-        max_overtime=0,
+        max_overtime=c.max_overtime_minutes,
         working_days=tuple(d - 1 for d in days),  # ISO 1 = Monday -> 0
     )
 

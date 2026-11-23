@@ -18916,6 +18916,11 @@
             "type": "integer",
             "title": "Scheduler Stale Minutes",
             "default": 30
+          },
+          "max_overtime_minutes": {
+            "type": "integer",
+            "title": "Max Overtime Minutes",
+            "default": 0
           }
         },
         "type": "object",
@@ -18994,6 +18999,19 @@
               }
             ],
             "title": "Scheduler Stale Minutes"
+          },
+          "max_overtime_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 480.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Overtime Minutes"
           }
         },
         "type": "object",
@@ -20091,6 +20109,11 @@
           "break_minutes": {
             "type": "integer",
             "title": "Break Minutes"
+          },
+          "max_overtime_minutes": {
+            "type": "integer",
+            "title": "Max Overtime Minutes",
+            "default": 0
           }
         },
         "type": "object",

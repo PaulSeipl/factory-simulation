@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- Overtime: `api.ProblemCalendarOut.max_overtime_minutes` (default 0, so older recordings still load) is the MES
+  planning setting of the same name (spec decision 20: global, default 0); `instance._calendar` passes it as
+  `Calendar.max_overtime` instead of the hard-coded 0. `tests/data/openapi.json` refreshed from the MES. Test
+  `tests/test_instance.py::test_the_calendar_takes_the_mes_max_overtime_and_defaults_to_none`.
 - Keep-alive: the MES serves a schedule only while it is younger than the planning setting `scheduler_stale_minutes`
   (default 30), else it shows "Scheduler offline"; the bridge published only on a change, so a quiet stretch
   (overnight, an unchanged FREE variant) marked a healthy scheduler offline. `MesClient.settings()` reads

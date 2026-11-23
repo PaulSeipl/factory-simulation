@@ -8,7 +8,8 @@ whose helpers it reuses), from `backend/`, against a scratch database (`POSTGRES
     uv run python <this file> demo
 
 `demo` seeds the showcase of `mes_bridge/DEMO.md`: three arrived orders with due dates, each on its own print (two
-secondary-only, one with both lanes), and every machine plannable.
+secondary-only, one with both lanes); one printer and one mill; Timo, Lukas and Quirin as the only workers
+(08:00-17:30, overtime until 19:30). `second-printer` adds a printer (the scenario's machine-down step).
 
 `seed` creates an intern order of two telescopes and drives it through pre-planning and DATA_PREP_SECONDARY (with
 the plate quadrant), so it has arrived for the scheduler; it makes every machine plannable. `act` performs three
@@ -23,7 +24,8 @@ so a step started early or finished early moves nothing by itself; the overrun o
 
 import sys
 import time
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
+from datetime import time as dt_time
 from decimal import Decimal
 from pathlib import Path
 
@@ -34,7 +36,9 @@ from app.core.db import SessionLocal
 from app.initial_data import seed_intern_customer
 from app.models.config.hardware import AmSystem, EEquipmentStatus, Equipment, Mill
 from app.schemas.hardware import EquipmentTypeEnum
+from app.models.config.worker import Worker
 from app.models.orders.order import OrderPart
+from app.models.orders.planning import PlanningSetting
 from app.models.orders.schedule import Schedule
 from app.models.orders.work_task import WorkTask
 from app.schemas.order import CompositionEnum, InternOrderCreate
@@ -48,6 +52,7 @@ from app.services.process import task as task_service
 from app.services.process.seed_routes import seed_routes
 
 T = TaskTypeEnum
+DEMO_WORKERS = {"Timo", "Lukas", "Quirin"}
 
 
 def _proposable(db, order_id, task_type):
@@ -164,7 +169,28 @@ def demo() -> None:
     seed(CompositionEnum.SECONDARY_ONLY, teeth=(11, 12), print_no="D001", due_in_days=2)
     seed(CompositionEnum.BOTH, teeth=(21, 22), print_no="D002", due_in_days=3)
     seed(CompositionEnum.SECONDARY_ONLY, teeth=(31, 32, 33), print_no="D003", due_in_days=4)
-    with SessionLocal() as db:  # a second printer, so the plans have a machine choice to show
+    with SessionLocal() as db:
+        # the factory's day: 08:00-17:30 (8.5 h + the 1 h break), overtime until 19:30
+        setting = db.get(PlanningSetting, 1)
+        setting.day_start = dt_time(8, 0)
+        if hasattr(setting, "max_overtime_minutes"):  # the MES has the setting from 2026-11-23 on
+            setting.max_overtime_minutes = 120
+        # three workers plan: Timo, Lukas, Quirin; the others are retired (the planning export skips them)
+        now = datetime.now(UTC)
+        for w in db.scalars(select(Worker)):
+            if w.first_name in DEMO_WORKERS:
+                w.daily_minutes = 510
+            elif w.retired_at is None:
+                w.retired_at = now
+        # one printer, one mill, named for the demo
+        for e in db.scalars(select(Equipment)):
+            e.name = {"E2E-AM": "Printer 1", "E2E-Mill": "Mill 1"}.get(e.name, e.name)
+        db.commit()
+
+
+def second_printer() -> None:
+    """A second printer, so a machine going down has somewhere to move the prints (`demo_scenario.py`, step 8)."""
+    with SessionLocal() as db:
         if db.scalar(select(func.count()).select_from(AmSystem)) < 2:
             idle = db.scalar(select(EEquipmentStatus.id).where(EEquipmentStatus.status == "IDLE"))
             db.add(
@@ -247,6 +273,8 @@ if __name__ == "__main__":
         seed(CompositionEnum.BOTH if "--both" in sys.argv else CompositionEnum.SECONDARY_ONLY)
     elif sys.argv[1:2] == ["demo"]:
         demo()
+    elif sys.argv[1:2] == ["second-printer"]:
+        second_printer()
     elif sys.argv[1:2] == ["machines"]:
         with SessionLocal() as session:
             machines(session)

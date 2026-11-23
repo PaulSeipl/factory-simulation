@@ -360,6 +360,9 @@ def main():
 
     setup(DB)
     env = secrets_env()
+    # the demo has one printer; step 8 (a printer goes down) needs a second one to move the prints to
+    subprocess.run([sys.executable, str(HERE / "mes_driver.py"), "second-printer"],
+                   env={**env, "POSTGRESQL_DB_NAME": DB, "PYTHONPATH": os.getcwd()}, check=True)  # fmt: skip
     env["POSTGRESQL_DB_NAME"] = DB
     state = HERE / "scenario_state"
     mes_proc = start_servers(env)

@@ -106,6 +106,7 @@ class ProblemCalendarOut(_Model):
     break_earliest: time  # one break per worker and day (decision 21), starting in [earliest, latest]
     break_latest: time
     break_minutes: int
+    max_overtime_minutes: int = 0  # work may run this long past the shift end (planning setting; 0: none)
 
 
 class ProblemInstanceOut(_Model):
