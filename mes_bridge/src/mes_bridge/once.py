@@ -21,9 +21,10 @@ from mes_bridge.api import ProblemOut, ScheduleBreakIn, ScheduleIn, ScheduleStep
 from mes_bridge.client import MesClient, http
 from mes_bridge.config import SchedulerConfig
 from mes_bridge.instance import build_instance, epoch_of
-from mes_bridge.state import IdMap, build_snapshot, id_map
+from mes_bridge.state import IdMap, build_snapshot, id_map, pin
 
-VARIANT = "BOUND"  # decision 4: the default view; assignments become pins in 6.1
+# decision 4: BOUND (the default view) plans with the assignments as pins, FREE without them (suggestions)
+BOUND, FREE = "BOUND", "FREE"
 
 
 @dataclass(frozen=True)
@@ -33,27 +34,46 @@ class Outcome:
 
 
 def solve(
-    problem: ProblemOut, *, epoch: datetime, solved_at: datetime, config: SchedulerConfig | None = None
+    problem: ProblemOut,
+    *,
+    epoch: datetime,
+    solved_at: datetime,
+    config: SchedulerConfig | None = None,
+    variant: str = BOUND,
 ) -> Outcome:
-    """The configured planner's plan for the problem as a schedule, or the checker's violations."""
+    """The configured planner's plan for the problem as the variant's schedule, or the checker's violations."""
     if not problem.instance.operations:  # nothing has arrived: an empty schedule says so
-        return Outcome(_schedule(problem, solved_at, []), [])
+        return Outcome(_schedule(problem, solved_at, [], variant=variant), [])
     ci = compile_instance(build_instance(problem, epoch=epoch))
     ids = id_map(problem, ci)
     snap = build_snapshot(problem, ci, ids, epoch=epoch)
+    if variant == BOUND:  # the assignments as pins (state.pin)
+        ci = pin(ci, problem, ids, {(f.order_id, f.op_id) for f in snap.frozen}).ci
     plan = (config or SchedulerConfig()).solver.planner()(ci, snap, [])
     if violations := check_schedule(ci, plan.assignments, snapshot=snap, breaks=plan.breaks):
         return Outcome(None, violations)
     return Outcome(
-        _schedule(problem, solved_at, steps(problem, ci, ids, plan, epoch), schedule_breaks(problem, plan, epoch)), []
+        _schedule(
+            problem,
+            solved_at,
+            steps(problem, ci, ids, plan, epoch),
+            schedule_breaks(problem, plan, epoch),
+            variant=variant,
+        ),
+        [],
     )
 
 
 def _schedule(
-    problem: ProblemOut, solved_at: datetime, steps_: list[ScheduleStepIn], breaks_: list[ScheduleBreakIn] = ()
+    problem: ProblemOut,
+    solved_at: datetime,
+    steps_: list[ScheduleStepIn],
+    breaks_: list[ScheduleBreakIn] = (),
+    *,
+    variant: str = BOUND,
 ) -> ScheduleIn:
     return ScheduleIn(
-        variant=VARIANT, snapshot_as_of=problem.as_of, solved_at=solved_at, steps=steps_, breaks=list(breaks_)
+        variant=variant, snapshot_as_of=problem.as_of, solved_at=solved_at, steps=steps_, breaks=list(breaks_)
     )
 
 
@@ -106,10 +126,17 @@ def _dt(epoch: datetime, minute: int) -> datetime:
     return (epoch + timedelta(minutes=minute)).astimezone(UTC)
 
 
-def run(client: MesClient, *, now: datetime, dry_run: bool = False, config: SchedulerConfig | None = None) -> Outcome:
+def run(
+    client: MesClient,
+    *,
+    now: datetime,
+    dry_run: bool = False,
+    config: SchedulerConfig | None = None,
+    variant: str = BOUND,
+) -> Outcome:
     problem = client.problem()
     epoch = epoch_of(now, ZoneInfo(problem.instance.calendar.time_zone))  # decision 17: the start week
-    outcome = solve(problem, epoch=epoch, solved_at=now, config=config)
+    outcome = solve(problem, epoch=epoch, solved_at=now, config=config, variant=variant)
     if outcome.schedule is not None and not dry_run:
         client.publish(outcome.schedule)
     return outcome
@@ -127,14 +154,17 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     client = MesClient(http(args.url))
     client.login(os.environ.get("MES_SCHEDULER_USERNAME", "scheduler"), password)
-    outcome = run(client, now=datetime.now(UTC), dry_run=args.dry_run, config=SchedulerConfig.load(args.config))
-    if outcome.schedule is None:
-        print(f"not published: {len(outcome.violations)} violations", file=sys.stderr)
-        for v in outcome.violations:
-            print(f"  {v.constraint}: {v.message}", file=sys.stderr)
-        return 1
-    print(f"{'planned' if args.dry_run else 'published'}: {len(outcome.schedule.steps)} steps")
-    return 0
+    config, failed = SchedulerConfig.load(args.config), False
+    for variant in config.variants:
+        outcome = run(client, now=datetime.now(UTC), dry_run=args.dry_run, config=config, variant=variant)
+        if outcome.schedule is None:
+            print(f"{variant} not published: {len(outcome.violations)} violations", file=sys.stderr)
+            for v in outcome.violations:
+                print(f"  {v.constraint}: {v.message}", file=sys.stderr)
+            failed = True
+            continue
+        print(f"{variant} {'planned' if args.dry_run else 'published'}: {len(outcome.schedule.steps)} steps")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

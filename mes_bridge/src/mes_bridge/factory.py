@@ -3,8 +3,11 @@
 `MesFactory` holds the latest problem with its instance and the plan last published. It is what `adapt_plan` sees:
 - `snapshot()`: the MES's started tasks as the frozen part (`state.build_snapshot`);
 - `current_plan()` / `current_breaks()`: the plan last sent (published), in the current instance's operations;
-- `update_plan(plan, breaks)`: check it against the snapshot (decision 23) and publish it as the BOUND schedule; a
-  plan with violations is recorded in `rejected` and not published, and the factory keeps its current plan.
+- `update_plan(plan, breaks)`: check it against the snapshot (decision 23) and publish it as its variant's schedule;
+  a plan with violations is recorded in `rejected` and not published, and the factory keeps its current plan.
+
+One factory per variant (decision 4, task 6.1): BOUND plans the instance with the assignments as pins
+(`state.pin`), FREE the instance without them. In BOUND a changed pin is an instance change as well.
 
 `step(factory, policy)` is one turn of the planning tool: fetch the problem, rebuild the instance; if its set of
 operations changed (an arrival, a cancellation, a scrap, a rework: decision 18) the step is a complete rescheduling
@@ -26,13 +29,17 @@ from simulation.sim.snapshot import Snapshot
 from mes_bridge.api import ProblemOut, ScheduleIn
 from mes_bridge.client import MesClient
 from mes_bridge.instance import build_instance
-from mes_bridge.once import VARIANT, schedule_breaks, steps
-from mes_bridge.state import IdMap, build_snapshot, id_map
+from mes_bridge.once import BOUND, FREE, schedule_breaks, steps
+from mes_bridge.state import IdMap, Pins, build_snapshot, id_map, pin
 
 
 class MesFactory:
-    def __init__(self, client: MesClient, *, epoch: datetime, clock=lambda: datetime.now(UTC)):
-        self.client, self.epoch, self._clock = client, epoch, clock
+    def __init__(self, client: MesClient, *, epoch: datetime, clock=lambda: datetime.now(UTC), variant: str = BOUND):
+        if variant not in (BOUND, FREE):
+            raise ValueError(f"unknown variant {variant!r}")
+        self.client, self.epoch, self._clock, self.variant = client, epoch, clock, variant
+        self.pins: Pins | None = None  # BOUND: the pins of the current instance
+        self._pin_values: dict = {}  # BOUND: machine options and qualified workers per pinned operation
         self.problem: ProblemOut | None = None
         self.ci: CompiledInstance | None = None
         self.ids: IdMap | None = None
@@ -53,8 +60,19 @@ class MesFactory:
             return before is not None
         self.ci = compile_instance(build_instance(problem, epoch=self.epoch))
         self.ids = id_map(problem, self.ci)
+        changed_pins = False
+        if self.variant == BOUND:
+            started = {(f.order_id, f.op_id) for f in self.snapshot().frozen}
+            self.pins = pin(self.ci, problem, self.ids, started)
+            self.ci = self.pins.ci
+            # a new, changed or removed pin on an operation that has not started is an instance change (decision 18)
+            values = {
+                k: (self.ci.options[self.ci.op_index[k]], self.ci.shares[self.ci.op_index[k]]) for k in self.pins.pinned
+            }
+            changed_pins = values != self._pin_values and before is not None
+            self._pin_values = values
         self._known = set(self.ci.op_keys)
-        return before != self._known
+        return before != self._known or changed_pins
 
     def restore(self, plan: Sequence[Assignment], breaks: Sequence[Break], publication: UUID | None) -> None:
         """Continue from a saved state (decision 22): the plan it published, over the operations that plan covers."""
@@ -104,7 +122,7 @@ class MesFactory:
             return
         out = self.client.publish(
             ScheduleIn(
-                variant=VARIANT,
+                variant=self.variant,
                 snapshot_as_of=self.problem.as_of,
                 solved_at=self._clock(),
                 steps=steps(self.problem, self.ci, self.ids, Plan(list(plan), new_breaks), self.epoch),

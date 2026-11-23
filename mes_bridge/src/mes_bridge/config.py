@@ -134,6 +134,16 @@ class PolicyConfig(_Model):
 
 class SchedulerConfig(_Model):
     solver: SolverConfig = SolverConfig()
+    # decision 4: both by default; if two solves per step are too slow, FREE can be left out
+    variants: tuple[Literal["BOUND", "FREE"], ...] = Field(default=("BOUND", "FREE"), min_length=1)
+
+    @field_validator("variants")
+    @classmethod
+    def _unique(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        if len(set(v)) != len(v):
+            raise ValueError(f"a variant twice: {list(v)}")
+        return v
+
     policy: PolicyConfig = PolicyConfig()
     safety_poll_minutes: PositiveInt = 5  # decision 14: a step without any event
 

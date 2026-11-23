@@ -12,7 +12,7 @@ with the MES's expected end (at least t + 1). The planner never sees anything el
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from simulation.calendar import day_index, day_start, is_working_day
@@ -314,6 +314,56 @@ def _frozen(
         workers=tuple(workers),
         share_lengths=tuple(lengths),
     )
+
+
+def group_started(group: Sequence[int], started: set[int]) -> bool:
+    return any(o in started for o in group)
+
+
+@dataclass(frozen=True)
+class Pins:
+    ci: CompiledInstance  # the instance with the pins
+    pinned: tuple[OpKey, ...]  # operations restricted by an assignment
+    skipped: tuple[str, ...]  # assignments that cannot hold, why (a machine or worker the step cannot use)
+
+
+def pin(ci: CompiledInstance, problem: ProblemOut, ids: IdMap, started: set[OpKey]) -> Pins:
+    """The BOUND variant (spec decision 4): an assignment pins every operation of its MES step that has not started:
+    the assigned machine becomes its only option, the assigned worker the only qualified one of each of its worker
+    shares. A started step keeps its facts (the task's worker and machine replace the assignment, as in the MES
+    fill). Applied to the compiled instance, where options and qualified workers are per operation: in the format
+    they are per step, shared by every carrier. An assignment naming a machine or worker the operation cannot use
+    is skipped and reported, not an error: the MES lets a planner assign before data prep fixes the machine."""
+    options, shares = list(ci.options), list(ci.shares)
+    pinned, skipped = [], []
+    machine_of = {m: i for i, m in enumerate(ci.machine_ids)}
+    worker_of = {w: i for i, w in enumerate(ci.worker_ids)}
+    # a run's setup, main operation and removal share one machine but may come from different MES steps: a machine
+    # pin holds for the whole run, unless one of its operations started (then the facts fix the machine)
+    group_of = {o: g for g in ci.machine_groups for o in g}
+    started_idx = {ci.op_index[k] for k in started if k in ci.op_index}
+    for a in problem.instance.assignments:
+        for key in ids.ops.get(a.key, ()):
+            if key in started:
+                continue
+            o = ci.op_index[key]
+            if a.equipment_id is not None and options[o]:
+                m = machine_of.get(str(a.equipment_id))
+                group = group_of.get(o, (o,))
+                keep = {g: tuple(opt for opt in options[g] if opt[0] == m) for g in group}
+                if not group_started(group, started_idx) and all(keep.values()):
+                    for g, opts in keep.items():
+                        options[g] = opts
+                else:
+                    skipped.append(f"{a.key}: machine {a.equipment_id} cannot be pinned on {key}")
+            if shares[o]:
+                z = worker_of.get(str(a.worker_id))
+                if z is not None and all(z in sh.workers for sh in shares[o]):
+                    shares[o] = tuple(sh._replace(workers=(z,)) for sh in shares[o])
+                else:
+                    skipped.append(f"{a.key}: worker {a.worker_id} is not qualified for {key}")
+            pinned.append(key)
+    return Pins(replace(ci, options=tuple(options), shares=tuple(shares)), tuple(pinned), tuple(skipped))
 
 
 def with_frozen_horizon(snapshot: Snapshot, current: Sequence[Assignment], minutes: int) -> Snapshot:

@@ -4,6 +4,17 @@
 
 ## Unreleased
 
+- 6.1: bound and free (decision 4). `state.pin`: in BOUND an MES assignment pins every operation of its step that
+  has not started: the assigned machine is its only option (for the whole run: setup, main and removal share one
+  machine), the assigned worker the only qualified one; on the compiled instance, where both are per operation (in
+  the format they are per step, shared by the carriers). A started step keeps its facts; a pin naming a machine or
+  worker the operation cannot use is skipped and reported (`Pins.skipped`). FREE ignores the assignments.
+  `MesFactory(variant=...)` publishes its variant; in BOUND a new, changed or removed pin is an instance change (a
+  complete rescheduling, decision 18), since a repaired plan would break the new pin and never pass the checker.
+  `runner.Runners`: one `Runner` per variant (own factory, anchor and state directory), one event queue, every wake
+  steps each variant, BOUND first, and one failing variant does not stop the other. `SchedulerConfig.variants`
+  (default both; FREE can be left out if two solves are too slow). `mes_bridge.once` publishes each configured
+  variant. Tests `tests/test_variants.py` (14).
 - 5.2: the frozen horizon (decision 19). CP-SAT and the GA plan from the snapshot plus every operation of the
   current plan that has not started and is planned to start before t + the time limit (whole minutes, rounded up):
   fixed with its planned machine, times and workers (`state.with_frozen_horizon`, after Shiau, Chen & Fan 2026 as

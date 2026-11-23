@@ -8,6 +8,8 @@
 - Timers (scheduler-side, never sent by the MES): OVERDUE (a running step reaches its expected end), PLANNED_START
   (a planned start is reached; a step not started by then is repaired right), the periodic rescheduling deadline of
   the policy, and the safety poll (a step without any event).
+- Variants (decision 4, task 6.1): one `Runner` per variant (BOUND, FREE), each with its factory, anchor and state
+  directory; `Runners` drains the events once per wake, steps every variant and wakes at the earliest timer of any.
 """
 
 import argparse
@@ -28,7 +30,6 @@ from mes_bridge.client import MesClient, http
 from mes_bridge.config import SchedulerConfig
 from mes_bridge.factory import MesFactory, step
 from mes_bridge.instance import epoch_of
-from mes_bridge.once import VARIANT
 from mes_bridge.store import Saved, Store, resumable
 
 SAFETY_POLL = timedelta(minutes=5)  # decision 14: a step without any event
@@ -101,7 +102,7 @@ class Runner:
         """Decision 22: continue from the saved state if the MES still serves its publication, else start fresh
         (the first step is then a complete rescheduling)."""
         saved = self.store.load() if self.store is not None else None
-        if not resumable(saved, self.factory.client.schedules(), VARIANT, self.factory.epoch):
+        if not resumable(saved, self.factory.client.schedules(), self.factory.variant, self.factory.epoch):
             self.log("no matching saved state: complete rescheduling")
             return False
         assert saved is not None
@@ -131,23 +132,63 @@ class Runner:
         return best
 
     def run(self, stop: threading.Event, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
-        reason = "start"
-        try:
-            self.resume()
-        except Exception as e:  # the MES may be down: start fresh
-            self.log(f"resume failed: {e}")
-        while not stop.is_set():
-            now = clock()
+        _loop(self, self.events, stop, clock)
+
+
+@dataclass
+class Runners:
+    """Several variants over one event queue (decision 4): each wake steps every variant, BOUND first."""
+
+    runners: list[Runner]
+    events: "queue.Queue[dict]" = field(default_factory=queue.Queue)
+    log: Callable[[str], None] = print
+
+    def resume(self) -> None:
+        for r in self.runners:
             try:
-                self.tick(now, reason)
-            except Exception as e:  # the MES may be down: keep serving, try again at the next wake
-                self.log(f"{now.isoformat()} {reason}: step failed: {e}")
-            wake, reason = self.next_wake(clock())
-            try:  # an event wakes the loop at once; it stays in the queue for the next tick
-                self.events.put(self.events.get(timeout=max(0.0, (wake - clock()).total_seconds())))
-                reason = "event"
+                r.resume()
+            except Exception as e:  # the MES may be down: that variant starts fresh
+                self.log(f"{r.factory.variant}: resume failed: {e}")
+
+    def tick(self, now: datetime, reason: str) -> None:
+        merged = []
+        while True:
+            try:
+                merged.append(self.events.get_nowait())
             except queue.Empty:
-                pass
+                break
+        for r in self.runners:
+            try:
+                r.tick(now, f"{r.factory.variant} {reason} ({len(merged)} events)")
+            except Exception as e:  # one variant failing does not stop the other
+                self.log(f"{now.isoformat()} {r.factory.variant} {reason}: step failed: {e}")
+
+    def next_wake(self, now: datetime) -> tuple[datetime, str]:
+        return min((r.next_wake(now) for r in self.runners), key=lambda w: w[0])
+
+    def run(self, stop: threading.Event, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
+        _loop(self, self.events, stop, clock)
+
+
+def _loop(target, events: "queue.Queue[dict]", stop: threading.Event, clock: Callable[[], datetime]) -> None:
+    """Resume, then step and sleep until the next timer or an event, until `stop`."""
+    reason = "start"
+    try:
+        target.resume()
+    except Exception as e:  # the MES may be down: start fresh
+        target.log(f"resume failed: {e}")
+    while not stop.is_set():
+        now = clock()
+        try:
+            target.tick(now, reason)
+        except Exception as e:  # the MES may be down: keep serving, try again at the next wake
+            target.log(f"{now.isoformat()} {reason}: step failed: {e}")
+        wake, reason = target.next_wake(clock())
+        try:  # an event wakes the loop at once; it stays in the queue for the next tick
+            events.put(events.get(timeout=max(0.0, (wake - clock()).total_seconds())))
+            reason = "event"
+        except queue.Empty:
+            pass
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -166,11 +207,17 @@ def main(argv: list[str] | None = None) -> int:
     client.login(os.environ.get("MES_SCHEDULER_USERNAME", "scheduler"), password)
     tz = ZoneInfo(client.problem().instance.calendar.time_zone)
     config = SchedulerConfig.load(args.config)
-    runner = Runner(
-        MesFactory(client, epoch=epoch_of(datetime.now(UTC), tz)),
-        config.rescheduling_policy(),
-        poll=timedelta(minutes=config.safety_poll_minutes),
-        store=Store(args.state_dir, VARIANT),
+    epoch = epoch_of(datetime.now(UTC), tz)
+    runner = Runners(
+        [
+            Runner(
+                MesFactory(client, epoch=epoch, variant=variant),
+                config.rescheduling_policy(),
+                poll=timedelta(minutes=config.safety_poll_minutes),
+                store=Store(args.state_dir, variant),
+            )
+            for variant in config.variants
+        ]
     )
     server = event_server(token, runner.events, args.host, args.port)
     threading.Thread(target=server.serve_forever, daemon=True).start()
