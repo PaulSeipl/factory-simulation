@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- The long-running scheduler: `python -m mes_bridge.runner [--url] [--host] [--port]` (secrets
+  `MES_SCHEDULER_PASSWORD`, `MES_EVENTS_TOKEN` from the environment). `runner.event_server`: `POST /events` with
+  the shared bearer token (401 without, 400 for a body that is not a JSON object, 404 elsewhere), into a queue.
+  `Runner`: one `factory.step` per wake for all events since the last (merged); next wake = the earliest of
+  OVERDUE (a running step's expected end), PLANNED_START (a planned start), the policy's period and the safety
+  poll (5 min); a failing step (MES down) is logged and retried at the next wake. `MesClient` logs in again once
+  on a 401 (the 8 h token). Tests `tests/test_runner.py` (12; the event server on a real local socket).
 - `mes_bridge.factory`: `MesFactory`, the MES as a `simulation.control.rescheduling.Factory` (snapshot from the
   problem, the plan last published in operation order, `update_plan` checks against the snapshot and publishes;
   a plan with violations is recorded in `rejected` and not published), and `step` (fetch, rebuild the instance; a

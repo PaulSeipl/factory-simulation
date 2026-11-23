@@ -1,0 +1,154 @@
+"""The long-running scheduler (task 2.2b): wake on MES events and timers, run one planning step per wake.
+
+    MES_SCHEDULER_PASSWORD=... MES_EVENTS_TOKEN=... uv run python -m mes_bridge.runner [--url] [--port 8765]
+
+- Events (decision 14): the MES posts `{type, ids, at}` to `POST /events` with `Authorization: Bearer <token>` (the
+  shared token from the environment). An event only wakes the loop; the state is always rebuilt from
+  `GET /planning/problem`, so a lost event costs only delay. Events arriving during a step are merged into the next.
+- Timers (scheduler-side, never sent by the MES): OVERDUE (a running step reaches its expected end), PLANNED_START
+  (a planned start is reached; a step not started by then is repaired right), the periodic rescheduling deadline of
+  the policy, and the safety poll (a step without any event).
+"""
+
+import argparse
+import json
+import os
+import queue
+import sys
+import threading
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from zoneinfo import ZoneInfo
+
+from simulation.control.rescheduling import Anchor, ReschedulingPolicy
+from simulation.planners.dispatching import dispatch_planner, spt
+
+from mes_bridge.client import MesClient, http
+from mes_bridge.factory import MesFactory, step
+from mes_bridge.instance import epoch_of
+
+SAFETY_POLL = timedelta(minutes=5)  # decision 14: a step without any event
+
+
+def event_server(
+    token: str, events: "queue.Queue[dict]", host: str = "127.0.0.1", port: int = 8765
+) -> ThreadingHTTPServer:
+    """`POST /events` into `events`; 401 without the shared token, 400 for a body that is not a JSON object."""
+
+    class Handler(BaseHTTPRequestHandler):
+        def _reply(self, status: int) -> None:
+            self.send_response(status)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def do_POST(self) -> None:  # noqa: N802 (http.server's name)
+            if self.path != "/events":
+                return self._reply(404)
+            if self.headers.get("Authorization") != f"Bearer {token}":
+                return self._reply(401)
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"null")
+            except ValueError:
+                return self._reply(400)
+            if not isinstance(body, dict):
+                return self._reply(400)
+            events.put(body)
+            self._reply(202)
+
+        def log_message(self, *_args) -> None:  # quiet; the runner logs what it does
+            pass
+
+    return ThreadingHTTPServer((host, port), Handler)
+
+
+@dataclass
+class Runner:
+    factory: MesFactory
+    policy: ReschedulingPolicy
+    events: "queue.Queue[dict]" = field(default_factory=queue.Queue)
+    poll: timedelta = SAFETY_POLL
+    anchor: Anchor | None = None
+    decisions: list[dict] = field(default_factory=list)
+    log: Callable[[str], None] = print
+
+    def tick(self, now: datetime, reason: str) -> None:
+        """One step for everything that happened since the last one."""
+        merged = []
+        while True:
+            try:
+                merged.append(self.events.get_nowait())
+            except queue.Empty:
+                break
+        before = len(self.factory.rejected), self.factory.published
+        self.anchor = step(self.factory, self.policy, self.anchor, self.decisions)
+        rejected, published = len(self.factory.rejected) - before[0], self.factory.published - before[1]
+        self.log(f"{now.isoformat()} {reason}: {len(merged)} events, {published} published, {rejected} not published")
+
+    def next_wake(self, now: datetime) -> tuple[datetime, str]:
+        """The earliest timer after now, at the latest the safety poll."""
+        best = (now + self.poll, "poll")
+        f = self.factory
+        if f.ci is not None and f.current_plan():
+            frozen = {(x.order_id, x.op_id): x for x in f.snapshot().frozen}
+            for a in f.current_plan():
+                fr = frozen.get((a.order_id, a.op_id))
+                if fr is not None and not fr.running:
+                    continue  # finished
+                t, why = (a.end, "overdue") if fr is not None else (a.start, "planned_start")
+                at = f.epoch + timedelta(minutes=t)
+                if now < at < best[0]:
+                    best = (at, why)
+        if self.anchor is not None and self.policy.period is not None:
+            at = f.epoch + timedelta(minutes=self.anchor.t + self.policy.period)
+            if now < at < best[0]:
+                best = (at, "period")
+        return best
+
+    def run(self, stop: threading.Event, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
+        reason = "start"
+        while not stop.is_set():
+            now = clock()
+            try:
+                self.tick(now, reason)
+            except Exception as e:  # the MES may be down: keep serving, try again at the next wake
+                self.log(f"{now.isoformat()} {reason}: step failed: {e}")
+            wake, reason = self.next_wake(clock())
+            try:  # an event wakes the loop at once; it stays in the queue for the next tick
+                self.events.put(self.events.get(timeout=max(0.0, (wake - clock()).total_seconds())))
+                reason = "event"
+            except queue.Empty:
+                pass
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--url", default=os.environ.get("MES_URL", "http://localhost:8080"))
+    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=8765)
+    args = ap.parse_args(argv)
+    password, token = os.environ.get("MES_SCHEDULER_PASSWORD"), os.environ.get("MES_EVENTS_TOKEN")
+    if not password or not token:
+        print("MES_SCHEDULER_PASSWORD and MES_EVENTS_TOKEN must be set", file=sys.stderr)
+        return 2
+    client = MesClient(http(args.url))
+    client.login(os.environ.get("MES_SCHEDULER_USERNAME", "scheduler"), password)
+    tz = ZoneInfo(client.problem().instance.calendar.time_zone)
+    runner = Runner(
+        MesFactory(client, epoch=epoch_of(datetime.now(UTC), tz)), ReschedulingPolicy(planner=dispatch_planner(spt))
+    )
+    server = event_server(token, runner.events, args.host, args.port)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    stop = threading.Event()
+    try:
+        runner.run(stop)
+    except KeyboardInterrupt:
+        stop.set()
+    finally:
+        server.shutdown()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
