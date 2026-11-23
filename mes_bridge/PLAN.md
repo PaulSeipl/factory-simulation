@@ -188,9 +188,12 @@ baseline a CI error.
   when all its plates are free again (after sawing, or unused; the MES has states for this). A resource
   constraint the thesis model does not have yet.
 
+- Primary blanks before DATA_PREP_PRIMARY (B2): show both options (one blank per order, A; thesis nesting, D)
+  or let the worker choose the blank composition the scheduler plans with (user, 2026-11-23).
+
 ## Blocked
 
-### B2 (2026-11-23, task 3.1): the PRIMARY lane before its blank exists, and when a primary-only order arrives
+### B2 (2026-11-23, task 3.1): the PRIMARY lane before its blank exists, and when a primary-only order arrives — **answered 2026-11-23**
 
 **Two questions.** (1) How should the scheduler plan an order's primary parts before a worker has put them on a
 blank (DATA_PREP_PRIMARY)? (2) When does an order without secondary parts (PRIMARY_ONLY) reach the scheduler?
@@ -249,7 +252,7 @@ but it proposes a composition the worker may not follow (an instance change when
 blank per order: with the Fidentis times (blank milling 15 setup + 62 per part, Gegenbetten 5 + 5 per part, removal
 10 + 10 per part) it overestimates only the per-blank bases, about 30 minutes per extra blank.
 
-**Open: (1).**
+**Answer (1) (user, chat 2026-11-23): A** for now. B2 answered.
 
 ### B1 (2026-11-23, task 1.5): grain of the mapping MES ↔ `Instance` — **answered 2026-11-23**
 
