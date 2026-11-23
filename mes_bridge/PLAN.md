@@ -75,8 +75,8 @@ baseline a CI error.
 - [x] 1.3 MES: `scheduler` service user (created by `scripts/create_user.py --allow-no-worker`, never seeded; bearer login) and the `schedule` tables (append-only, variant,
   `snapshot_as_of`, steps, breaks) with migration; `PUT` / `GET /planning/schedule`, write restricted to the
   service user. Tests incl. one negative test per validation rule.
-- [ ] 1.4 MES: `GET /planning/problem` for the SECONDARY lane (decision 11), one read transaction, reusing the
-  node gathering of `services/planning/plan.py`. Tests. **Reopened 2026-11-23:** add jobs (prints, mill jobs) with their parts and each order's secondary parts (decision 11).
+- [x] 1.4 MES: `GET /planning/problem` for the SECONDARY lane (decision 11), one read transaction, reusing the
+  node gathering of `services/planning/plan.py`. Tests. **Reopened 2026-11-23:** add jobs (prints, mill jobs) with their parts and each order's secondary parts (decision 11); carrier-grain keys (B1). Done 2026-11-23.
 - [ ] 1.5 Bridge: hand-written models + contract test against a copied `openapi.json`; problem → `Instance`
   (schema of `src/simulation/model/instance.py`) + `Snapshot`; id map instance ids ↔ MES node keys; time epoch
   (decision 17: `Calendar.origin = 0`, the default 480 would shift everything by 8 h without an error). Unit
@@ -134,8 +134,9 @@ baseline a CI error.
 - Can `fill.py` take one break per worker without a structural change?
 - Does the MES test setup tolerate an `after_commit` listener (session fixtures, rollbacks)?
 - Does the seed data hold orders past `DATA_PREP_SECONDARY`? If not, the integration tests seed them.
-- Is `OrderPart.quadrant` set for every secondary part from `DATA_PREP_SECONDARY` on? The carrier key depends on
-  it (check at the start of 1.4). Unique per plate within an AM job: yes (user, 2026-11-23).
+- ~~Is `OrderPart.quadrant` set for every secondary part from `DATA_PREP_SECONDARY` on?~~ Checked 2026-11-23: only
+  when the submit sends `part_quadrant_assignments` (optional, default `{}`); the export reads `TaskPart.quadrant`
+  and keeps job keys for a print with a part lacking one. Unique per plate within an AM job: yes (user).
 - How does a rework clone or a repeated step map to a unique `Operation.id` within an order?
 - Do scrap and the rework clone change a `WorkTask` or `Equipment` row? If not, the listener misses them and
   only the safety poll catches them; extend the listener to those rows.
@@ -186,7 +187,7 @@ per telescope (`math/21` §4, 2026-11-16); the earlier table compared parts with
 
 ## Log
 
-PR comments read until: 2026-11-22T23:20Z
+PR comments read until: 2026-11-23T09:30Z
 
 | Date | Task | Commits | Findings |
 |---|---|---|---|
@@ -199,3 +200,4 @@ PR comments read until: 2026-11-22T23:20Z
 | 2026-11-23 | B1 rewritten | — | First B1 blamed durations; wrong (`Operation.duration`, `per_carrier` + `Part.times` carry per-instance minutes). User: grain matters, MES data is the source, job loads must be splittable, one mill job per plate (8-telescope cap). Found: `build_plate_id` is the physical plate, stamped at AM_PREP; carrier id = (AM job, quadrant). Remaining question: carrier-grain keys, MES change limited to export + schedule, no thesis change in slice 1. `fixed 66` is current on every branch (math/21). |
 | 2026-11-23 | B1 answered | — | Carrier key `carrier:<am_job_id>:<quadrant>:<TASK>` (plate id is a later planner decision and a resource attribute), MES change limited to export + schedule, no thesis change in slice 1: `per_carrier` steps already vary per carrier via `Part.times`, clean/blast/oven constant per plate by the 2026-11-17 decision. Corrected: mill 120 per part = 30 per telescope, no mismatch. Plate sets and planner-formed carriers recorded under Later. |
 | 2026-11-23 | B1 follow-up | — | User corrections: the planner will assign physical plates, not form carriers; a plate set due for refurbishment is unusable until refurbished, which needs all its plates free; quadrant unique per plate per AM job. |
+| 2026-11-23 | 1.4 (reopened) | MES d38956c | Export at carrier grain: plate steps after the print and the secondary mill chain (`CARRIER_STEPS`: cleaning, heat treatment, blasting, mill prep, plate removal, rework) split per carrier (AM job, `TaskPart.quadrant`), key `carrier:<am job>:<quadrant>:<task>`; minutes (`_durations` on the carrier's parts), done state (all its parts DONE), tasks and predecessors (own plate) per carrier; assignments fan out; the mill chain keeps its key when the mill job forms. `parts` (units, carrier), `jobs` (kind, machine, entered minutes, plate set), `carriers` (parts, mill job) added. Schedule accepts carrier keys (5 negative/positive tests). A job's machine now binds only steps of its kind. 13 new tests. Gates: backend 1219 passed, ruff/format/mypy clean; client regenerated, svelte-check 0/0, lint 0 errors, vitest 116. Findings: (f) PLATE units count distinct `build_plate_id`, unset before AM_PREP, so the job-level AM_PREP / PART_POWDER_REMOVAL of a 4-plate print are computed for 1 plate (also in `fill.py`); the bridge can count the print's carriers instead (1.5); (g) a running carrier task has an expected end only when it is the gathered node's task, else None; (h) assignment fan-out has no test; (i) a plate whose parts sit in several mill jobs reports no mill job (not intended, user). |
