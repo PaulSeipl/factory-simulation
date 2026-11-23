@@ -190,6 +190,50 @@ baseline a CI error.
 
 ## Blocked
 
+### B2 (2026-11-23, task 3.1): the PRIMARY lane before its blank exists, and when a primary-only order arrives
+
+**Two questions.** (1) How should the scheduler plan an order's primary parts before a worker has put them on a
+blank (DATA_PREP_PRIMARY)? (2) When does an order without secondary parts (PRIMARY_ONLY) reach the scheduler?
+
+**Facts (checked):**
+- The thesis models a blank as a carrier (`mill_blank` forms it, `separate` = PART_REMOVAL_FROM_BLANK releases it),
+  with GEGENBETTEN and the flipped milling on it, like the plate. A blank holds up to 20 primary parts (MES seed
+  `MILL_JOB_PRIMARY` cap 20), usually from several orders.
+- The MES forms the blank only at DATA_PREP_PRIMARY: the worker creates the primary mill job and picks its blank and
+  mount. Before that, the primary steps are per order (key `order:<id>:<task>`); after it, the job steps are per
+  mill job (`job:<id>:<task>`). So for every order that has arrived but whose primary parts are not data-prepped yet,
+  the blank composition does not exist.
+- The format needs a composition: carrier operations need carriers (V15), and the carrier ids are part of the keys
+  the schedule publishes.
+- Arrival (decision 6) is DATA_PREP_SECONDARY done, which a PRIMARY_ONLY order never has (`CompositionEnum` has
+  PRIMARY_ONLY, SECONDARY_ONLY, BOTH). Decision 6 is marked temporary, until nesting is in use.
+- Settled without you (facts, follow B1): QM and SAWING run per plate in the MES's process engine (route subject
+  PLATE), only the plan node is per print, so they get carrier keys like the plate steps; QM waits for the plate's
+  mill chain and its orders' primary polishing (the cross-lane join). The QM ↔ REWORK cycle is repeatable per mill
+  job: an open REWORK and the QM after it enter the instance with the verdict (decision 8, an instance change).
+
+**Options for (1):**
+- **A. One assumed blank per order until DATA_PREP_PRIMARY (recommended).** Like "one mill job per plate until
+  formed" (B1). The bridge plans the order's primary parts on a blank of their own; the worker's real blank replaces
+  it at DATA_PREP_PRIMARY (an instance change, complete rescheduling). Keys: `carrier:blank:<order id>:<task>` before,
+  `carrier:blank:<mill job id>:<task>` after. Cost: no batching across orders on a blank until the worker forms it,
+  so blank milling is planned pessimistically long (setup once per order, not per blank).
+- **B. Order operations until DATA_PREP_PRIMARY.** The primary steps stay per order without a carrier until the blank
+  exists. Simpler, but it bends the thesis route (`mill_blank` is a carrier operation) for the time before data prep.
+- **C. The scheduler proposes the blank composition** (nesting of primary parts). That is a planner decision the
+  user ruled out for plates ("the planner only assigns plates", 2026-11-23); listed for completeness.
+
+**Options for (2):**
+- **A. Arrival = the order is planned (`PLANNED`, after `plan_order`) for an order without secondary parts
+  (recommended);** orders with secondary parts keep DATA_PREP_SECONDARY. The primary lane has no print to wait for,
+  so its plan is meaningful from planning on.
+- **B. Arrival = DATA_PREP_PRIMARY done** for PRIMARY_ONLY orders (the symmetric rule); the scheduler then never
+  plans their data prep.
+- **C. Leave PRIMARY_ONLY orders to the MES fill** in this integration.
+
+**Recommendation: 1A and 2A.** Answer in chat or on PaulSeipl/factory-simulation#1; the loop stays stopped until
+then.
+
 ### B1 (2026-11-23, task 1.5): grain of the mapping MES ↔ `Instance` — **answered 2026-11-23**
 
 **Answer (user, chat 2026-11-23), with the facts it rests on:**
@@ -252,3 +296,4 @@ PR comments read until: 2026-11-23T13:40Z
 | 2026-11-23 | 2.2c | sim (this commit) | `mes_bridge.store` (`anchor.json` atomic, `decisions.jsonl`, per variant under `--state-dir`, git-ignored); `Runner.resume()` per decision 22 (resume only from the MES's current publication in the same epoch, else complete rescheduling). The fake MES serves `GET /planning/schedule`. 6 tests. Gates: bridge 91 passed + 1 skipped, simulation 1811 passed. Finding: (y) a resumed bridge compares the next problem's operations with the saved plan's, so a change while it was down (an arrival, a cancellation) is a complete rescheduling as required (decision 18), and an unchanged state republishes nothing. 2.2 complete. |
 | 2026-11-23 | 2.3 | MES d2c6e53 | `services/planning/scheduler_events.py`: listener on `Session` (collect at `after_flush`: task status → START / SHARE_END / COMPLETE / ARRIVAL / INSTANCE, machine status → MACHINE, scrapped part and order planning status / completion → INSTANCE; post per type after the commit in a daemon thread with `SCHEDULER_EVENTS_TOKEN`; drop on rollback; no-op without `SCHEDULER_URL`), registered in `app/main.py`; config `SCHEDULER_URL`, `SCHEDULER_EVENTS_TOKEN`. 8 tests incl. rollback sends nothing, the real POST with the token, an unreachable scheduler. Docs: `architecture.md` §8a, `AGENTS.md`, `docs/backend/authentication.md`. Gates: backend 1238 passed, ruff / format / mypy clean. Finding: (z) a rolled-back savepoint drops what earlier flushes of the outer transaction collected (shortcut, costs only delay). |
 | 2026-11-23 | 2.4 | sim (this commit) | End-to-end against this branch's MES (scratch DB `mes_bridge_e2e`, 8091) and the runner (8766): seeded intern order (2 telescopes, one plate), first real plan over the wire (8 steps), then start / finish of the mill data prep and start + handoff of the print through the MES's services: every transition woke the bridge in 0.5 s via the after-commit events; the print's entered 2000-min run led to a new publication; `GET /planning/plan` served it (ONLINE, SECONDARY lane SCHEDULER, tail MES_FILL). Cleaned up after (servers, DB, secrets); `mes_db` untouched. Gates: bridge 96 passed + 1 skipped, simulation 1811 passed. **Found and fixed** (each with a test): (aa) a task started and finished within one minute froze as start = end (format needs end > start): frozen operations last ≥ 1 min; (bb) whole minutes broke precedence among facts (the print started in the minute its mill data prep finished): `state._consistent` starts every frozen operation at its frozen predecessors' end and moves t to every finished end; (cc) a step started by another worker than proposed failed C7: `MesFactory.current_plan()` is the plan as executed (real machine, workers, times) - the proposal is not an order. Further findings: (dd) the MES's `scripts/seed_intern_order.py` is broken: its print number `SEED-xxxxxx` overflows `am_job.print_job_no` VARCHAR(4) (the driver sends its own; not fixed, outside scope); (ee) the dev seed has no equipment; the driver adds a plannable printer and mill; (ff) the thesis repair keeps planned gaps, so a step started or finished early moves nothing and is not republished; only overruns (right shifts) or a policy trigger republish. With the runner's default policy (no thresholds) the bridge never reschedules completely except on an instance change; thresholds come with the scheduler config (3.3). **Slice 2 complete.** |
+| 2026-11-23 | 3.1 (blocked) | — | MES CI green on d2c6e53. Facts for 3.1 gathered: QM and SAWING run per plate in the MES process engine (route subject PLATE): carrier keys, no decision needed; QM ↔ REWORK is a repeatable cycle per mill job (decision 8, instance change). Blocked B2: how to plan primary parts before DATA_PREP_PRIMARY forms their blank, and when a PRIMARY_ONLY order arrives (decision 6 only covers secondary). Loop stopped. |
