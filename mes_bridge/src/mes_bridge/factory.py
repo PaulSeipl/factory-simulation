@@ -50,6 +50,7 @@ class MesFactory:
         self.publication: UUID | None = None  # id of the last publication in the MES
         self._known: set[tuple[str, str]] | None = None  # the operations of the instance the plan covers
         self._machines: dict | None = None  # machine options per operation of the last instance (a machine went down)
+        self._calendar = None  # the last instance's calendar (break window, shift)
 
     def refresh(self) -> bool:
         """Fetch the problem and rebuild the instance; True if its set of operations changed (or it is the first)."""
@@ -81,7 +82,11 @@ class MesFactory:
         }
         changed_machines = self._machines is not None and machines != self._machines
         self._machines = machines
-        return before != self._known or changed_pins or changed_machines
+        # a new break window or day start (planning settings) changes the calendar every break and shift is planned
+        # in; a repair keeps the old breaks, so it is a complete rescheduling as well
+        changed_calendar = self._calendar is not None and self.ci.calendar != self._calendar
+        self._calendar = self.ci.calendar
+        return before != self._known or changed_pins or changed_machines or changed_calendar
 
     def restore(self, plan: Sequence[Assignment], breaks: Sequence[Break], publication: UUID | None) -> None:
         """Continue from a saved state (decision 22): the plan it published, over the operations that plan covers."""

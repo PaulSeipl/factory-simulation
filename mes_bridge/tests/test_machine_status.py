@@ -138,3 +138,17 @@ def test_a_machine_down_takes_no_new_work_but_keeps_what_started(name):
                 assert down not in {m for m, _ in opts}
             else:
                 assert opts == ci.options[o]  # nothing else left: kept
+
+
+def test_a_new_break_window_is_a_complete_rescheduling():
+    """A planning setting (break window, length) changes the calendar; a repair would keep the old breaks."""
+    raw = _raw("problem_printing.json", second=False)
+    client = MesClient(FakeMes(raw))
+    client.login("scheduler", "pw")
+    as_of = datetime.fromisoformat(raw["as_of"])
+    factory = MesFactory(client, epoch=epoch_of(as_of, BERLIN), clock=lambda: as_of)
+    assert factory.refresh() is True  # the first
+    assert factory.refresh() is False
+    raw["instance"]["calendar"].update(break_earliest="11:30:00", break_latest="13:00:00", break_minutes=30)
+    assert factory.refresh() is True
+    assert factory.refresh() is False
