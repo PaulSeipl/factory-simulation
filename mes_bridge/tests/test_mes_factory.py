@@ -55,20 +55,20 @@ def test_nothing_changed_nothing_is_published():
     assert len(fake.published) == 1 and again == anchor
 
 
-def test_a_longer_print_is_repaired_and_the_shifted_plan_published():
+def test_a_print_running_a_day_longer_is_repaired_and_the_shifted_plan_published():
     raw, fake, factory = _setup()
     decisions: list[dict] = []
     anchor = step(factory, POLICY, None, decisions)
     before = {s.key: s for s in fake.published[-1].steps}
     task = next(t for t in raw["snapshot"]["tasks"] if t["key"] == _print_key(raw))
-    task["expected_end"] = (datetime.fromisoformat(task["expected_end"]) + timedelta(minutes=60)).isoformat()
+    task["expected_end"] = (datetime.fromisoformat(task["expected_end"]) + timedelta(days=1)).isoformat()
     step(factory, POLICY, anchor, decisions)
     assert len(fake.published) == 2 and decisions[-1]["type"] == "REPAIR"
     after = {s.key: s for s in fake.published[-1].steps}
     key = _print_key(raw)
-    assert after[key].end - before[key].end == timedelta(minutes=60)  # the frozen run ends at the new expectation
+    assert after[key].end - before[key].end == timedelta(days=1)  # the frozen run ends at the new expectation
     removal = next(k for k in after if k.endswith(":PART_POWDER_REMOVAL"))
-    assert after[removal].start >= after[key].end
+    assert after[removal].start >= after[key].end > before[removal].start  # the removal moved with it
 
 
 def test_a_changed_set_of_operations_is_a_complete_rescheduling():
@@ -100,3 +100,28 @@ def test_nothing_arrived_is_nothing_to_plan():
     raw, fake, factory = _setup()
     raw["instance"]["operations"], raw["snapshot"]["tasks"] = [], []
     assert step(factory, POLICY, None, []) is None and fake.published == []
+
+
+def test_a_longer_print_that_moves_nothing_publishes_nothing():
+    """The plan as executed already holds the fact; the MES shows started steps by their facts."""
+    raw, fake, factory = _setup()
+    anchor = step(factory, POLICY, None, [])
+    task = next(t for t in raw["snapshot"]["tasks"] if t["key"] == _print_key(raw))
+    task["expected_end"] = (datetime.fromisoformat(task["expected_end"]) + timedelta(minutes=60)).isoformat()
+    step(factory, POLICY, anchor, [])
+    assert len(fake.published) == 1
+
+
+def test_a_step_started_by_another_worker_is_planned_with_that_worker():
+    """Found by the end-to-end run (2.4): the proposal is not an order; the plan as executed has the real worker."""
+    raw, fake, factory = _setup()
+    anchor = step(factory, POLICY, None, [])
+    other = next(w["id"] for w in raw["instance"]["workers"])
+    print_task = next(t for t in raw["snapshot"]["tasks"] if t["key"] == _print_key(raw))
+    print_task["worker_id"] = other
+    step(factory, POLICY, anchor, [])
+    assert factory.rejected == []
+    frozen = {(f.order_id, f.op_id) for f in factory.snapshot().frozen}
+    for a in factory.current_plan():
+        if (a.order_id, a.op_id) in frozen and a.workers:
+            assert other in a.workers

@@ -72,7 +72,37 @@ def build_snapshot(problem: ProblemOut, ci: CompiledInstance, ids: IdMap, *, epo
                 raise MappingError(f"{o.key}: done, but the MES has no start time for it")
             continue
         frozen += _freeze(ci, task, ids.ops[o.key], t, epoch)
-    return Snapshot(instance=ci.name, t=t, frozen=tuple(frozen))
+    return _consistent(ci, frozen, t)
+
+
+def _consistent(ci: CompiledInstance, frozen: list[FrozenOperation], t: int) -> Snapshot:
+    """Facts in whole minutes can break the model's rules where the MES has seconds: a step that starts in the minute
+    its predecessor finished, a predecessor stretched to the one-minute floor. In topological order, every frozen
+    operation starts no earlier than its frozen predecessors end (found by the end-to-end run, 2.4); the snapshot time
+    is at least every finished end, and a running operation ends after it. Moves a fact by at most the rounding."""
+    by = {(f.order_id, f.op_id): f for f in frozen}
+    for o in ci.topo_order:
+        f = by.get(ci.op_keys[o])
+        if f is None:
+            continue
+        after = max((by[ci.op_keys[p]].end for p in ci.predecessors[o] if ci.op_keys[p] in by), default=f.start)
+        if after > f.start:
+            start = after
+            end = max(f.end, start + 1)
+            lengths = tuple(
+                end - start if sh.kind == "whole" else n for sh, n in zip(ci.shares[o], f.share_lengths, strict=True)
+            )
+            by[ci.op_keys[o]] = f.model_copy(update={"start": start, "end": end, "share_lengths": lengths})
+    t = max([t, *(f.end for f in by.values() if not f.running), *(f.start for f in by.values() if f.running)])
+    for k, f in by.items():
+        if f.running and f.end <= t:
+            end = t + 1
+            lengths = tuple(
+                end - f.start if sh.kind == "whole" else n
+                for sh, n in zip(ci.shares[ci.op_index[k]], f.share_lengths, strict=True)
+            )
+            by[k] = f.model_copy(update={"end": end, "share_lengths": lengths})
+    return Snapshot(instance=ci.name, t=t, frozen=tuple(by[(f.order_id, f.op_id)] for f in frozen))
 
 
 def _freeze(ci: CompiledInstance, task: ProblemTaskOut, keys: tuple[OpKey, ...], t: int, epoch: datetime):
@@ -84,16 +114,18 @@ def _freeze(ci: CompiledInstance, task: ProblemTaskOut, keys: tuple[OpKey, ...],
         if handoff is None and finished is None:  # still setting up
             end = _expected(ci, task, setup, task.expected_attended_end, start, t, epoch)
             return [_frozen(ci, task, setup, start, end, running=True, t=t)]
-        cut = handoff if handoff is not None else finished
+        # every frozen operation lasts at least a minute (the format's end > start), also a setup handed off or a
+        # task finished within the minute it started
+        cut = max(start + 1, handoff if handoff is not None else finished)
         out = [_frozen(ci, task, setup, start, cut, running=False, t=t)]
         if finished is not None:
-            return out + [_frozen(ci, task, main, cut, max(cut, finished), running=False, t=t)]
+            return out + [_frozen(ci, task, main, cut, max(cut + 1, finished), running=False, t=t)]
         end = _expected(ci, task, main, task.expected_end, cut, t, epoch)
         return out + [_frozen(ci, task, main, cut, end, running=True, t=t)]
     if len(keys) == 1:
         (key,) = keys
         if finished is not None:
-            return [_frozen(ci, task, key, start, max(start, finished), running=False, t=t, handoff=handoff)]
+            return [_frozen(ci, task, key, start, max(start + 1, finished), running=False, t=t, handoff=handoff)]
         end = _expected(ci, task, key, task.expected_end, start, t, epoch)
         return [_frozen(ci, task, key, start, end, running=True, t=t, handoff=handoff)]
     return []  # a step of 0 minutes: nothing to freeze
@@ -152,7 +184,7 @@ def _frozen(
             lengths.append(end - start)
         elif sh.kind == "prefix":  # e.g. the oven: attended until the handoff, then its program
             if handoff is not None:
-                lengths.append(handoff - start)
+                lengths.append(max(1, handoff - start))
             elif running:
                 lengths.append(max(sh.length, t + 1 - start))
             else:

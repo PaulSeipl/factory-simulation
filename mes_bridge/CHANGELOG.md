@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+- End-to-end (task 2.4): `tests/e2e/mes_driver.py` (MES side: seed an arrived order, then start / finish the mill
+  data prep and start and hand off the print through the MES's services, each commit posting its event). Passed
+  against this branch's MES and a running `mes_bridge.runner`: every transition woke the bridge within 0.5 s, the
+  overrunning print led to a new publication, and `GET /planning/plan` served it (`scheduler` ONLINE, SECONDARY lane
+  `SCHEDULER`, the tail `MES_FILL`). Fixes it found: a frozen operation lasts at least one minute; frozen operations
+  keep the model's precedence and the snapshot time covers every finished end (`state._consistent`: whole minutes
+  where the MES has seconds); `MesFactory.current_plan()` is the plan as executed (the real machine, workers and
+  times of a started step, since a worker may start it differently than proposed). Tests for all three.
 - State on disk (decision 22): `mes_bridge.store.Store` keeps `anchor.json` (epoch, anchor, the plan last published,
   its publication id; written atomically) and `decisions.jsonl` per variant under `--state-dir`
   (`mes_bridge_state/`, git-ignored). `Runner.resume()` continues from it only if the MES's current schedule of

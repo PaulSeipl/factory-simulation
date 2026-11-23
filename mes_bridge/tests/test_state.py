@@ -142,3 +142,43 @@ def test_a_task_on_a_machine_its_operation_cannot_use_is_rejected():
     _task(raw, ":AM_PREP")["equipment_id"] = mill
     with pytest.raises(MappingError, match="cannot run on"):
         _state(raw)
+
+
+def test_a_task_finished_in_the_minute_it_started_lasts_one_minute():
+    """Found by the end-to-end run (2.4): start and finish within one minute gave start == end."""
+    raw = _raw("problem_mill_prep.json")
+    done = next(t for t in raw["snapshot"]["tasks"] if t["finished_at"])
+    done["finished_at"] = done["started_at"]
+    _, _, ci, _, snap = _state(raw)
+    f = next(x for x in snap.frozen if not x.running)
+    assert f.end == f.start + 1
+    plan = dispatch_plan(ci, spt, snapshot=snap)
+    assert check_schedule(ci, plan.assignments, snapshot=snap, breaks=plan.breaks) == []
+
+
+def test_a_print_handed_off_in_the_minute_it_started_keeps_a_one_minute_setup():
+    raw = _raw("problem_printing.json")
+    t = _task(raw, ":AM_PREP")
+    t["handoff_at"] = t["started_at"]
+    _, _, _, _, snap = _state(raw)
+    am = _am_job(raw)
+    f = _frozen(snap)
+    assert f[f"R:{am}", "setup"].end == f[f"R:{am}", "setup"].start + 1 == f[f"R:{am}", PRINT].start
+
+
+def test_a_step_started_in_the_minute_its_predecessor_finished_keeps_the_order():
+    """Found by the end-to-end run (2.4): whole minutes put the print's start before its mill data prep's end."""
+    raw = _raw("problem_printing.json")
+    preps = [t for t in raw["snapshot"]["tasks"] if t["key"].endswith(":DATA_PREP_SEC_MILL")]
+    last = max(preps, key=lambda t: t["finished_at"])
+    last["started_at"] = last["finished_at"]  # a one-minute floor stretches it past the print's start
+    am = _task(raw, ":AM_PREP")
+    am["started_at"] = am["handoff_at"] = last["finished_at"]
+    _, _, ci, _, snap = _state(raw)
+    f = _frozen(snap)
+    run = f"R:{_am_job(raw)}"
+    prep_end = max(x.end for x in snap.frozen if x.op_id == "DATA_PREP_SEC_MILL")
+    assert f[run, "setup"].start >= prep_end and f[run, PRINT].start >= f[run, "setup"].end
+    assert all(x.end <= snap.t for x in snap.frozen if not x.running)
+    plan = dispatch_plan(ci, spt, snapshot=snap)
+    assert check_schedule(ci, plan.assignments, snapshot=snap, breaks=plan.breaks) == []

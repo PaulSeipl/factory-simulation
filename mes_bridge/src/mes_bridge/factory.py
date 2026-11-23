@@ -68,7 +68,30 @@ class MesFactory:
         return build_snapshot(self.problem, self.ci, self.ids, epoch=self.epoch)
 
     def current_plan(self) -> Sequence[Assignment]:
-        return list(self._plan)
+        """The plan as executed: a started operation with its real machine, workers and times (in the DES the factory
+        follows its plan; in the MES a worker may start a step another way than proposed, found by the end-to-end
+        run, 2.4)."""
+        if not self._plan or self.ci is None or self.problem is None:
+            return list(self._plan)
+        frozen = {(f.order_id, f.op_id): f for f in self.snapshot().frozen}
+        out = []
+        for a in self._plan:
+            if (f := frozen.get((a.order_id, a.op_id))) is None:
+                out.append(a)
+                continue
+            workers = tuple(w if w is not None else p for w, p in zip(f.workers, a.workers or f.workers, strict=False))
+            out.append(
+                a.model_copy(
+                    update={
+                        "machine": f.machine,
+                        "start": f.start,
+                        "end": f.end,
+                        "workers": workers if all(workers) else a.workers,
+                        "share_lengths": f.share_lengths,
+                    }
+                )
+            )
+        return out
 
     def current_breaks(self) -> Sequence[Break]:
         return self._breaks
