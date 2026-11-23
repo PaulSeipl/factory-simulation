@@ -234,6 +234,23 @@ blank (DATA_PREP_PRIMARY)? (2) When does an order without secondary parts (PRIMA
 **Recommendation: 1A and 2A.** Answer in chat or on PaulSeipl/factory-simulation#1; the loop stays stopped until
 then.
 
+**Answer (2) (user, chat 2026-11-23): A** — an order without secondary parts arrives when it is planned.
+
+**For (1), asked back by the user: how do the thesis solvers handle this? (checked 2026-11-23)** No solver decides a
+blank composition. Carriers and runs are input: the generator's `nest` (`carrier_generator.py`, math/21 §4a) emulates
+nesting when an order is bound (math/07, math/33): plates filled in due-date order up to their capacity, the counted
+(primary) parts next-fit onto blanks of `blank_capacity` (Fidentis 20) in the same order, so one blank holds parts of
+several orders and an order may span two blanks. CP-SAT, the GA and the rules then decide machines, starts, workers,
+the oven's p-batches (C10) and s-batches, never which parts share a carrier. So the thesis assumes the blank
+composition is known at arrival, together with the plates; the MES knows it only at DATA_PREP_PRIMARY. Hence a fourth
+option: **D. the bridge emulates the thesis nesting** for primary parts not yet on a blank (next fit by due date into
+blanks of the MES cap), replaced by the real blank at DATA_PREP_PRIMARY. Thesis-faithful and batches across orders,
+but it proposes a composition the worker may not follow (an instance change when they differ). A instead plans one
+blank per order: with the Fidentis times (blank milling 15 setup + 62 per part, Gegenbetten 5 + 5 per part, removal
+10 + 10 per part) it overestimates only the per-blank bases, about 30 minutes per extra blank.
+
+**Open: (1).**
+
 ### B1 (2026-11-23, task 1.5): grain of the mapping MES ↔ `Instance` — **answered 2026-11-23**
 
 **Answer (user, chat 2026-11-23), with the facts it rests on:**
