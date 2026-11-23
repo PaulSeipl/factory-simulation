@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- 5.2: the frozen horizon (decision 19). CP-SAT and the GA plan from the snapshot plus every operation of the
+  current plan that has not started and is planned to start before t + the time limit (whole minutes, rounded up):
+  fixed with its planned machine, times and workers (`state.with_frozen_horizon`, after Shiau, Chen & Fan 2026 as
+  math/05 records it; the thesis has the frozen horizon as an open point, so it lives in the bridge). The rule
+  plans at once, so its horizon is 0. Tests: the fixed operations and their fields, no horizon, CP-SAT keeps them
+  and its plan passes the checker against the real snapshot, the horizon per solver.
 - 5.1: CP-SAT and the GA in `SchedulerConfig.solver` (`kind`: `rule` | `cpsat` | `ga`; `objective`: `worker`, the
   thesis worker objective with the cutoff buffer as in `simulation.experiment`, or `makespan`; `time_limit` in
   seconds; `deterministic_time` for CP-SAT; `seed`). CP-SAT runs on one thread, so a seed reproduces a plan.

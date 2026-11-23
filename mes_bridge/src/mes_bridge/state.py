@@ -17,7 +17,7 @@ from datetime import datetime
 
 from simulation.calendar import day_index, day_start, is_working_day
 from simulation.model.compiled import CompiledInstance
-from simulation.model.schedule import Break
+from simulation.model.schedule import Assignment, Break
 from simulation.sim.snapshot import FrozenOperation, Snapshot
 
 from mes_bridge.api import ProblemOperationOut, ProblemOut, ProblemTaskOut
@@ -314,3 +314,30 @@ def _frozen(
         workers=tuple(workers),
         share_lengths=tuple(lengths),
     )
+
+
+def with_frozen_horizon(snapshot: Snapshot, current: Sequence[Assignment], minutes: int) -> Snapshot:
+    """The snapshot with the frozen horizon (spec decision 19): every operation of the current plan that has not
+    started and is planned to start before t + `minutes` is fixed with its planned machine, times and workers, as
+    if it ran (Shiau, Chen & Fan 2026, Zotero F5VQRD7Z: machine and start time kept; math/05 lists the frozen horizon
+    as an open point of the thesis, so it lives here). The planner plans the rest around them."""
+    if minutes <= 0:
+        return snapshot
+    until = snapshot.t + minutes
+    done = {(f.order_id, f.op_id) for f in snapshot.frozen}
+    extra = tuple(
+        FrozenOperation(
+            order_id=a.order_id,
+            op_id=a.op_id,
+            machine=a.machine,
+            start=a.start,
+            end=a.end,
+            running=True,
+            workers=a.workers,
+            share_lengths=a.share_lengths,
+            batch=a.batch,
+        )
+        for a in current
+        if (a.order_id, a.op_id) not in done and a.start < until
+    )
+    return snapshot.model_copy(update={"frozen": snapshot.frozen + extra}) if extra else snapshot

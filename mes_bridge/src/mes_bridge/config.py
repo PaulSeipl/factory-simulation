@@ -13,6 +13,7 @@ frozen horizon follows in 5.2.
 """
 
 import logging
+import math
 from pathlib import Path
 from typing import Literal
 
@@ -31,6 +32,8 @@ from simulation.objectives import (
 from simulation.planners.cpsat import cpsat_planner
 from simulation.planners.dispatching import ASSIGNMENT_RULES, SEQUENCING_RULES, dispatch_planner
 from simulation.planners.ga import GaParams, ga_planner
+
+from mes_bridge.state import with_frozen_horizon
 
 
 log = logging.getLogger(__name__)
@@ -75,17 +78,25 @@ class SolverConfig(_Model):
             return worker_objective_with_slack(self.buffer)
         return lexicographic(OVERTIME, BREAK_PENALTY, ACTIVE_MAKESPAN)
 
+    @property
+    def horizon_minutes(self) -> int:
+        """The frozen horizon (decision 19): the solve's time limit in whole minutes, rounded up; 0 for a rule."""
+        return 0 if self.kind == "rule" else math.ceil(self.time_limit / 60)
+
     def rule_planner(self) -> Planner:
         return dispatch_planner(SEQUENCING_RULES[self.sequencing], ASSIGNMENT_RULES.get(self.assignment or ""))
 
     def planner(self) -> Planner:
         """The configured planner. CP-SAT and the GA fall back to the rule (`sequencing`, `assignment`) when they
         return no plan for the operations (no solution within the time limit, an infeasible model); `planner.last`
-        then says why (`fallback`), and is the solver's own report otherwise."""
+        then says why (`fallback`), and is the solver's own report otherwise. Both plan from the snapshot with the
+        frozen horizon (decision 19, `state.with_frozen_horizon`): what the current plan starts within the solve's
+        time limit is kept, since it may have started by the time the plan is published."""
         if self.kind == "rule":
             return self.rule_planner()
 
         def planner(ci, snapshot, current):
+            snapshot = with_frozen_horizon(snapshot, current, self.horizon_minutes)
             objective = self.objective_for(ci)
             if self.kind == "cpsat":
                 # one solver thread, so a seed reproduces a plan (as the thesis experiments)

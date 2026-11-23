@@ -159,3 +159,16 @@ def test_cpsat_without_a_plan_falls_back_to_the_rule():
 def test_the_policy_runs_the_configured_solver():
     c = SchedulerConfig.model_validate({"solver": {"kind": "cpsat", "time_limit": 2}})
     assert c.rescheduling_policy().planner.__qualname__ == "cpsat_planner"
+
+
+@pytest.mark.parametrize(
+    ("solver", "minutes"),
+    [
+        ({"kind": "rule"}, 0),
+        ({"kind": "cpsat", "time_limit": 10}, 1),
+        ({"kind": "ga", "time_limit": 60}, 1),
+        ({"kind": "cpsat", "time_limit": 61}, 2),
+    ],
+)
+def test_the_frozen_horizon_is_the_time_limit_in_whole_minutes(solver, minutes):
+    assert SchedulerConfig.model_validate({"solver": solver}).solver.horizon_minutes == minutes

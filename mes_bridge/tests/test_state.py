@@ -240,3 +240,52 @@ def test_todays_break_is_taken_once_its_window_has_begun(latest, t, busy, expect
 def test_the_snapshot_carries_todays_taken_break():
     _, _, ci, _, snap = _state(_raw("problem_printing.json"))
     assert [(b.worker, b.start) for b in snap.breaks] == [(ci.worker_ids[0], 720)]
+
+
+def _rule_plan_and_state(name: str = "problem_blank.json"):
+    _, _, ci, _, snap = _state(_raw(name))
+    return ci, snap, dispatch_plan(ci, spt, snapshot=snap)
+
+
+def test_the_frozen_horizon_fixes_what_the_plan_starts_before_it_as_planned():
+    """Task 5.2 (decision 19): not started, planned to start before t + H: frozen with machine, times, workers."""
+    from mes_bridge.state import with_frozen_horizon
+
+    ci, snap, plan = _rule_plan_and_state()
+    started = {(f.order_id, f.op_id) for f in snap.frozen}
+    h = 1440  # a day, so the night before the next shift holds something
+    out = with_frozen_horizon(snap, plan.assignments, h)
+    added = {(f.order_id, f.op_id): f for f in out.frozen[len(snap.frozen) :]}
+    assert out.frozen[: len(snap.frozen)] == snap.frozen  # facts untouched
+    expected = {
+        (a.order_id, a.op_id): a
+        for a in plan.assignments
+        if (a.order_id, a.op_id) not in started and a.start < snap.t + h
+    }
+    assert expected and set(added) == set(expected)
+    for key, f in added.items():
+        a = expected[key]
+        assert (f.machine, f.start, f.end, f.workers) == (a.machine, a.start, a.end, a.workers)
+
+
+def test_no_horizon_leaves_the_snapshot_as_it_is():
+    from mes_bridge.state import with_frozen_horizon
+
+    _, snap, plan = _rule_plan_and_state()
+    assert with_frozen_horizon(snap, plan.assignments, 0) is snap
+    assert with_frozen_horizon(snap, [], 1440) is snap
+
+
+def test_cpsat_keeps_the_frozen_horizon_and_the_plan_passes_the_checker():
+    from mes_bridge.state import with_frozen_horizon
+    from simulation.objectives import MAKESPAN
+    from simulation.planners.cpsat import cpsat_planner
+
+    ci, snap, plan = _rule_plan_and_state()
+    frozen = with_frozen_horizon(snap, plan.assignments, 1440)
+    new = cpsat_planner(5, objective=MAKESPAN)(ci, frozen, plan.assignments)
+    kept = {(a.order_id, a.op_id): a for a in new.assignments}
+    for f in frozen.frozen[len(snap.frozen) :]:
+        a = kept[f.order_id, f.op_id]
+        assert (a.machine, a.start, a.end) == (f.machine, f.start, f.end)
+    assert check_schedule(ci, new.assignments, snapshot=snap, breaks=new.breaks) == []
