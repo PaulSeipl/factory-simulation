@@ -34,6 +34,7 @@ from mes_bridge.instance import (
     flip_run,
     mill_run,
     print_run,
+    rework_run,
 )
 
 OpKey = tuple[str, str]
@@ -61,6 +62,9 @@ def _candidates(o: ProblemOperationOut) -> list[OpKey] | None:
         }.get(tt, [(b, tt)])
     if kind == "order":
         return [(rest.split(":", 1)[0], tt)]
+    if tt == "REWORK":
+        run = rework_run(rest.rsplit(":", 1)[0])
+        return [(run, "setup"), (run, "REWORK")]
     if kind == "job":
         run = print_run(rest.split(":", 1)[0])
         return {"AM_PREP": [(run, "setup"), (run, PRINT)], "PART_POWDER_REMOVAL": [(run, "removal")]}[tt]

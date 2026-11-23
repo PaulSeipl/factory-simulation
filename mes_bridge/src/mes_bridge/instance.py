@@ -85,8 +85,14 @@ MAPPED = {  # every route step after the arrival (slice 3)
     *BLANK_TASKS,
     "PRIMARY_POLISHING",
     "FINISHING_PRIMARY",
+    "REWORK",
 }
-LEFT_OUT = {"REWORK"}  # its predecessor QM is out of scope until slice 3 (decision 8: it comes with the verdict)
+LEFT_OUT: set[str] = set()
+# A rework round (decision 8: it comes with the QM verdict, an instance change): while a plate's rework request is
+# open the MES has REWORK open and its QM done (suppressed); the re-check reopens the same QM key afterwards. The bridge
+# plans the thesis route rework -> recheck (math/21 §4): QM (done) -> REWORK (a mill run) -> RECHECK -> sawing; RECHECK
+# has no MES key until QM reopens, so it is planned but not published.
+REWORK, RECHECK = "REWORK", "RECHECK"
 LANE = "SECONDARY"
 # shortcut: today's MES break 12:00, 60 min (decision 21), hard-coded until the break settings exist (task 4.3)
 BREAK_START, BREAK_LENGTH = 720, 60
@@ -109,6 +115,10 @@ def blank_run(blank: str) -> str:
 
 def flip_run(blank: str) -> str:
     return f"MF:{blank}"
+
+
+def rework_run(carrier_key: str) -> str:
+    return f"RW:{carrier_key}"
 
 
 def blank_of_key(key: str) -> str:
@@ -254,6 +264,29 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
             row = params(tt, group[0].lane)
             carrier_steps[tt] = _per_carrier_step(tt, group, parts_on, part_times, row)
             machines |= set(carrier_steps[tt].options)
+
+    if reworks := by_type.get(REWORK):
+        ms = sorted({str(m) for o in reworks for m in o.machine_options})
+        if not ms:
+            raise MappingError("REWORK: no plannable mill")
+        if "REWORK_CHECKOUT" not in carrier_steps:
+            raise MappingError("REWORK without its plate's QM in the problem")
+        machines |= set(ms)
+        row = params(REWORK)
+        setup = span(row.base_minutes_attended)
+        mains = {}
+        for o in reworks:
+            key = _carrier_key(o)
+            # shortcut: a run's setup is one value per step (the base); the per-telescope attended minutes of REWORK
+            # (20 + 10 per telescope) go into the unattended run: the mill's time stays exact, the worker misses them
+            mains[key] = max(1, span(o.attended_minutes + o.unattended_minutes) - setup)
+            runs.append(Run(id=rework_run(key), step=REWORK, carriers=(carrier_of[key],), duration=mains[key]))
+            for part in parts_on[carrier_id(key)]:
+                part_times[part][RECHECK] = part_times[part]["REWORK_CHECKOUT"]
+        carrier_steps[REWORK] = CarrierStep(
+            options=dict.fromkeys(ms, max(mains.values())), runs="given", setup=setup, setup_attended=True
+        )
+        carrier_steps[RECHECK] = carrier_steps["REWORK_CHECKOUT"]
 
     orders = _orders(problem, ops, cal, epoch, part_times, blanks)
     # a blank is a carrier while a blank step still acts on it (a separated blank has none, V15)
@@ -475,6 +508,7 @@ def _orders(
         # the carrier chain ends in a separating operation (V14): SAWING once the plate reaches it; the last carrier
         # operation in the instance takes the role, so a chain cut short (sawing done, or not in the export) still
         # validates (the role only shapes validation)
+        operations = _rework_round(order.id, operations)
         tails = set()
         for kind in {o.carries for o in operations if o.scope == CARRIER}:
             chain = {o.id for o in operations if o.scope == CARRIER and o.carries == kind}
@@ -503,6 +537,25 @@ def _orders(
             )
         )
     return tuple(out)
+
+
+def _rework_round(order_id: UUID, operations: list[Operation]) -> list[Operation]:
+    """QM (done) -> REWORK -> RECHECK -> what followed QM, when the order's plate is in a rework round."""
+    ids = {o.id for o in operations}
+    if REWORK not in ids:
+        return operations
+    out = []
+    for o in operations:
+        if o.id == REWORK:
+            out.append(o.model_copy(update={"predecessors": ("REWORK_CHECKOUT",)}))
+        elif "REWORK_CHECKOUT" in o.predecessors:
+            preds = tuple(sorted({RECHECK if q == "REWORK_CHECKOUT" else q for q in o.predecessors}))
+            out.append(o.model_copy(update={"predecessors": preds}))
+        else:
+            out.append(o)
+    qm = next(o for o in operations if o.id == "REWORK_CHECKOUT")
+    out.append(qm.model_copy(update={"id": RECHECK, "step": RECHECK, "predecessors": (REWORK,), "role": None}))
+    return out
 
 
 def _topological(operations: list[Operation]) -> list[Operation]:

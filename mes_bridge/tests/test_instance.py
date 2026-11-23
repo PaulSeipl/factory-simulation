@@ -244,12 +244,54 @@ def test_an_entered_job_estimate_is_the_run_time():
     assert [r.duration for r in _build(raw).runs if r.step == PRINT] == [330]
 
 
-def test_rework_is_left_out_until_slice_3():
-    raw = _raw()
-    clean = next(o for o in raw["instance"]["operations"] if o["task_type"] == "PART_CLEANING")
-    rework = dict(clean, key=clean["key"].replace("PART_CLEANING", "REWORK"), task_type="REWORK")
-    raw["instance"]["operations"].append(rework)
-    assert all(op.id != "REWORK" for o in _build(raw).orders for op in o.operations)
+def _with_rework(raw: dict) -> tuple[dict, str]:
+    """Plate 1 in a rework round as the MES exports it: its QM done (suppressed), REWORK open on the mill."""
+    ops = raw["instance"]["operations"]
+    qm = next(o for o in ops if o["task_type"] == "REWORK_CHECKOUT")
+    plate = qm["key"].removeprefix("carrier:").rsplit(":", 1)[0]
+    qm["done"] = True
+    mill = [m["id"] for m in raw["instance"]["machines"] if m["equipment_type"] == "MILL"]
+    ops.append(
+        dict(
+            qm,
+            key=f"carrier:{plate}:REWORK",
+            task_type="REWORK",
+            done=False,
+            machine_options=mill,
+            attended_minutes=30.0,
+            unattended_minutes=60.0,
+            predecessors=[],
+        )
+    )
+    return raw, plate
+
+
+def test_a_rework_round_plans_rework_then_a_recheck_before_sawing():
+    raw, plate = _with_rework(_raw())
+    inst = _build(raw)
+    order = next(o for o in inst.orders if any(op.id == "REWORK" for op in o.operations))
+    ops = {o.id: o for o in order.operations}
+    assert ops["REWORK"].predecessors == ("REWORK_CHECKOUT",)
+    assert ops["RECHECK"].predecessors == ("REWORK",)
+    assert ops["SAWING"].predecessors == ("RECHECK",) and ops["SAWING"].role == "separate"
+    assert "RECHECK" in ops["FINISHING_PRIMARY"].predecessors
+    (run,) = [r for r in inst.runs if r.step == "REWORK"]
+    rw = inst.carrier_steps["REWORK"]
+    assert run.carriers == (f"C:{plate}",) and (rw.runs, rw.setup) == ("given", 20)
+    assert run.duration == 30 + 60 - 20  # the per-telescope attended minutes folded into the run (shortcut)
+    compile_instance(inst)
+
+
+def test_the_recheck_has_no_mes_key_and_rework_maps_to_its_run():
+    raw, plate = _with_rework(_raw())
+    p = ProblemOut.model_validate(raw)
+    ci = compile_instance(build_instance(p, epoch=epoch_of(p.as_of, BERLIN)))
+    from mes_bridge.state import id_map
+
+    ids = id_map(p, ci)
+    assert ids.ops[f"carrier:{plate}:REWORK"] == ((f"RW:{plate}", "setup"), (f"RW:{plate}", "REWORK"))
+    mapped = {k for ks in ids.ops.values() for k in ks}
+    assert any(k[1] == "RECHECK" for k in ci.op_keys) and not any(k[1] == "RECHECK" for k in mapped)
 
 
 @pytest.mark.parametrize(

@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- 3.2: a rework round (decision 8). While a plate's rework request is open, the MES has its QM done (suppressed) and
+  REWORK open; the bridge plans the thesis route QM -> REWORK (a mill run per plate) -> RECHECK -> sawing, so sawing
+  and the primary finishing wait for the re-check. RECHECK has no MES key until QM reopens (an instance change), so it
+  is planned but not published. Shortcut: REWORK's per-telescope attended minutes go into its run (setup = the base).
+  Decision 8's estimates (params until the job exists, then the entered minutes) come from the export; a MES test
+  pins it for a mill job.
 - 3.1c: a third recording `problem_blank.json` (both orders' primary parts on one formed blank) in every
   recording test. Fix it found: one MES task can stand for several single-operation steps (a DATA_PREP_PRIMARY over
   two orders); the snapshot splits its time into consecutive pieces, one per step, so the worker is not frozen twice
