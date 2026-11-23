@@ -1,0 +1,1344 @@
+{
+  "as_of": "2026-11-23T17:43:29.109311Z",
+  "instance": {
+    "assignments": [],
+    "calendar": {
+      "day_start": "07:00:00",
+      "time_zone": "Europe/Berlin"
+    },
+    "carriers": [
+      {
+        "am_job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1",
+        "mill_job_id": "073eb2cf-25bd-4ace-9f90-5c3a1963c2df",
+        "part_ids": [
+          "2bc94c95-dca7-4053-8a68-0c47190f8804"
+        ],
+        "quadrant": "1"
+      },
+      {
+        "am_job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2",
+        "mill_job_id": "3ac17045-ef00-47ce-9e8b-6be52e9f97ad",
+        "part_ids": [
+          "e8ea54ff-6544-450d-8c96-5f6112541324"
+        ],
+        "quadrant": "2"
+      }
+    ],
+    "jobs": [
+      {
+        "build_plate_set_id": null,
+        "equipment_id": null,
+        "estimated_duration_minutes": null,
+        "id": "073eb2cf-25bd-4ace-9f90-5c3a1963c2df",
+        "kind": "MILL"
+      },
+      {
+        "build_plate_set_id": null,
+        "equipment_id": null,
+        "estimated_duration_minutes": null,
+        "id": "3ac17045-ef00-47ce-9e8b-6be52e9f97ad",
+        "kind": "MILL"
+      },
+      {
+        "build_plate_set_id": null,
+        "equipment_id": null,
+        "estimated_duration_minutes": null,
+        "id": "85937acc-f143-46d8-93d8-f862b6c885a6",
+        "kind": "MILL"
+      },
+      {
+        "build_plate_set_id": null,
+        "equipment_id": "e55bef1d-680c-426e-bf7f-bd7f33cf4d1f",
+        "estimated_duration_minutes": null,
+        "id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "kind": "AM"
+      }
+    ],
+    "machines": [
+      {
+        "equipment_type": "MILL",
+        "id": "dbac5be9-e745-4fd2-9737-9b56e7d68216",
+        "name": "Problem-Mill",
+        "status": "IDLE"
+      },
+      {
+        "equipment_type": "AM_SYSTEM",
+        "id": "e55bef1d-680c-426e-bf7f-bd7f33cf4d1f",
+        "name": "Problem-AM",
+        "status": "IDLE"
+      }
+    ],
+    "operations": [
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": true,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:DATA_PREP_SEC_MILL",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [],
+        "task_type": "DATA_PREP_SEC_MILL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 95.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "job:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:AM_PREP",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "e55bef1d-680c-426e-bf7f-bd7f33cf4d1f"
+        ],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37",
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "order:307d975b-5c4b-4a4e-b428-f90b15147a37:DATA_PREP_SEC_MILL",
+          "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:DATA_PREP_SEC_MILL"
+        ],
+        "task_type": "AM_PREP",
+        "unattended_minutes": 195.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "job:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:PART_POWDER_REMOVAL",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37",
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "job:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:AM_PREP"
+        ],
+        "task_type": "PART_POWDER_REMOVAL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 25.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:PART_CLEANING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "job:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:PART_POWDER_REMOVAL"
+        ],
+        "task_type": "PART_CLEANING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 25.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:PART_CLEANING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "job:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:PART_POWDER_REMOVAL"
+        ],
+        "task_type": "PART_CLEANING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 35.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:HEAT_TREATMENT",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:PART_CLEANING"
+        ],
+        "task_type": "HEAT_TREATMENT",
+        "unattended_minutes": 180.0
+      },
+      {
+        "attended_minutes": 35.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:HEAT_TREATMENT",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:PART_CLEANING"
+        ],
+        "task_type": "HEAT_TREATMENT",
+        "unattended_minutes": 180.0
+      },
+      {
+        "attended_minutes": 10.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:SAND_BLASTING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:HEAT_TREATMENT"
+        ],
+        "task_type": "SAND_BLASTING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 10.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:SAND_BLASTING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:HEAT_TREATMENT"
+        ],
+        "task_type": "SAND_BLASTING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 15.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "073eb2cf-25bd-4ace-9f90-5c3a1963c2df",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:MILL_PREP_SECONDARY",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "dbac5be9-e745-4fd2-9737-9b56e7d68216"
+        ],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:SAND_BLASTING"
+        ],
+        "task_type": "MILL_PREP_SECONDARY",
+        "unattended_minutes": 120.0
+      },
+      {
+        "attended_minutes": 5.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "073eb2cf-25bd-4ace-9f90-5c3a1963c2df",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:SECONDARY_PLATE_REMOVAL",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "dbac5be9-e745-4fd2-9737-9b56e7d68216"
+        ],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:MILL_PREP_SECONDARY"
+        ],
+        "task_type": "SECONDARY_PLATE_REMOVAL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:REWORK_CHECKOUT",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "dbac5be9-e745-4fd2-9737-9b56e7d68216"
+        ],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:SECONDARY_PLATE_REMOVAL",
+          "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:PRIMARY_POLISHING"
+        ],
+        "task_type": "REWORK_CHECKOUT",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:REWORK_CHECKOUT",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "dbac5be9-e745-4fd2-9737-9b56e7d68216"
+        ],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:SECONDARY_PLATE_REMOVAL",
+          "order:307d975b-5c4b-4a4e-b428-f90b15147a37:PRIMARY_POLISHING"
+        ],
+        "task_type": "REWORK_CHECKOUT",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:SAWING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:REWORK_CHECKOUT"
+        ],
+        "task_type": "SAWING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:SAWING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:REWORK_CHECKOUT"
+        ],
+        "task_type": "SAWING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:SUPPORT_REMOVAL",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:SAWING"
+        ],
+        "task_type": "SUPPORT_REMOVAL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 55.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:GRIND_CLEAN",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:SUPPORT_REMOVAL"
+        ],
+        "task_type": "GRIND_CLEAN",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 15.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:STEAM_CLEAN",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:GRIND_CLEAN"
+        ],
+        "task_type": "STEAM_CLEAN",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:POLISH",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:STEAM_CLEAN"
+        ],
+        "task_type": "POLISH",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:INSPECTION",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:FINISHING_PRIMARY",
+          "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:POLISH"
+        ],
+        "task_type": "INSPECTION",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:DOCUMENTATION",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:INSPECTION"
+        ],
+        "task_type": "DOCUMENTATION",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:PACKAGING_SHIPPING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:DOCUMENTATION"
+        ],
+        "task_type": "PACKAGING_SHIPPING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": true,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:DATA_PREP_PRIMARY",
+        "lane": "PRIMARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [],
+        "task_type": "DATA_PREP_PRIMARY",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 15.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "85937acc-f143-46d8-93d8-f862b6c885a6",
+        "key": "job:85937acc-f143-46d8-93d8-f862b6c885a6:MILL_PREP_PRIMARY",
+        "lane": "PRIMARY",
+        "machine_options": [
+          "dbac5be9-e745-4fd2-9737-9b56e7d68216"
+        ],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37",
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "order:307d975b-5c4b-4a4e-b428-f90b15147a37:DATA_PREP_PRIMARY",
+          "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:DATA_PREP_PRIMARY"
+        ],
+        "task_type": "MILL_PREP_PRIMARY",
+        "unattended_minutes": 240.0
+      },
+      {
+        "attended_minutes": 14.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "85937acc-f143-46d8-93d8-f862b6c885a6",
+        "key": "job:85937acc-f143-46d8-93d8-f862b6c885a6:REMOVE_MOUNT",
+        "lane": "PRIMARY",
+        "machine_options": [
+          "dbac5be9-e745-4fd2-9737-9b56e7d68216"
+        ],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37",
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "job:85937acc-f143-46d8-93d8-f862b6c885a6:MILL_PREP_PRIMARY"
+        ],
+        "task_type": "REMOVE_MOUNT",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 15.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "85937acc-f143-46d8-93d8-f862b6c885a6",
+        "key": "job:85937acc-f143-46d8-93d8-f862b6c885a6:GEGENBETTEN",
+        "lane": "PRIMARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37",
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "job:85937acc-f143-46d8-93d8-f862b6c885a6:REMOVE_MOUNT"
+        ],
+        "task_type": "GEGENBETTEN",
+        "unattended_minutes": 15.0
+      },
+      {
+        "attended_minutes": 15.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "85937acc-f143-46d8-93d8-f862b6c885a6",
+        "key": "job:85937acc-f143-46d8-93d8-f862b6c885a6:PREP_MILL_FLIPPED",
+        "lane": "PRIMARY",
+        "machine_options": [
+          "dbac5be9-e745-4fd2-9737-9b56e7d68216"
+        ],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37",
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "job:85937acc-f143-46d8-93d8-f862b6c885a6:GEGENBETTEN"
+        ],
+        "task_type": "PREP_MILL_FLIPPED",
+        "unattended_minutes": 240.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "85937acc-f143-46d8-93d8-f862b6c885a6",
+        "key": "job:85937acc-f143-46d8-93d8-f862b6c885a6:PART_REMOVAL_FROM_BLANK",
+        "lane": "PRIMARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37",
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "job:85937acc-f143-46d8-93d8-f862b6c885a6:PREP_MILL_FLIPPED"
+        ],
+        "task_type": "PART_REMOVAL_FROM_BLANK",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:PRIMARY_POLISHING",
+        "lane": "PRIMARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "job:85937acc-f143-46d8-93d8-f862b6c885a6:PART_REMOVAL_FROM_BLANK"
+        ],
+        "task_type": "PRIMARY_POLISHING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:FINISHING_PRIMARY",
+        "lane": "PRIMARY",
+        "machine_options": [],
+        "order_ids": [
+          "f74685d3-905a-44ff-bd8d-bda10ec13c4f"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1:REWORK_CHECKOUT"
+        ],
+        "task_type": "FINISHING_PRIMARY",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": true,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:DATA_PREP_SEC_MILL",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [],
+        "task_type": "DATA_PREP_SEC_MILL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 15.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "3ac17045-ef00-47ce-9e8b-6be52e9f97ad",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:MILL_PREP_SECONDARY",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "dbac5be9-e745-4fd2-9737-9b56e7d68216"
+        ],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:SAND_BLASTING"
+        ],
+        "task_type": "MILL_PREP_SECONDARY",
+        "unattended_minutes": 120.0
+      },
+      {
+        "attended_minutes": 5.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": "3ac17045-ef00-47ce-9e8b-6be52e9f97ad",
+        "key": "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:SECONDARY_PLATE_REMOVAL",
+        "lane": "SECONDARY",
+        "machine_options": [
+          "dbac5be9-e745-4fd2-9737-9b56e7d68216"
+        ],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:MILL_PREP_SECONDARY"
+        ],
+        "task_type": "SECONDARY_PLATE_REMOVAL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:SUPPORT_REMOVAL",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:SAWING"
+        ],
+        "task_type": "SUPPORT_REMOVAL",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 55.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:GRIND_CLEAN",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "order:307d975b-5c4b-4a4e-b428-f90b15147a37:SUPPORT_REMOVAL"
+        ],
+        "task_type": "GRIND_CLEAN",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 15.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:STEAM_CLEAN",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "order:307d975b-5c4b-4a4e-b428-f90b15147a37:GRIND_CLEAN"
+        ],
+        "task_type": "STEAM_CLEAN",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:POLISH",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "order:307d975b-5c4b-4a4e-b428-f90b15147a37:STEAM_CLEAN"
+        ],
+        "task_type": "POLISH",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:INSPECTION",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "order:307d975b-5c4b-4a4e-b428-f90b15147a37:FINISHING_PRIMARY",
+          "order:307d975b-5c4b-4a4e-b428-f90b15147a37:POLISH"
+        ],
+        "task_type": "INSPECTION",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:DOCUMENTATION",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "order:307d975b-5c4b-4a4e-b428-f90b15147a37:INSPECTION"
+        ],
+        "task_type": "DOCUMENTATION",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:PACKAGING_SHIPPING",
+        "lane": "SECONDARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "order:307d975b-5c4b-4a4e-b428-f90b15147a37:DOCUMENTATION"
+        ],
+        "task_type": "PACKAGING_SHIPPING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": true,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:DATA_PREP_PRIMARY",
+        "lane": "PRIMARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [],
+        "task_type": "DATA_PREP_PRIMARY",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 30.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:PRIMARY_POLISHING",
+        "lane": "PRIMARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "job:85937acc-f143-46d8-93d8-f862b6c885a6:PART_REMOVAL_FROM_BLANK"
+        ],
+        "task_type": "PRIMARY_POLISHING",
+        "unattended_minutes": 0.0
+      },
+      {
+        "attended_minutes": 20.0,
+        "delay_minutes": 0.0,
+        "done": false,
+        "job_id": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:FINISHING_PRIMARY",
+        "lane": "PRIMARY",
+        "machine_options": [],
+        "order_ids": [
+          "307d975b-5c4b-4a4e-b428-f90b15147a37"
+        ],
+        "predecessors": [
+          "carrier:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2:REWORK_CHECKOUT"
+        ],
+        "task_type": "FINISHING_PRIMARY",
+        "unattended_minutes": 0.0
+      }
+    ],
+    "orders": [
+      {
+        "arrival": "2026-11-23T07:00:00Z",
+        "due_date": null,
+        "id": "307d975b-5c4b-4a4e-b428-f90b15147a37",
+        "short_id": "307d975b"
+      },
+      {
+        "arrival": "2026-11-23T07:00:00Z",
+        "due_date": null,
+        "id": "f74685d3-905a-44ff-bd8d-bda10ec13c4f",
+        "short_id": "f74685d3"
+      }
+    ],
+    "params": [
+      {
+        "base_minutes_attended": 0.0,
+        "base_minutes_unattended": 150.0,
+        "has_handoff": false,
+        "job_kind": "AM",
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 45.0,
+        "resource": "AM",
+        "task_type": null,
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 0.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": "MILL",
+        "max_batch_size": 20,
+        "part_type": "PRIMARY",
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 120.0,
+        "resource": "MILL",
+        "task_type": null,
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 0.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": "MILL",
+        "max_batch_size": 2,
+        "part_type": "SECONDARY",
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 120.0,
+        "resource": "MILL",
+        "task_type": null,
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 90.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": true,
+        "job_kind": null,
+        "max_batch_size": 4,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "AM",
+        "task_type": "AM_PREP",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 20,
+        "part_type": null,
+        "per_unit_minutes_attended": 15.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "COM",
+        "task_type": "DATA_PREP_PRIMARY",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 1,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "DATA_PREP_SEC_MILL",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 10.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 10.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "DOCUMENTATION",
+        "unit_kind": "ORDER"
+      },
+      {
+        "base_minutes_attended": 10.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 10.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "FINISHING_PRIMARY",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 5.0,
+        "base_minutes_unattended": 15.0,
+        "has_handoff": true,
+        "job_kind": null,
+        "max_batch_size": 5,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "GEGENBETTEN",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 10.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 45.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "GRIND_CLEAN",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 30.0,
+        "base_minutes_unattended": 180.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 2,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "OVEN",
+        "task_type": "HEAT_TREATMENT",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 10.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 10.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "INSPECTION",
+        "unit_kind": "ORDER"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": true,
+        "job_kind": null,
+        "max_batch_size": 20,
+        "part_type": null,
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "MILL",
+        "task_type": "MILL_PREP_PRIMARY",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": true,
+        "job_kind": null,
+        "max_batch_size": 4,
+        "part_type": null,
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "MILL",
+        "task_type": "MILL_PREP_SECONDARY",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 10.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 10.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "PACKAGING_SHIPPING",
+        "unit_kind": "ORDER"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 4,
+        "part_type": null,
+        "per_unit_minutes_attended": 10.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "PART_CLEANING",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 4,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "PART_POWDER_REMOVAL",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 10.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 20,
+        "part_type": null,
+        "per_unit_minutes_attended": 10.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "PART_REMOVAL_FROM_BLANK",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 10.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 3,
+        "part_type": null,
+        "per_unit_minutes_attended": 20.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "COM",
+        "task_type": "POLISH",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": true,
+        "job_kind": null,
+        "max_batch_size": 20,
+        "part_type": null,
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 120.0,
+        "resource": "MILL",
+        "task_type": "PREP_MILL_FLIPPED",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 10.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 20,
+        "part_type": null,
+        "per_unit_minutes_attended": 20.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "PRIMARY_POLISHING",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 30.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": null,
+        "part_type": null,
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "REFURBISH_SET",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 10.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 20,
+        "part_type": null,
+        "per_unit_minutes_attended": 2.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "MILL",
+        "task_type": "REMOVE_MOUNT",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 20.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": true,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 10.0,
+        "per_unit_minutes_unattended": 60.0,
+        "resource": "MILL",
+        "task_type": "REWORK",
+        "unit_kind": "PART"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 15.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "MILL",
+        "task_type": "REWORK_CHECKOUT",
+        "unit_kind": "PART"
+      },
+      {
+        "base_minutes_attended": 5.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 4,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "SAND_BLASTING",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 15.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "SAWING",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 5.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 1,
+        "part_type": null,
+        "per_unit_minutes_attended": 0.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": "MILL",
+        "task_type": "SECONDARY_PLATE_REMOVAL",
+        "unit_kind": "PLATE"
+      },
+      {
+        "base_minutes_attended": 10.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 5.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "STEAM_CLEAN",
+        "unit_kind": "PART_COUNT"
+      },
+      {
+        "base_minutes_attended": 15.0,
+        "base_minutes_unattended": 0.0,
+        "has_handoff": false,
+        "job_kind": null,
+        "max_batch_size": 10,
+        "part_type": null,
+        "per_unit_minutes_attended": 15.0,
+        "per_unit_minutes_unattended": 0.0,
+        "resource": null,
+        "task_type": "SUPPORT_REMOVAL",
+        "unit_kind": "PART_COUNT"
+      }
+    ],
+    "parts": [
+      {
+        "carrier": null,
+        "id": "083fc526-e36b-430c-b1e1-7ab94c9826cf",
+        "mill_job_id": "85937acc-f143-46d8-93d8-f862b6c885a6",
+        "order_id": "307d975b-5c4b-4a4e-b428-f90b15147a37",
+        "part_type": "PRIMARY",
+        "units": 1
+      },
+      {
+        "carrier": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae:1",
+        "id": "2bc94c95-dca7-4053-8a68-0c47190f8804",
+        "mill_job_id": "073eb2cf-25bd-4ace-9f90-5c3a1963c2df",
+        "order_id": "f74685d3-905a-44ff-bd8d-bda10ec13c4f",
+        "part_type": "SECONDARY",
+        "units": 1
+      },
+      {
+        "carrier": null,
+        "id": "e2bbef52-9941-4b1e-840b-e44d55b0be9b",
+        "mill_job_id": "85937acc-f143-46d8-93d8-f862b6c885a6",
+        "order_id": "f74685d3-905a-44ff-bd8d-bda10ec13c4f",
+        "part_type": "PRIMARY",
+        "units": 1
+      },
+      {
+        "carrier": "e464f4cb-b71f-4ac0-8237-1ea1e275fbae:2",
+        "id": "e8ea54ff-6544-450d-8c96-5f6112541324",
+        "mill_job_id": "3ac17045-ef00-47ce-9e8b-6be52e9f97ad",
+        "order_id": "307d975b-5c4b-4a4e-b428-f90b15147a37",
+        "part_type": "SECONDARY",
+        "units": 1
+      }
+    ],
+    "workers": [
+      {
+        "daily_minutes": 480,
+        "id": "0db27b82-2be2-4362-ba24-8faa6bccaebd",
+        "workdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      }
+    ]
+  },
+  "snapshot": {
+    "tasks": [
+      {
+        "equipment_id": null,
+        "expected_attended_end": null,
+        "expected_end": null,
+        "finished_at": "2026-11-23T09:00:00Z",
+        "handoff_at": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:DATA_PREP_SEC_MILL",
+        "started_at": "2026-11-23T08:40:00Z",
+        "task_id": "aa2cd9fa-d4c5-43f8-a6a5-da0f4f33237b",
+        "worker_id": "0db27b82-2be2-4362-ba24-8faa6bccaebd"
+      },
+      {
+        "equipment_id": "e55bef1d-680c-426e-bf7f-bd7f33cf4d1f",
+        "expected_attended_end": "2026-11-23T09:45:00Z",
+        "expected_end": "2026-11-25T11:45:00Z",
+        "finished_at": null,
+        "handoff_at": "2026-11-23T09:45:00Z",
+        "key": "job:e464f4cb-b71f-4ac0-8237-1ea1e275fbae:AM_PREP",
+        "started_at": "2026-11-23T09:25:00Z",
+        "task_id": "bfa9fcd6-f84c-4cd6-af34-3d18872953d3",
+        "worker_id": "0db27b82-2be2-4362-ba24-8faa6bccaebd"
+      },
+      {
+        "equipment_id": null,
+        "expected_attended_end": null,
+        "expected_end": null,
+        "finished_at": "2026-11-23T10:15:00Z",
+        "handoff_at": null,
+        "key": "order:f74685d3-905a-44ff-bd8d-bda10ec13c4f:DATA_PREP_PRIMARY",
+        "started_at": "2026-11-23T09:45:00Z",
+        "task_id": "21db7f22-7103-4602-932f-1e64e8dfbf34",
+        "worker_id": "0db27b82-2be2-4362-ba24-8faa6bccaebd"
+      },
+      {
+        "equipment_id": null,
+        "expected_attended_end": null,
+        "expected_end": null,
+        "finished_at": "2026-11-23T09:20:00Z",
+        "handoff_at": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:DATA_PREP_SEC_MILL",
+        "started_at": "2026-11-23T09:00:00Z",
+        "task_id": "fa64d16e-4f35-41ef-be6a-8ab369b48c36",
+        "worker_id": "0db27b82-2be2-4362-ba24-8faa6bccaebd"
+      },
+      {
+        "equipment_id": null,
+        "expected_attended_end": null,
+        "expected_end": null,
+        "finished_at": "2026-11-23T10:15:00Z",
+        "handoff_at": null,
+        "key": "order:307d975b-5c4b-4a4e-b428-f90b15147a37:DATA_PREP_PRIMARY",
+        "started_at": "2026-11-23T09:45:00Z",
+        "task_id": "21db7f22-7103-4602-932f-1e64e8dfbf34",
+        "worker_id": "0db27b82-2be2-4362-ba24-8faa6bccaebd"
+      }
+    ]
+  }
+}

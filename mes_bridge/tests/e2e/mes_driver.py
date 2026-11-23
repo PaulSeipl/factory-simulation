@@ -102,7 +102,7 @@ def machines(db) -> None:
     db.commit()
 
 
-def seed() -> None:
+def seed(composition: CompositionEnum = CompositionEnum.SECONDARY_ONLY) -> None:
     with SessionLocal() as db:
         seed_intern_customer(db)
         seed_routes(db)
@@ -111,7 +111,7 @@ def seed() -> None:
             db,
             obj_in=InternOrderCreate(
                 tooth_list=[11, 12],
-                composition=CompositionEnum.SECONDARY_ONLY,
+                composition=composition,
                 is_multimat=False,
                 primary_target=None,
                 secondary_target=None,
@@ -207,7 +207,7 @@ def act(anchor: Path) -> int:
 
 if __name__ == "__main__":
     if sys.argv[1:2] == ["seed"]:
-        seed()
+        seed(CompositionEnum.BOTH if "--both" in sys.argv else CompositionEnum.SECONDARY_ONLY)
     elif sys.argv[1:2] == ["machines"]:
         with SessionLocal() as session:
             machines(session)

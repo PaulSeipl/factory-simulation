@@ -43,7 +43,7 @@ def _am_job(raw: dict) -> str:
     return next(j["id"] for j in raw["instance"]["jobs"] if j["kind"] == "AM")
 
 
-@pytest.mark.parametrize("name", ["problem_mill_prep.json", "problem_printing.json"])
+@pytest.mark.parametrize("name", ["problem_mill_prep.json", "problem_printing.json", "problem_blank.json"])
 def test_the_rule_replans_from_the_snapshot_feasibly(name):
     _, _, ci, _, snap = _state(_raw(name))
     plan = dispatch_plan(ci, spt, snapshot=snap)
@@ -182,3 +182,18 @@ def test_a_step_started_in_the_minute_its_predecessor_finished_keeps_the_order()
     assert all(x.end <= snap.t for x in snap.frozen if not x.running)
     plan = dispatch_plan(ci, spt, snapshot=snap)
     assert check_schedule(ci, plan.assignments, snapshot=snap, breaks=plan.breaks) == []
+
+
+def test_one_mes_task_over_two_orders_is_split_into_consecutive_pieces():
+    """Found in 3.1c: one DATA_PREP_PRIMARY over both orders' primary parts froze its worker twice at once (C12)."""
+    raw = _raw("problem_blank.json")
+    _, _, _, _, snap = _state(raw)
+    preps = sorted((f.start, f.end, f.workers) for f in snap.frozen if f.op_id == "DATA_PREP_PRIMARY")
+    assert len(preps) == 2
+    (s1, e1, w1), (s2, e2, w2) = preps
+    assert s1 < e1 == s2 < e2 and w1 == w2
+    task = next(t for t in raw["snapshot"]["tasks"] if t["key"].endswith(":DATA_PREP_PRIMARY"))
+    assert (
+        e2 - s1
+        == at(datetime.fromisoformat(task["finished_at"]), epoch_of(datetime.fromisoformat(raw["as_of"]), BERLIN)) - s1
+    )

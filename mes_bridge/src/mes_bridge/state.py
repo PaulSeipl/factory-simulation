@@ -95,7 +95,50 @@ def build_snapshot(problem: ProblemOut, ci: CompiledInstance, ids: IdMap, *, epo
                 raise MappingError(f"{o.key}: done, but the MES has no start time for it")
             continue
         frozen += _freeze(ci, task, ids.ops[o.key], t, epoch)
-    return _consistent(ci, frozen, t)
+    return _consistent(ci, _one_task_one_worker(ci, frozen, problem, ids, t), t)
+
+
+def _one_task_one_worker(
+    ci: CompiledInstance, frozen: list[FrozenOperation], problem: ProblemOut, ids: IdMap, t: int
+) -> list[FrozenOperation]:
+    """One MES task can stand for several single-operation steps of the instance (a DATA_PREP_PRIMARY over two
+    orders' primary parts, found in 3.1c): frozen as is, they would put its worker on all of them at once (C12). Its
+    time is split into consecutive pieces of at least a minute, one per step (the worker did them one after another),
+    in key order; only the last piece of a running task runs, the others finish at or before t."""
+    by_task: dict[object, list[OpKey]] = {}
+    for task in problem.snapshot.tasks:
+        keys = ids.ops.get(task.key, ())
+        if len(keys) == 1:
+            by_task.setdefault(task.task_id, []).append(keys[0])
+    pieces: dict[OpKey, FrozenOperation] = {}
+    by = {(f.order_id, f.op_id): f for f in frozen}
+    for keys in by_task.values():
+        group = [by[k] for k in sorted(set(keys)) if k in by]
+        if len(group) < 2:
+            continue
+        start, end, running = group[0].start, group[0].end, group[0].running
+        done_until = min(end, t) if running else end  # the finished pieces fit before t
+        n = len(group)
+        step = max(1, (done_until - start) // n) if running else max(1, (end - start) // n)
+        cursor = start
+        for i, f in enumerate(group):
+            last = i == n - 1
+            s, e = cursor, (end if last else cursor + step)
+            e = max(e, s + 1)
+            lengths = tuple(
+                e - s if sh.kind == "whole" else n_
+                for sh, n_ in zip(ci.shares[ci.op_index[(f.order_id, f.op_id)]], f.share_lengths, strict=True)
+            )
+            pieces[(f.order_id, f.op_id)] = f.model_copy(
+                update={
+                    "start": s,
+                    "end": e,
+                    "running": running and last,
+                    "share_lengths": lengths,
+                }
+            )
+            cursor = e
+    return [pieces.get((f.order_id, f.op_id), f) for f in frozen]
 
 
 def _consistent(ci: CompiledInstance, frozen: list[FrozenOperation], t: int) -> Snapshot:

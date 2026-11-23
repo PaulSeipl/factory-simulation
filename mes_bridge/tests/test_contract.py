@@ -60,7 +60,7 @@ def test_every_problem_and_schedule_schema_has_a_model():
     assert wanted == {m.__name__ for m in MODELS}
 
 
-@pytest.mark.parametrize("name", ["problem_mill_prep.json", "problem_printing.json"])
+@pytest.mark.parametrize("name", ["problem_mill_prep.json", "problem_printing.json", "problem_blank.json"])
 def test_recorded_responses_parse(name):
     p = api.ProblemOut.model_validate_json((DATA / name).read_text(encoding="utf-8"))
     assert p.instance.carriers and p.instance.params and p.instance.operations

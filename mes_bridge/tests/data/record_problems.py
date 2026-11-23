@@ -14,8 +14,10 @@ from pathlib import Path
 from tests.services.test_planning_problem import NOW, _am, _mill_data_prep, _nest, _planned_order, _secondaries, _task
 
 from app.models.config.hardware import EEquipmentStatus, Mill
+from app.models.orders.production import MillJob
 from app.models.orders.work_task import TaskPart, WorkTask
 from app.schemas.hardware import EquipmentTypeEnum
+from app.schemas.process_lookup import PartStatusEnum, PartTypeEnum
 from app.schemas.process_lookup import TaskTypeEnum as T
 from app.schemas.process_lookup import WorkTaskStatusEnum as S
 from app.services.process.seed_routes import seed_routes
@@ -64,7 +66,8 @@ def test_record(client, db_session, with_task_planning_params, worker):
     db_session.commit()
     _write(client, "problem_mill_prep.json")
 
-    # printing: b's mill data prep done after a's, then the print set up and handed off (3000 minutes entered, so its end lies after any recording time)
+    # printing: b's mill data prep done after a's, then the print set up and handed off (3000 minutes entered,
+    # so its end lies after any recording time)
     db_session.query(TaskPart).filter_by(task_id=running.id).delete()
     db_session.query(WorkTask).filter_by(id=running.id).delete()
     db_session.flush()
@@ -83,3 +86,25 @@ def test_record(client, db_session, with_task_planning_params, worker):
     )
     db_session.commit()
     _write(client, "problem_printing.json")
+
+    # blank: one worker's DATA_PREP_PRIMARY puts both orders' primary parts on one blank (one mill job)
+    blank = MillJob()
+    db_session.add(blank)
+    db_session.flush()
+    primary = [p for o in (a, b) for p in o.order_parts if p.part_type == PartTypeEnum.PRIMARY.value]
+    done = _task(
+        db_session,
+        T.DATA_PREP_PRIMARY,
+        primary,
+        S.DONE,
+        job_id=blank.id,
+        worker_id=worker.id,
+        started_at=NOW + timedelta(minutes=45),
+        finished_at=NOW + timedelta(minutes=75),
+    )
+    for tp in db_session.query(TaskPart).filter_by(task_id=done.id):
+        tp.resulting_status = PartStatusEnum.DATA_PREPPED.value
+    for part in primary:
+        part.current_status = PartStatusEnum.DATA_PREPPED.value
+    db_session.commit()
+    _write(client, "problem_blank.json")

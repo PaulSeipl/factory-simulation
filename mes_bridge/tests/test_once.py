@@ -26,7 +26,7 @@ def _run(raw: dict, **kw):
     return fake, once.run(client, now=now, **kw)
 
 
-@pytest.mark.parametrize("name", ["problem_mill_prep.json", "problem_printing.json"])
+@pytest.mark.parametrize("name", ["problem_mill_prep.json", "problem_printing.json", "problem_blank.json"])
 def test_a_feasible_rule_plan_is_published_one_step_per_open_mes_step(name):
     raw = _raw(name)
     fake, outcome = _run(raw)

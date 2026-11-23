@@ -15,7 +15,7 @@ from simulation.planners.dispatching import dispatch_plan, spt
 
 DATA = Path(__file__).parent / "data"
 BERLIN = ZoneInfo("Europe/Berlin")
-RECORDINGS = ["problem_mill_prep.json", "problem_printing.json"]
+RECORDINGS = ["problem_mill_prep.json", "problem_printing.json", "problem_blank.json"]
 
 
 def _raw(name: str = "problem_mill_prep.json") -> dict:
@@ -106,6 +106,15 @@ def test_order_route_covers_both_lanes_from_the_arrival_to_the_packaging():
     assert set(ops["REWORK_CHECKOUT"].predecessors) == {MILL, "PRIMARY_POLISHING"}
     assert set(ops["INSPECTION"].predecessors) == {"FINISHING_PRIMARY", "POLISH"}
     assert ops["DATA_PREP_SEC_MILL"].duration == 20 and ops["DATA_PREP_SEC_MILL"].worker.whole
+
+
+def test_a_recorded_formed_blank_holds_both_orders_primary_parts():
+    raw = _raw("problem_blank.json")
+    inst = _build(raw)
+    (blank,) = [c for c in inst.carriers if c.id.startswith("B:")]
+    jobs = {p["mill_job_id"] for p in raw["instance"]["parts"] if p["part_type"] == "PRIMARY"}
+    assert blank.id == f"B:{jobs.pop()}" and {o for o, _ in blank.parts} == {o["id"] for o in raw["instance"]["orders"]}
+    assert [r.carriers for r in inst.runs if r.step == MILL_BLANK] == [(blank.id,)]
 
 
 def test_before_data_prep_each_order_has_one_assumed_blank_milled_in_its_own_run():

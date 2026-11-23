@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- 3.1c: a third recording `problem_blank.json` (both orders' primary parts on one formed blank) in every
+  recording test. Fix it found: one MES task can stand for several single-operation steps (a DATA_PREP_PRIMARY over
+  two orders); the snapshot splits its time into consecutive pieces, one per step, so the worker is not frozen twice
+  at once (`state._one_task_one_worker`). `tests/e2e/mes_driver.py seed --both` seeds an order with both lanes; the
+  end-to-end run passed with it (25 steps planned over the wire, the served plan entirely from the scheduler).
 - 3.1b2: the PRIMARY lane on blanks (B2 (1) A). A blank is the primary mill job's once DATA_PREP_PRIMARY formed it,
   before that one assumed blank per order (`B:<mill job>` / `B:<order>`). Blank milling (MILL_PREP_PRIMARY setup +
   run, REMOVE_MOUNT removal) and the flipped milling (PREP_MILL_FLIPPED setup + run) are given runs per blank;
