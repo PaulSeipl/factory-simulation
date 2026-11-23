@@ -13,10 +13,10 @@ import pytest
 from fake_mes import FakeMes
 
 from mes_bridge import runner as runner_mod
-from mes_bridge.client import MesClient
+from mes_bridge.client import MesClient, MesError
 from mes_bridge.factory import MesFactory
 from mes_bridge.instance import epoch_of
-from mes_bridge.runner import Runner, event_server
+from mes_bridge.runner import Runner, _login_when_up, event_server
 from simulation.control.rescheduling import ReschedulingPolicy
 from simulation.planners.dispatching import dispatch_planner, spt
 
@@ -135,3 +135,43 @@ def test_the_runner_needs_its_secrets_in_the_environment(monkeypatch, capsys):
     monkeypatch.delenv("MES_EVENTS_TOKEN", raising=False)
     assert runner_mod.main(["--url", "http://127.0.0.1:9"]) == 2
     assert "MES_EVENTS_TOKEN" in capsys.readouterr().err
+
+
+class _FlakyLogin:
+    """A fake client whose login raises the given errors in order, then succeeds."""
+
+    def __init__(self, *errors: Exception):
+        self.errors = list(errors)
+        self.calls = 0
+        self.logged_in = False
+
+    def login(self, user: str, password: str) -> None:
+        self.calls += 1
+        if self.errors:
+            raise self.errors.pop(0)
+        self.logged_in = True
+
+
+def test_login_retries_while_the_mes_is_unreachable():
+    client = _FlakyLogin(ConnectionRefusedError(), urllib.error.URLError("refused"))
+    sleeps, lines = [], []
+    _login_when_up(client, "scheduler", "pw", "http://mes", sleep=sleeps.append, log=lines.append)
+    assert client.logged_in and client.calls == 3
+    assert sleeps == [5.0, 5.0]
+    assert lines == ["MES not reachable at http://mes, retrying in 5 s"] * 2
+
+
+def test_login_http_error_is_raised_without_retry():
+    client = _FlakyLogin(MesError("POST", "/api/v1/auth/login", 401, {"detail": "bad password"}))
+    sleeps = []
+    with pytest.raises(MesError):
+        _login_when_up(client, "scheduler", "pw", "http://mes", sleep=sleeps.append, log=lambda _: None)
+    assert client.calls == 1 and sleeps == []
+
+
+def test_login_reraises_when_every_attempt_fails():
+    client = _FlakyLogin(*[ConnectionRefusedError()] * 3)
+    sleeps, lines = [], []
+    with pytest.raises(ConnectionRefusedError):
+        _login_when_up(client, "scheduler", "pw", "http://mes", attempts=3, sleep=sleeps.append, log=lines.append)
+    assert client.calls == 3 and sleeps == [5.0, 5.0] and len(lines) == 2

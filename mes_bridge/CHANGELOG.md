@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- Startup: `runner._login_when_up` retries the login while the MES is unreachable (`OSError`, e.g. connection
+  refused) every 5 s, up to 60 attempts (about 5 min), then re-raises; one log line per retry. An HTTP error
+  status (`MesError`, e.g. 401) is raised at once. Tests `tests/test_runner.py` (3 new).
 - `instance._options`: a machine whose MES status is DOWN or DECOMMISSIONED is no option of a step (the export
   lists it with its status); kept if a started task runs on it (the snapshot freezes that operation there) or if
   it would leave the step without a machine (warning logged, a repair follows). A status change changes the built

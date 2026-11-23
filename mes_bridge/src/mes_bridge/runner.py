@@ -18,6 +18,7 @@ import os
 import queue
 import sys
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -33,6 +34,32 @@ from mes_bridge.instance import epoch_of
 from mes_bridge.store import Saved, Store, resumable
 
 SAFETY_POLL = timedelta(minutes=5)  # decision 14: a step without any event
+STARTUP_ATTEMPTS = 60  # the MES may start after the bridge: 60 x 5 s, about 5 min
+STARTUP_WAIT = 5.0
+
+
+def _login_when_up(
+    client: MesClient,
+    user: str,
+    password: str,
+    url: str,
+    *,
+    attempts: int = STARTUP_ATTEMPTS,
+    wait: float = STARTUP_WAIT,
+    sleep: Callable[[float], None] = time.sleep,
+    log: Callable[[str], None] = print,
+) -> None:
+    """Log in, retrying while the MES is unreachable (OSError, e.g. connection refused). An HTTP error status
+    (MesError, e.g. 401) is not retried. Re-raises the last OSError after `attempts` tries."""
+    for attempt in range(1, attempts + 1):
+        try:
+            client.login(user, password)
+            return
+        except OSError:
+            if attempt == attempts:
+                raise
+            log(f"MES not reachable at {url}, retrying in {wait:g} s")
+            sleep(wait)
 
 
 def event_server(
@@ -204,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
         print("MES_SCHEDULER_PASSWORD and MES_EVENTS_TOKEN must be set", file=sys.stderr)
         return 2
     client = MesClient(http(args.url))
-    client.login(os.environ.get("MES_SCHEDULER_USERNAME", "scheduler"), password)
+    _login_when_up(client, os.environ.get("MES_SCHEDULER_USERNAME", "scheduler"), password, args.url)
     tz = ZoneInfo(client.problem().instance.calendar.time_zone)
     config = SchedulerConfig.load(args.config)
     epoch = epoch_of(datetime.now(UTC), tz)
