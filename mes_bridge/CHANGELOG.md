@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+- `mes_bridge.factory`: `MesFactory`, the MES as a `simulation.control.rescheduling.Factory` (snapshot from the
+  problem, the plan last published in operation order, `update_plan` checks against the snapshot and publishes;
+  a plan with violations is recorded in `rejected` and not published), and `step` (fetch, rebuild the instance; a
+  changed set of operations is `adapt_plan`'s `arrived` case, decision 18; a planner plan the checker rejects is
+  recorded, the factory keeps its plan). Tests `tests/test_mes_factory.py` against the shared `tests/fake_mes.py`:
+  first step plans completely, an unchanged state publishes nothing, a longer print is repaired and published, a
+  changed set of operations reschedules completely, facts that break a rule block the publish.
 - One-shot scheduling: `python -m mes_bridge.once [--url] [--dry-run]` logs in as the scheduler (password from
   `MES_SCHEDULER_PASSWORD`), fetches the problem, plans with the SPT rule from the snapshot, checks it and
   publishes it as the BOUND schedule; a plan with violations is printed, not published (decision 23).

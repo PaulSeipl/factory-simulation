@@ -108,7 +108,15 @@ baseline a CI error.
 - [x] 2.1 simulation (thesis): `Factory` Protocol (`snapshot`, `current_plan`, `current_breaks`, `update_plan`) in
   `control`; `adapt_plan` typed against it; `arrived` documented as "the instance changed". Zero-disturbance test
   green; protocol entry; `math/05` change log.
-- [ ] 2.2 Bridge: `MesFactory` implementing it; long-running loop with `POST /events` (shared token), event queue
+- [ ] 2.2 Split 2026-11-23 into three rounds:
+  - [x] 2.2a Bridge: `MesFactory` (the `Factory` over the MES: snapshot from the problem, the plan last sent,
+    `update_plan` checks (decision 23) and publishes) and the controller step (fetch → instance changed? → `adapt_plan`
+    with `arrived` = changed set of operations, decision 18). Tests against a fake MES.
+  - [ ] 2.2b Bridge: the long-running loop: `POST /events` (shared token), events merged per step, periodic trigger and
+    safety poll, OVERDUE / PLANNED_START timers.
+  - [ ] 2.2c Bridge: `anchor.json`, `decisions.jsonl` per variant; restart check against `GET /planning/schedule`
+    (decision 22).
+  Original text: Bridge: `MesFactory` implementing it; long-running loop with `POST /events` (shared token), event queue
   merged per step, periodic trigger and safety poll, OVERDUE / PLANNED_START timers; `anchor.json`,
   `decisions.jsonl`; restart check against `GET /planning/schedule` (decision 22); instance change → complete
   rescheduling (decision 18).
@@ -232,3 +240,4 @@ PR comments read until: 2026-11-23T13:40Z
 | 2026-11-23 | 1.7a | MES f0007fe | `services/planning/served.py`: a fresh BOUND schedule (STALE_AFTER 30 min, shortcut until 5.3) is pinned into `fill.py` (one-line change: fixed nodes book from max(now, start); fill test); a gathered node is replaced only when all its exported steps are scheduled; started steps keep their facts, a past unstarted start goes back to the fill. `PlannedStepOut.source`, `PlanOut.scheduler` (NONE / ONLINE / OFFLINE). `problem.export_nodes` extracted for reuse. 9 new tests incl. 'no schedule = fill as before' (decision 16). Gates: backend 1230 passed, ruff/format/mypy clean, client regenerated, svelte-check 0/0, lint 0 errors, vitest 116. Stopped here: usage limit. |
 | 2026-11-23 | 1.7b | MES ce7c923 | Design pass (`frontend-design`, inside Carbon): the brief fixes the look, so the pass decided wording and place only: one "Planned by" row (Scheduler / MES) in the planned-bar popover, right after the period; no tag or colour, which would compete with the area colours of the bars. i18n en / de. `AGENTS.md` plan block rewritten for ADR 0003 (the MES `CLAUDE.md` is empty; `AGENTS.md` carries the rules). Gates: svelte-check 0/0, lint 0 errors, vitest 116; MES CI green on f0007fe. **Slice 1 complete**: summary comment on both PRs. |
 | 2026-11-23 | 2.1 | sim (this commit) | `simulation.control.rescheduling.Factory` (Protocol: `snapshot`, `current_plan`, `current_breaks`, `update_plan`), `adapt_plan` typed against it, `arrived` documented as "the instance changed". `tests/test_factory.py` (4, incl. zero disturbance through `execute`). math/05 §5 and change log, protocol entry (90); no written thesis section mentions the interface. Gates: simulation 1811 passed, bridge 66. MES CI green on ce7c923. Finding: `adapt_plan` used only these four calls, so its body is unchanged. |
+| 2026-11-23 | 2.2a | sim (this commit) | 2.2 split into 2.2a/b/c. `mes_bridge.factory`: `MesFactory` (the `Factory` over the MES) and `step` (changed set of operations → `adapt_plan(arrived=True)`; the thesis tool decides, no bridge-side copy). 7 tests against the shared fake MES. Gates: bridge 73 passed + 1 integration skipped (no MES), simulation 1811 passed. Findings: (u) `adapt_plan` compares the repaired and the current plan position by position (`_same`), so a factory must return its plan in a stable order: the DES uses operation order, `MesFactory` now too (an unchanged state republished before); (v) the arrival path of `adapt_plan` hands the old plan, which may name operations no longer in the instance, to the planner and the budget count; `dispatch_planner` ignores it and the count only looks up known operations, so it is safe for the rules; check again for CP-SAT and the GA warm start (5.1). |
