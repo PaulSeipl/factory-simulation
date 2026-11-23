@@ -128,6 +128,8 @@ calendar ([04](04_workers.md)).
 | $\mathcal{C}_\zeta$ | eligible candidates of decision $\zeta$ (RL features, also MCTS's children) | [16](16_rl.md) |
 | $\bar p$ | mean shortest processing time $\frac{1}{\lvert O \rvert}\sum_o \underline{p}_o$, time unit of the RL features | [16](16_rl.md) |
 | $\mathrm{ft}(c)$ | RL feature vector of candidate $c$ (not $\phi$: machine free time; not $x$: CP-SAT assignment) | [16](16_rl.md) |
+| $\mathrm{sc}(c)$, $\Pr(c \mid \mathcal{C}_\zeta)$ | RL score of candidate $c$ and the policy, the softmax of the scores over $\mathcal{C}_\zeta$ (not $\pi$: a plan; not $P$: the precedence pairs) | [16](16_rl.md) |
+| $N^{\mathrm{upd}}$, $N^{\mathrm{smp}}$, $\mathrm{adv}_j$ | RL gradient steps, sampled plans per instance, advantage $(\bar f - f_j)/\mathrm{sd}_f$ of plan $j$ with $\mathrm{sd}_f$ the standard deviation of the samples' values (not $A$: the arrival $A_k$; not $s$: a step) | [16](16_rl.md) |
 
 ## Correspondence to the sources
 

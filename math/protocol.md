@@ -8,6 +8,37 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-23 (96) — RL step R2: policy and training — uncommitted
+
+- **Decided (user):** do R2.
+- **Decided (Claude):**
+  - An MLP of 2×64 ReLU units scores each candidate, then a softmax over the candidates.
+  - REINFORCE with the mean of 8 samples as the baseline. After the first runs the advantage is divided by the
+    samples' standard deviation instead of their mean.
+  - Training instances from `dental-carriers-workers.json` (seeds from 10000, 10–40 orders); validation seeds
+    9000–9002.
+  - Partners ranked by SPT.
+  - `.npz` + `.json`, no pickle.
+- **Done:**
+  - `planners/rl.py`, `rl_train.py` (command line).
+  - `tests/test_rl.py` (11 tests, among them training to the optimum on toy-dag-3x4).
+  - Models `models/rl-makespan`, `models/rl-worker`.
+  - Docs: [16](16_rl.md) §3–§5c; [notation.md](notation.md) (sc, Pr, $N^{\mathrm{upd}}$, $N^{\mathrm{smp}}$, adv,
+    $\mathrm{sd}_f$).
+- **Found:**
+  - The untrained network already beats every rule on validation: makespan 0.985, worker objective 0.722. That
+    comes from the overtime candidates, which the rules never use.
+  - On one instance training reaches the optimum, so the pipeline learns.
+  - On the instance distribution, 300 steps × 8 plans give no stable gain over the untrained network: makespan 0.981;
+    worker objective best 0.573 after 100 steps, 0.876 at the end.
+  - With the mean as divisor nothing was learned at all. The makespan of the generated instances hardly reacts to
+    the choices.
+- **Open (R2b):**
+  - Best checkpoint by validation; more validation instances; a longer run (Kaggle).
+  - A fair yardstick: the untrained network, and a rule that takes overtime.
+  - A reward per level of the worker objective.
+  - Thesis sections affected: none written yet.
+
 ## 2026-11-23 (95) — RL step R1: features — uncommitted
 
 - **Decided (user):** do R1. Training may move to Kaggle if it takes long.
