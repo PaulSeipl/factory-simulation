@@ -8,6 +8,25 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-23 (90) — Factory interface for the planning tool — uncommitted
+
+**Decided.** User (2026-11-22, scheduler integration design, `mes_bridge/PLAN.md` task 2.1): the planning tool must
+drive a factory other than the DES (the MES, through `mes_bridge/`, which `src/simulation` never imports). Own: a
+`Protocol` with exactly the four calls `adapt_plan` already makes on the DES, no new behaviour; `arrived` keeps its
+name and is documented as "the instance changed" (an arrival in the DES; any change of the set of operations
+elsewhere), since the rescheduling reaction is the same.
+
+**Done.** `simulation.control.rescheduling.Factory` (`runtime_checkable`), `adapt_plan(ci, sim: Factory, ...)`, the
+docstring of `arrived`. Tests `tests/test_factory.py` (4): the DES and a recording wrapper are factories; without
+disturbance the wrapper is sent nothing; a changed instance gives one accepted REPLAN through the protocol; zero
+disturbance through `execute` (realized = plan). Docs: [05](05_rescheduling-frozen-part.md) §5, change log.
+
+**Found.** Nothing in `adapt_plan` used more of `Simulation` than the four calls, so typing it changed no line of its
+body.
+
+**Open.** Whether `repair_plan` fails on a current plan holding operations missing from the instance (the bridge
+assumes so and reschedules completely on any instance change; `mes_bridge/PLAN.md`, known unknowns).
+
 ## 2026-11-22 (89) — The plan over time: animation and metric history (notebook 09 §7) — uncommitted
 
 **Decided.** User: use the plan history for visualizations first, an animation of the evolving plan including the
