@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- 3.1b1: the SECONDARY lane to the packaging. QM and sawing are `per_carrier` steps (one run per plate, main =
+  sum of part times, estimator fixed 0 / share 1; the plate's MES minutes split over its parts; QM on the mill the
+  MES params name); support removal, grinding, steam cleaning, polishing, inspection, documentation and packaging
+  are order steps. SAWING is now the real separating step. The PRIMARY lane and its joins follow in 3.1b2.
 - The MES export covers the whole route since 3.1a; `ProblemPartOut.mill_job_id` added (model, `openapi.json`
   copy, recordings re-made). Until 3.1b the bridge maps only the slice-1 steps (`instance.MAPPED`, a marked
   shortcut); the rest stays the MES fill's. The recorded print runs 3000 min, so its expected end lies after any

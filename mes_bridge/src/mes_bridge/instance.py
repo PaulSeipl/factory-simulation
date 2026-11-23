@@ -33,6 +33,7 @@ from simulation.model.instance import (
     Order,
     Part,
     Run,
+    RunEstimator,
     SBatchStep,
     WorkerShare,
 )
@@ -48,12 +49,31 @@ PRINT, MILL = "AM_PRINT", "MILL_SECONDARY"  # instance steps of the two run kind
 # MES task type -> instance operation (= step); the other task types keep their name
 OP_OF = {"AM_PREP": PRINT, "PART_POWDER_REMOVAL": PRINT, "MILL_PREP_SECONDARY": MILL, "SECONDARY_PLATE_REMOVAL": MILL}
 PLATE_STEPS = ("PART_CLEANING", "HEAT_TREATMENT", "SAND_BLASTING")  # carrier steps without runs
-CARRIER_TASKS = {*OP_OF, *PLATE_STEPS}
-# shortcut: the export covers the whole route since 3.1a; the bridge maps the slice-1 steps until 3.1b maps the rest
-# (the PRIMARY lane on blanks, QM, sawing, the part and order steps); the others stay the MES fill's
+# carrier steps whose minutes vary with the carrier's parts: per-carrier runs over part times (math/21 §4: QM and
+# sawing pay their base once per carrier inside the main operation, then the per-part time)
+PER_CARRIER_STEPS = ("REWORK_CHECKOUT", "SAWING")
+CARRIER_TASKS = {*OP_OF, *PLATE_STEPS, *PER_CARRIER_STEPS}
+# shortcut: the export covers the whole route since 3.1a; until 3.1b2 maps the PRIMARY lane on blanks (and the joins
+# QM <- primary polishing, inspection <- primary finishing) the bridge maps the SECONDARY lane only; the PRIMARY steps
+# stay the MES fill's
 MAPPED = {
-    "DATA_PREP_SEC_MILL", "AM_PREP", "PART_POWDER_REMOVAL", "PART_CLEANING", "HEAT_TREATMENT", "SAND_BLASTING",
-    "MILL_PREP_SECONDARY", "SECONDARY_PLATE_REMOVAL",
+    "DATA_PREP_SEC_MILL",
+    "AM_PREP",
+    "PART_POWDER_REMOVAL",
+    "PART_CLEANING",
+    "HEAT_TREATMENT",
+    "SAND_BLASTING",
+    "MILL_PREP_SECONDARY",
+    "SECONDARY_PLATE_REMOVAL",
+    "REWORK_CHECKOUT",
+    "SAWING",
+    "SUPPORT_REMOVAL",
+    "GRIND_CLEAN",
+    "STEAM_CLEAN",
+    "POLISH",
+    "INSPECTION",
+    "DOCUMENTATION",
+    "PACKAGING_SHIPPING",
 }
 LEFT_OUT = {"REWORK"}  # its predecessor QM is out of scope until slice 3 (decision 8: it comes with the verdict)
 LANE = "SECONDARY"
@@ -174,7 +194,14 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
             if sb is not None:
                 s_batches[tt] = sb
 
-    orders = _orders(problem, ops, cal, epoch)
+    part_times: dict[UUID, dict[str, int]] = defaultdict(dict)
+    parts_on = {c.key: c.part_ids for c in inst.carriers}
+    for tt in PER_CARRIER_STEPS:
+        if group := by_type.get(tt):
+            carrier_steps[tt] = _per_carrier_step(tt, group, parts_on, part_times)
+            machines |= set(carrier_steps[tt].options)
+
+    orders = _orders(problem, ops, cal, epoch, part_times)
     return Instance(
         schema_version="0.8",
         name=name,
@@ -250,6 +277,39 @@ def _plate_step(
     return step, batch
 
 
+def _per_carrier_step(
+    tt: str,
+    group: list[ProblemOperationOut],
+    parts_on: dict[str, list[UUID]],
+    part_times: dict[UUID, dict[str, int]],
+) -> CarrierStep:
+    """A carrier step whose minutes vary per carrier: one run per carrier (`per_carrier`) whose main operation is the
+    sum of its parts' times (estimator fixed 0, share 1: no clamp effect), the carrier's MES minutes split over its
+    parts (whole minutes, the rest to the first parts). On the step's machine if the MES names one."""
+    options = sorted({str(m) for o in group for m in o.machine_options})
+    unattended = {o.unattended_minutes for o in group}
+    if unattended != {0.0}:
+        raise MappingError(f"{tt}: unattended minutes in a per-carrier step are not mapped")
+    longest = 1
+    for o in group:
+        minutes, parts = span(o.attended_minutes), sorted(parts_on[_carrier_key(o)])
+        if minutes < len(parts):
+            raise MappingError(f"{o.key}: {minutes} min for {len(parts)} parts, below one minute per part")
+        each, rest = divmod(minutes, len(parts))
+        for i, part in enumerate(parts):
+            part_times[part][tt] = each + (1 if i < rest else 0)
+        longest = max(longest, minutes)
+    estimator = RunEstimator(fixed=0, share=1.0)
+    if options:
+        return CarrierStep(
+            options=dict.fromkeys(options, longest),
+            runs="per_carrier",
+            estimator=estimator,
+            worker=WorkerShare(whole=True),
+        )
+    return CarrierStep(duration=longest, runs="per_carrier", estimator=estimator, worker=WorkerShare(whole=True))
+
+
 def _calendar(inst: ProblemInstanceOut) -> Calendar:
     """Decision 20: global; the most common daily minutes and workdays; no overtime. The shift is the daily minutes
     plus the break, so a worker keeps the capacity the MES plans with (fill.py has no break yet)."""
@@ -270,7 +330,13 @@ def _calendar(inst: ProblemInstanceOut) -> Calendar:
     )
 
 
-def _orders(problem: ProblemOut, ops: list[ProblemOperationOut], cal: Calendar, epoch: datetime) -> tuple[Order, ...]:
+def _orders(
+    problem: ProblemOut,
+    ops: list[ProblemOperationOut],
+    cal: Calendar,
+    epoch: datetime,
+    part_times: dict[UUID, dict[str, int]],
+) -> tuple[Order, ...]:
     inst = problem.instance
     exported = {o.key: o for o in ops}
     op_id = {o.key: OP_OF.get(o.task_type, o.task_type) for o in ops}
@@ -315,9 +381,9 @@ def _orders(problem: ProblemOut, ops: list[ProblemOperationOut], cal: Calendar, 
                         predecessors=tuple(sorted(preds[a])),
                     )
                 )
-        # shortcut: the format needs the carrier chain to end in a separating operation (V14), but the slice-1
-        # scope ends before SAWING; the last carrier operation in scope takes the role, which only shapes validation
-        # (nothing in the instance follows it). Slice 3 maps SAWING as the real separation.
+        # the carrier chain ends in a separating operation (V14): SAWING once the plate reaches it; the last carrier
+        # operation in the instance takes the role, so a chain cut short (sawing done, or not in the export) still
+        # validates (the role only shapes validation)
         carrier_ops = {o.id for o in operations if o.scope == CARRIER}
         tails = carrier_ops - {q for o in operations if o.id in carrier_ops for q in o.predecessors}
         operations = [
@@ -337,7 +403,9 @@ def _orders(problem: ProblemOut, ops: list[ProblemOperationOut], cal: Calendar, 
                 arrival=arrival,
                 release=arrival,
                 due_date=due,
-                parts=tuple(Part(id=str(p), type=LANE.lower()) for p in sorted(parts_of[order.id])),
+                parts=tuple(
+                    Part(id=str(p), type=LANE.lower(), times=part_times.get(p, {})) for p in sorted(parts_of[order.id])
+                ),
                 operations=tuple(_topological(operations)),
             )
         )

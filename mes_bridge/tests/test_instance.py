@@ -69,7 +69,7 @@ def test_cleaning_and_blasting_are_s_batches_of_the_mes_linear_form():
     assert "HEAT_TREATMENT" not in sb
 
 
-def test_order_route_is_one_chain_from_print_to_mill():
+def test_order_route_runs_from_the_print_to_the_packaging():
     order = _build(_raw()).orders[0]
     ops = {o.id: o for o in order.operations}
     assert [o.id for o in order.operations] == [
@@ -79,10 +79,49 @@ def test_order_route_is_one_chain_from_print_to_mill():
         "HEAT_TREATMENT",
         "SAND_BLASTING",
         MILL,
+        "REWORK_CHECKOUT",
+        "SAWING",
+        "SUPPORT_REMOVAL",
+        "GRIND_CLEAN",
+        "STEAM_CLEAN",
+        "POLISH",
+        "INSPECTION",
+        "DOCUMENTATION",
+        "PACKAGING_SHIPPING",
     ]
     assert ops[PRINT].predecessors == ("DATA_PREP_SEC_MILL",) and ops[PRINT].role == "form"
-    assert ops[MILL].predecessors == ("SAND_BLASTING",) and ops[MILL].role == "separate"
+    assert ops[MILL].predecessors == ("SAND_BLASTING",) and ops[MILL].role is None
+    assert ops["REWORK_CHECKOUT"].predecessors == (MILL,)  # the primary join comes with 3.1b2
+    assert ops["SAWING"].predecessors == ("REWORK_CHECKOUT",) and ops["SAWING"].role == "separate"
+    assert ops["SUPPORT_REMOVAL"].predecessors == ("SAWING",) and ops["SUPPORT_REMOVAL"].scope == "order"
     assert ops["DATA_PREP_SEC_MILL"].duration == 20 and ops["DATA_PREP_SEC_MILL"].worker.whole
+
+
+def test_qm_and_sawing_are_runs_per_plate_whose_part_times_add_up_to_the_mes_minutes():
+    raw = _raw()
+    inst = _build(raw)
+    qm, saw = inst.carrier_steps["REWORK_CHECKOUT"], inst.carrier_steps["SAWING"]
+    assert (qm.runs, saw.runs) == ("per_carrier", "per_carrier")
+    assert set(qm.options) == {m["id"] for m in raw["instance"]["machines"] if m["equipment_type"] == "MILL"}
+    assert not saw.options and saw.worker.whole  # sawing needs no machine
+    minutes = {o["key"]: o["attended_minutes"] for o in raw["instance"]["operations"]}
+    times = {p.id: p.times for o in inst.orders for p in o.parts}
+    for c in raw["instance"]["carriers"]:
+        for tt in ("REWORK_CHECKOUT", "SAWING"):
+            total = sum(times[str(p)][tt] for p in c["part_ids"])
+            assert total == minutes[f"carrier:{c['key']}:{tt}"], (c["key"], tt)
+    ci = compile_instance(inst)
+    assert {k[1] for k in ci.op_keys if k[0].startswith("C:")} >= {"REWORK_CHECKOUT", "SAWING"}
+
+
+def test_a_per_carrier_step_below_one_minute_per_part_is_rejected():
+    raw = _raw()
+    qm = next(o for o in raw["instance"]["operations"] if o["task_type"] == "REWORK_CHECKOUT")
+    qm["attended_minutes"] = 0.0
+    c = next(c for c in raw["instance"]["carriers"] if qm["key"].startswith(f"carrier:{c['key']}:"))
+    c["part_ids"] = c["part_ids"] * 2  # 1 minute for 2 parts
+    with pytest.raises(MappingError, match="below one minute per part"):
+        _build(raw)
 
 
 def test_arrival_and_calendar():
