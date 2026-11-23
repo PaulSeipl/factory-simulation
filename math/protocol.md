@@ -23,7 +23,12 @@ start runs. Docs: [07](07_order-arrivals.md) §6, change log.
 **Found.** The seven configurations keep their hashes (same as with the committed code); `arrivals-rate4`'s stored
 rows carry an older hash (`2188cc5e86eb`, now `583b92a7a3cd`), which predates this change.
 
-**Open.** Runtime of one `robust-start` episode per policy (measured next); $\sigma$ for worker steps is still an
+Runtime of one `robust-start` episode (seed 1, 2026-11-23, machine shared with the RL session's training):
+CP-SAT 312 s, GA 3496 s, GA with buffer 3449 s; GA on $f^{\mathrm{exp}}$ with $N^{\mathrm{sc}} = 3$ unfinished when the
+session ended (> 1 h). Total tardiness 0 for all three (the due dates of this configuration bind nothing); overtime
+27 / 36 / 27 min; mean start deviation 175 / 150 / 95 min.
+
+**Open.** Runtime of the expected-GA episode; due dates tight enough to measure tardiness; $\sigma$ for worker steps is still an
 assumption; generation budget 10 and $N^{\mathrm{sc}} = 3$ (user, 2026-11-23, after a 10-scenario episode ran over 2 h unfinished) are guesses.
 
 ## 2026-11-23 (101) — Incremental snapshot — uncommitted
