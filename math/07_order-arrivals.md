@@ -145,7 +145,16 @@ limit that decides the result, the configuration's `time_limit` as the wall-cloc
 `wall_limited`), and the run's seed; the start plan comes from CP-SAT as for every policy
 ([14](14_genetic-algorithm.md) §3b). The configuration hash leaves `generations` out where it is unset, so the
 configurations before it keep their hash and their result rows. MCTS (planner `"mcts"`, [15](15_mcts.md)) in the same way, with the required
-`PolicyConfig.iterations` ($N^{\mathrm{it}}$) in place of the generations. `execute(..., keep_history=True)` records the start plan and every
+`PolicyConfig.iterations` ($N^{\mathrm{it}}$) in place of the generations. Robust start plans (2026-11-23,
+[14](14_genetic-algorithm.md) §4a–4c): `PolicyConfig.start` `"cpsat"` (default) or `"ga"` (the GA plans the start
+plan with `generations`); `robust` `"expected"` (the GA, at the start and when rescheduling, minimizes the expected
+objective over `n_scenarios` of its own scenarios, seeds from $10^6 (\text{seed} + 1)$ on, so never an episode seed;
+it knows $\sigma$, $q$ and the offset range of the configuration, not the draws) or `"buffer"` (the GA start plan on
+durations inflated to their `alpha` quantile, shortened back); each needs the GA, `n_scenarios` and `alpha` only with
+their kind. Unset, these fields are left out of the hash (the seven configurations keep theirs, checked against the
+committed code). Configuration `experiments/robust-start.json`: arrivals and workers of `arrivals-rate6`,
+$\sigma = 0.45$ (milling runs, [22](22_scenarios.md) §5), four policies with the same triggers ($\delta_C = 10$,
+$\delta_S = 30$, period 120): CP-SAT, GA, GA on the expected objective, GA with a buffered start plan. `execute(..., keep_history=True)` records the start plan and every
 plan the factory receives as a change set (time, cause, changed assignments, breaks), the basis for an animation of
 the plan over time later. Metrics (M8), (M9) in [23](23_metrics.md). Configurations: load levels 4, 6, 8 orders per
 working day and 8 with doubled machines and workers; 6 undisturbed (the gap to hindsight is pure information); daily
@@ -213,6 +222,7 @@ file. The commit is not part of "done": after a code change, rerun with `--resta
 | 2026-11-16 | uncommitted | Which limit stopped CP-SAT (`wall_limited`); plan metrics in the history; commit read at the run start. |
 | 2026-11-13 | uncommitted | Command line `experiment` (list, run, task, merge); one row file per run; host column. |
 | 2026-11-22 | uncommitted | Planner `"mcts"` with `iterations`; hash unchanged for older configurations. |
+| 2026-11-23 | uncommitted | `PolicyConfig.start`, `robust`, `n_scenarios`, `alpha`; configuration `robust-start`. |
 | 2026-11-22 | uncommitted | Planner `"ga"` in `PolicyConfig` with `generations`; hash unchanged for older configurations. |
 | 2026-11-19 | uncommitted | `run` continues the runs this host has not done (`--restart`), `list --missing`, `--policy`/`--seed`. |
 | 2026-11-18 | uncommitted | §3a: with a norm the arrival comes from the run ([33](33_order-release-interface.md) step B3). |

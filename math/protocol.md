@@ -8,6 +8,24 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-23 (102) — Experiment configuration with robust start plans — uncommitted
+
+**Decided.** User: the best way to run an experiment with the stochastic scheduler, the normal GA and CP-SAT, with
+arrivals and workers. Own: start plan and robustness as policy fields, so one configuration compares them under the
+same triggers and seeds; the robust GA's scenario seeds disjoint from the episode seeds.
+
+**Done.** `experiment.PolicyConfig`: `start`, `robust`, `n_scenarios`, `alpha` with their rules; `_ga_start`;
+`PLANNER_SEEDS`; the digest leaves the new fields out while unset. `experiments/robust-start.json` (four policies,
+seeds 1 to 5). Tests in `tests/test_experiment.py` (+11): one negative test per rule (8), the hash of a configuration
+without the new fields is unchanged, an expected-GA policy (start and rescheduling) runs and repeats, a buffered
+start runs. Docs: [07](07_order-arrivals.md) §6, change log.
+
+**Found.** The seven configurations keep their hashes (same as with the committed code); `arrivals-rate4`'s stored
+rows carry an older hash (`2188cc5e86eb`, now `583b92a7a3cd`), which predates this change.
+
+**Open.** Runtime of one `robust-start` episode per policy (measured next); $\sigma$ for worker steps is still an
+assumption; generation budget 10 and $N^{\mathrm{sc}} = 3$ (user, 2026-11-23, after a 10-scenario episode ran over 2 h unfinished) are guesses.
+
 ## 2026-11-23 (101) — Incremental snapshot — uncommitted
 
 **Decided.** User: build the snapshot incrementally (rebuilding finished operations is redundant), then the

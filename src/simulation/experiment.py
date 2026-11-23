@@ -42,11 +42,12 @@ from simulation.control.nesting import Nesting
 from simulation.control.rescheduling import ReschedulingPolicy, execute
 from simulation.io.json_loader import read_model, write_csv, write_jsonl
 from simulation.metrics import run_metrics
-from simulation.model.compiled import compile_instance, compile_visible
-from simulation.objectives import worker_objective_with_slack
+from simulation.model.compiled import CompiledInstance, compile_instance, compile_visible
+from simulation.objectives import expected, planner_scenarios, worker_objective_with_slack
+from simulation.planners.buffer import inflate, quantile_factor, shorten
 from simulation.planners.cpsat import CpSatResult, cpsat_planner, solve
 from simulation.planners.dispatching import dispatch_planner, ect, spt
-from simulation.planners.ga import GaParams, ga_planner
+from simulation.planners.ga import GaParams, ga_planner, solve_ga
 from simulation.planners.mcts import MctsParams, mcts_planner
 from simulation.sim.scenario import sample_scenario
 
@@ -65,12 +66,30 @@ class PolicyConfig(BaseModel):
     generations: PositiveInt | None = None
     # MCTS only, and required there: iterations per decision N^it (decide the result, as generations do)
     iterations: PositiveInt | None = None
+    # the start plan: CP-SAT (default) or the GA (with `generations`); math/14 section 4c
+    start: Literal["cpsat", "ga"] = "cpsat"
+    # robust GA (math/14 sections 4a, 4b): "expected" scores plans by the expected objective over `n_scenarios` of
+    # the planner's own scenarios (start plan and rescheduling); "buffer" plans the start plan with durations
+    # inflated to their `alpha` quantile. None: the planned objective
+    robust: Literal["expected", "buffer"] | None = None
+    n_scenarios: PositiveInt | None = None
+    alpha: float | None = Field(default=None, gt=0, lt=1)
 
     @model_validator(mode="after")
     def check_search_limits(self):
-        for name, planner in (("generations", "ga"), ("iterations", "mcts")):
-            if (self.planner == planner) != (getattr(self, name) is not None):
-                raise ValueError(f"{name} is required for planner '{planner}' and only allowed there")
+        ga = "ga" in (self.planner, self.start)
+        if ga != (self.generations is not None):
+            raise ValueError("generations is required for the GA (planner or start 'ga') and only allowed there")
+        if (self.planner == "mcts") != (self.iterations is not None):
+            raise ValueError("iterations is required for planner 'mcts' and only allowed there")
+        if self.robust is not None and not ga:
+            raise ValueError(f"robust '{self.robust}' needs the GA (planner or start 'ga')")
+        if self.robust == "buffer" and self.start != "ga":
+            raise ValueError("robust 'buffer' shapes the start plan: needs start 'ga'")
+        if (self.robust == "expected") != (self.n_scenarios is not None):
+            raise ValueError("n_scenarios is required for robust 'expected' and only allowed there")
+        if (self.robust == "buffer") != (self.alpha is not None):
+            raise ValueError("alpha is required for robust 'buffer' and only allowed there")
         return self
 
 
@@ -100,9 +119,26 @@ class ExperimentConfig(BaseModel):
     def digest(self) -> str:
         # generations, iterations (added 2026-11-22) only where set: older configurations keep their hash and so their
         # result rows
-        unset = {"policies": {k: {f for f in ("generations", "iterations") if getattr(p, f) is None}
-                              for k, p in self.policies.items()}}
+        unset = {"policies": {k: {f for f in ("generations", "iterations", "robust", "n_scenarios", "alpha")
+                                  if getattr(p, f) is None} | ({"start"} if p.start == "cpsat" else set())
+                              for k, p in self.policies.items()}}  # start, robust, ... added 2026-11-23
         return hashlib.sha256(self.model_dump_json(exclude=unset).encode()).hexdigest()[:12]
+
+
+PLANNER_SEEDS = 1_000_000  # the robust GA's scenario seeds start at PLANNER_SEEDS * (seed + 1): never an episode seed
+
+
+def _ga_start(ci: CompiledInstance, pc: PolicyConfig, objective, config: ExperimentConfig, seed: int) -> CpSatResult:
+    """The GA's start plan (math/14 section 4c), as a CpSatResult so the run row stays the same; with robust
+    'buffer' planned on inflated durations and shortened back (section 4b)."""
+    rho = quantile_factor(config.sigma, pc.alpha) if pc.robust == "buffer" else 1.0
+    limit = config.hindsight_time_limit if pc.hindsight else config.time_limit
+    t0 = time.perf_counter()
+    r = solve_ga(inflate(ci, rho), objective, GaParams(generations=pc.generations, time_limit=limit, seed=seed))
+    plan = shorten(ci, r.plan.assignments, r.plan.breaks) if rho > 1 else r.plan.assignments
+    return CpSatResult(status="GA", schedule=plan, objective=r.value, bound=None,
+                       wall_time=time.perf_counter() - t0, breaks=r.plan.breaks,
+                       wall_limited=r.generations < pc.generations)
 
 
 def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) -> dict:
@@ -114,11 +150,17 @@ def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) ->
     inst = nesting.instance() if nesting else generate_arrival_instance(arrivals)
     ci, at = compile_instance(inst), compile_visible(inst)
     objective = worker_objective_with_slack(config.buffer)
+    # the robust GA's objective: its own scenarios, seeds disjoint from the episode's (the DES uses `seed` itself)
+    planner_objective = objective if pc.robust != "expected" else expected(objective, planner_scenarios(
+        config.sigma, range(PLANNER_SEEDS * (seed + 1), PLANNER_SEEDS * (seed + 1) + pc.n_scenarios), config.q,
+        config.max_early, config.max_late))
     if not at(0).n_ops:  # nothing known at 0 (no backlog): the first plan comes with the first arrival
         start = CpSatResult(status="EMPTY", schedule=[], objective=None, bound=None, wall_time=0.0)
     elif pc.hindsight:
         start = solve(ci, objective, config.hindsight_time_limit, 1, seed,
                       deterministic_time=config.hindsight_deterministic_time)
+    elif pc.start == "ga":
+        start = _ga_start(ci if pc.hindsight else at(0), pc, planner_objective, config, seed)
     else:
         start = solve(at(0), objective, config.time_limit, 1, seed, deterministic_time=config.deterministic_time)
     if not start.schedule and start.status != "EMPTY":
@@ -127,7 +169,7 @@ def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) ->
         "cpsat": lambda: cpsat_planner(config.time_limit, 1, seed, objective=objective,
                                        deterministic_time=config.deterministic_time),
         "rule": lambda: dispatch_planner(spt, ect),
-        "ga": lambda: ga_planner(objective, GaParams(generations=pc.generations, time_limit=config.time_limit,
+        "ga": lambda: ga_planner(planner_objective, GaParams(generations=pc.generations, time_limit=config.time_limit,
                                                      seed=seed)),
         "mcts": lambda: mcts_planner(objective, MctsParams(iterations=pc.iterations, time_limit=config.time_limit)),
     }[pc.planner]()

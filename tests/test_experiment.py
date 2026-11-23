@@ -129,3 +129,43 @@ def test_cli_unknown_configuration_rejected():
 
     with pytest.raises(SystemExit, match="no configuration"):
         main(["list", "does-not-exist"])
+
+
+@pytest.mark.parametrize("policy", [
+    {"planner": "rule", "start": "ga"},  # GA start without generations
+    {"planner": "rule", "robust": "expected", "n_scenarios": 2},  # robust without the GA
+    {"planner": "ga", "generations": 1, "robust": "buffer", "alpha": 0.8},  # buffer needs a GA start plan
+    {"planner": "ga", "generations": 1, "robust": "expected"},  # expected without n_scenarios
+    {"planner": "ga", "generations": 1, "n_scenarios": 2},  # n_scenarios without expected
+    {"planner": "rule", "start": "ga", "generations": 1, "robust": "buffer"},  # buffer without alpha
+    {"planner": "rule", "start": "ga", "generations": 1, "alpha": 0.8},  # alpha without buffer
+    {"planner": "rule", "start": "ga", "generations": 1, "robust": "buffer", "alpha": 1.0},  # alpha outside (0, 1)
+])
+def test_robust_settings_rejected(policy):
+    with pytest.raises(ValidationError):
+        config(policies={"p": policy})
+
+
+def test_existing_configurations_keep_their_hash():
+    # the new fields are left out of the digest while unset (start "cpsat"): stored result rows stay valid
+    plain = config(policies={"p": {"planner": "rule"}})
+    explicit = config(policies={"p": {"planner": "rule", "start": "cpsat"}})
+    assert plain.digest() == explicit.digest() != config(policies={"p": {"planner": "rule", "start": "ga",
+                                                                         "generations": 1}}).digest()
+
+
+def test_expected_ga_start_and_rescheduling_run_and_repeat(tmp_path):
+    robust = config(policies={"exp": {"planner": "ga", "generations": 1, "start": "ga", "robust": "expected",
+                                      "n_scenarios": 2}})
+    a, b = (run_one(robust, "exp", 1, tmp_path) for _ in range(2))
+    assert a["start_status"] == "GA" and a["reschedulings"] >= 1
+    for key in ("wall_time", "planner_time", "commit"):
+        a.pop(key), b.pop(key)
+    assert a == b
+
+
+def test_buffered_ga_start_runs(tmp_path):
+    buffered = config(policies={"buf": {"planner": "rule", "start": "ga", "generations": 1, "robust": "buffer",
+                                        "alpha": 0.8}})
+    row = run_one(buffered, "buf", 1, tmp_path)
+    assert row["start_status"] == "GA" and row["planned_makespan"] > 0
