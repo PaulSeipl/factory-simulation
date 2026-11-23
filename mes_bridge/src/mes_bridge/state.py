@@ -11,10 +11,13 @@ A started MES task freezes its operations (math/13_des.md §6): finished ones wi
 with the MES's expected end (at least t + 1). The planner never sees anything else of the MES's past.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
+from simulation.calendar import day_index, day_start, is_working_day
 from simulation.model.compiled import CompiledInstance
+from simulation.model.schedule import Break
 from simulation.sim.snapshot import FrozenOperation, Snapshot
 
 from mes_bridge.api import ProblemOperationOut, ProblemOut, ProblemTaskOut
@@ -86,7 +89,7 @@ def id_map(problem: ProblemOut, ci: CompiledInstance) -> IdMap:
 
 
 def build_snapshot(problem: ProblemOut, ci: CompiledInstance, ids: IdMap, *, epoch: datetime) -> Snapshot:
-    """The snapshot at `as_of`. Breaks: none until the MES has break settings (task 4.3)."""
+    """The snapshot at `as_of`, with today's break as taken where its window has begun (`taken_breaks`)."""
     t = at(problem.as_of, epoch)
     tasks = {task.key: task for task in problem.snapshot.tasks}
     frozen: list[FrozenOperation] = []
@@ -172,7 +175,46 @@ def _consistent(ci: CompiledInstance, frozen: list[FrozenOperation], t: int) -> 
                 for sh, n in zip(ci.shares[ci.op_index[k]], f.share_lengths, strict=True)
             )
             by[k] = f.model_copy(update={"end": end, "share_lengths": lengths})
-    return Snapshot(instance=ci.name, t=t, frozen=tuple(by[(f.order_id, f.op_id)] for f in frozen))
+    ordered = tuple(by[(f.order_id, f.op_id)] for f in frozen)
+    return Snapshot(instance=ci.name, t=t, frozen=ordered, breaks=taken_breaks(ci, ordered, t))
+
+
+def taken_breaks(ci: CompiledInstance, frozen: Sequence[FrozenOperation], t: int) -> tuple[Break, ...]:
+    """Today's break per worker as a fact, once its window has begun by `t`.
+
+    Shortcut (assumption): the MES records no breaks (task 4.3, finding rr), but the thesis snapshot carries every
+    break started by t, as the DES does. Without them CP-SAT owes a worker the break of a day whose window is past
+    and postpones it beyond the day (C14^f), which the night makes infeasible. So each worker took today's break at
+    the earliest start in its window that is clear of their frozen work and has begun by t; a worker without such a
+    start gets none (the planner then places it). Earlier days are history the model does not need."""
+    cal = ci.calendar
+    if cal is None or not ci.worker_ids:
+        return ()
+    d = day_index(cal, t)
+    if not is_working_day(cal, d):
+        return ()
+    lo = day_start(cal, d) + cal.break_earliest
+    hi = min(day_start(cal, d) + cal.break_latest, t)
+    if lo > hi:
+        return ()
+    busy: dict[str, list[tuple[int, int]]] = {w: [] for w in ci.worker_ids}
+    o_of = {key: o for o, key in enumerate(ci.op_keys)}
+    for f in frozen:
+        o = o_of[f.order_id, f.op_id]
+        lengths = f.share_lengths or [sh.length for sh in ci.shares[o]]
+        for sh, n, w in zip(ci.shares[o], lengths, f.workers, strict=False):
+            if w is None:
+                continue
+            a = f.start if sh.kind == "prefix" else f.end - n if sh.kind == "suffix" else f.start
+            e = a + n if sh.kind in ("prefix", "suffix") else f.end
+            busy[w].append((a, e))
+    out = []
+    for w in ci.worker_ids:
+        for b in sorted({lo, *(e for _, e in busy[w] if lo <= e <= hi)}):
+            if all(e <= b or s >= b + cal.break_length for s, e in busy[w]):
+                out.append(Break(worker=w, start=b))
+                break
+    return tuple(out)
 
 
 def _freeze(ci: CompiledInstance, task: ProblemTaskOut, keys: tuple[OpKey, ...], t: int, epoch: datetime):

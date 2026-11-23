@@ -197,3 +197,46 @@ def test_one_mes_task_over_two_orders_is_split_into_consecutive_pieces():
         e2 - s1
         == at(datetime.fromisoformat(task["finished_at"]), epoch_of(datetime.fromisoformat(raw["as_of"]), BERLIN)) - s1
     )
+
+
+def _whole_op(ci):
+    """A frozen-able operation with one `whole` share (a data prep)."""
+    o = next(o for o, shares in enumerate(ci.shares) if [s.kind for s in shares] == ["whole"])
+    return ci.op_keys[o]
+
+
+def _busy(ci, start: int, end: int):
+    from simulation.sim.snapshot import FrozenOperation
+
+    order_id, op_id = _whole_op(ci)
+    return FrozenOperation(
+        order_id=order_id, op_id=op_id, machine=None, start=start, end=end, running=True, workers=(ci.worker_ids[0],)
+    )
+
+
+@pytest.mark.parametrize(
+    ("latest", "t", "busy", "expected"),
+    [
+        ("12:00", 1187, [], 720),  # after the window, nothing in the way: taken at the earliest start
+        ("12:00", 1187, [(600, 700)], 720),  # work before the break
+        ("12:00", 1187, [(700, 750)], None),  # work over the only start: none taken (the planner places it)
+        ("13:00", 1187, [(700, 750)], 750),  # a later start in the window, after the work
+        ("12:00", 700, [], None),  # the window has not begun
+        ("12:00", 750, [], 720),  # on the break now: begun by t, so taken
+        ("12:00", 1440 * 5 + 800, [], None),  # Saturday: not a working day
+    ],
+)
+def test_todays_break_is_taken_once_its_window_has_begun(latest, t, busy, expected):
+    """Task 5.1: the MES records no breaks, the thesis snapshot carries the ones begun by t (`taken_breaks`)."""
+    from mes_bridge.state import taken_breaks
+
+    raw = _raw("problem_printing.json")
+    raw["instance"]["calendar"]["break_latest"] = latest
+    _, _, ci, _, _ = _state(raw)
+    out = taken_breaks(ci, [_busy(ci, a, e) for a, e in busy], t)
+    assert [b.start for b in out] == ([] if expected is None else [expected])
+
+
+def test_the_snapshot_carries_todays_taken_break():
+    _, _, ci, _, snap = _state(_raw("problem_printing.json"))
+    assert [(b.worker, b.start) for b in snap.breaks] == [(ci.worker_ids[0], 720)]

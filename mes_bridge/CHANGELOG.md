@@ -4,6 +4,17 @@
 
 ## Unreleased
 
+- 5.1: CP-SAT and the GA in `SchedulerConfig.solver` (`kind`: `rule` | `cpsat` | `ga`; `objective`: `worker`, the
+  thesis worker objective with the cutoff buffer as in `simulation.experiment`, or `makespan`; `time_limit` in
+  seconds; `deterministic_time` for CP-SAT; `seed`). CP-SAT runs on one thread, so a seed reproduces a plan.
+  Shortcut: without any due date the worker objective drops its two due-date levels (the thesis objective refuses
+  an instance without due dates; the MES due date is optional). Fallback: a solver that returns no plan for every
+  operation (no solution in time, an infeasible model) hands over to the configured rule; `planner.last["fallback"]`
+  says why. The snapshot now carries today's break as taken once its window has begun (`state.taken_breaks`,
+  assumption: the earliest start in the window clear of the worker's frozen work), because the MES records no
+  breaks and CP-SAT otherwise owes a break whose window is past and postpones it into the night (infeasible on
+  every recording). Tests: both solvers and objectives on two recordings, with due dates, the objective's levels,
+  the fallback on `problem_mill_prep.json`, 8 for the taken break.
 - 4.3: breaks (decision 21). The calendar takes the break window and length from the problem (the MES's
   `planning_setting`, no longer hard-coded 12:00 / 60 min); the published schedule carries the plan's breaks (one
   per worker and day, `schedule_breaks`), from the one-shot command and the runner. Recordings re-made with the
