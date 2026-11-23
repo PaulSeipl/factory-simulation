@@ -134,19 +134,20 @@ baseline a CI error.
 - Can `fill.py` take one break per worker without a structural change?
 - Does the MES test setup tolerate an `after_commit` listener (session fixtures, rollbacks)?
 - Does the seed data hold orders past `DATA_PREP_SECONDARY`? If not, the integration tests seed them.
-- Is `OrderPart.quadrant` set and unique per plate within an AM job for every secondary part from
-  `DATA_PREP_SECONDARY` on? The carrier key depends on it (check at the start of 1.4).
+- Is `OrderPart.quadrant` set for every secondary part from `DATA_PREP_SECONDARY` on? The carrier key depends on
+  it (check at the start of 1.4). Unique per plate within an AM job: yes (user, 2026-11-23).
 - How does a rework clone or a repeated step map to a unique `Operation.id` within an order?
 - Do scrap and the rework clone change a `WorkTask` or `Equipment` row? If not, the listener misses them and
   only the safety poll catches them; extend the listener to those rows.
 
 ## Later (not in the slices; user, 2026-11-23)
 
-- The planner receives plate status and assigns parts to plates (forms the carriers itself). Carrier keys for
-  carriers the MES does not have yet then come from the planner.
+- The planner receives plate status and assigns physical plates to the carriers. It does not form carriers: the
+  composition (which parts on which plate of a print) stays given.
 - Plate sets: an AM job points to a `build_plate_set_id`; one load uses plates of one set only (enforced in the
-  MES); a set is refurbished once all its plates are free again (after sawing, or unused), which makes them ready
-  again. A resource constraint the thesis model does not have yet.
+  MES); once refurbishment is due, the set is unusable until it is refurbished, and it can be refurbished only
+  when all its plates are free again (after sawing, or unused; the MES has states for this). A resource
+  constraint the thesis model does not have yet.
 
 ## Blocked
 
@@ -197,3 +198,4 @@ PR comments read until: 2026-11-22T23:20Z
 | 2026-11-23 | 1.5 (blocked) | — | MES CI green on 41bbf81. Mapping onto `Instance` needs a model decision (Blocked B1): the format carries per-instance durations only via `Run.duration`, MES grains differ (plate steps per print, mill per plate), secondary mill jobs never mix prints. 1.4 reopened: `jobs with their parts` (decision 11) missing from the export. Loop stopped. |
 | 2026-11-23 | B1 rewritten | — | First B1 blamed durations; wrong (`Operation.duration`, `per_carrier` + `Part.times` carry per-instance minutes). User: grain matters, MES data is the source, job loads must be splittable, one mill job per plate (8-telescope cap). Found: `build_plate_id` is the physical plate, stamped at AM_PREP; carrier id = (AM job, quadrant). Remaining question: carrier-grain keys, MES change limited to export + schedule, no thesis change in slice 1. `fixed 66` is current on every branch (math/21). |
 | 2026-11-23 | B1 answered | — | Carrier key `carrier:<am_job_id>:<quadrant>:<TASK>` (plate id is a later planner decision and a resource attribute), MES change limited to export + schedule, no thesis change in slice 1: `per_carrier` steps already vary per carrier via `Part.times`, clean/blast/oven constant per plate by the 2026-11-17 decision. Corrected: mill 120 per part = 30 per telescope, no mismatch. Plate sets and planner-formed carriers recorded under Later. |
+| 2026-11-23 | B1 follow-up | — | User corrections: the planner will assign physical plates, not form carriers; a plate set due for refurbishment is unusable until refurbished, which needs all its plates free; quadrant unique per plate per AM job. |
