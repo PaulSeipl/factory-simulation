@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- State on disk (decision 22): `mes_bridge.store.Store` keeps `anchor.json` (epoch, anchor, the plan last published,
+  its publication id; written atomically) and `decisions.jsonl` per variant under `--state-dir`
+  (`mes_bridge_state/`, git-ignored). `Runner.resume()` continues from it only if the MES's current schedule of
+  the variant is that publication and the epoch is this week's; otherwise the first step is a complete
+  rescheduling. `MesFactory.restore`, `MesFactory.publication`. Tests `tests/test_store.py` (6: save and decisions
+  per step, resume, someone else published, another epoch, an unreadable file, nothing saved).
 - The long-running scheduler: `python -m mes_bridge.runner [--url] [--host] [--port]` (secrets
   `MES_SCHEDULER_PASSWORD`, `MES_EVENTS_TOKEN` from the environment). `runner.event_server`: `POST /events` with
   the shared bearer token (401 without, 400 for a body that is not a JSON object, 404 elsewhere), into a queue.

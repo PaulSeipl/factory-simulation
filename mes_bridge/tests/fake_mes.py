@@ -11,6 +11,7 @@ class FakeMes:
     def __init__(self, problem: dict, password: str = "pw"):
         self.problem, self.password, self.token = problem, password, "tok"
         self.published: list[ScheduleIn] = []
+        self.outs: list[dict] = []  # the stored publications, as GET /planning/schedule serves them
         self.logins = 0
         self.problem_status = 200  # set to e.g. 500 to make the problem fail
 
@@ -28,5 +29,11 @@ class FakeMes:
             self.published.append(s)
             out = {"id": str(uuid4()), "created_at": None, **s.model_dump(mode="json")}
             out["steps"] = [dict(st) for st in out["steps"]]
+            self.outs.append(out)
             return 201, out
+        if (method, path) == ("GET", "/api/v1/planning/schedule"):
+            latest = {}
+            for o in self.outs:
+                latest[o["variant"]] = o
+            return 200, list(latest.values())
         return 404, {"detail": "Not Found"}

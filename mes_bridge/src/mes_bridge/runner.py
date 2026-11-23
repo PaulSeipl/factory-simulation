@@ -28,6 +28,8 @@ from simulation.planners.dispatching import dispatch_planner, spt
 from mes_bridge.client import MesClient, http
 from mes_bridge.factory import MesFactory, step
 from mes_bridge.instance import epoch_of
+from mes_bridge.once import VARIANT
+from mes_bridge.store import Saved, Store, resumable
 
 SAFETY_POLL = timedelta(minutes=5)  # decision 14: a step without any event
 
@@ -72,6 +74,8 @@ class Runner:
     anchor: Anchor | None = None
     decisions: list[dict] = field(default_factory=list)
     log: Callable[[str], None] = print
+    store: Store | None = None
+    _logged: int = 0  # decisions already written to the store
 
     def tick(self, now: datetime, reason: str) -> None:
         """One step for everything that happened since the last one."""
@@ -84,7 +88,27 @@ class Runner:
         before = len(self.factory.rejected), self.factory.published
         self.anchor = step(self.factory, self.policy, self.anchor, self.decisions)
         rejected, published = len(self.factory.rejected) - before[0], self.factory.published - before[1]
+        if self.store is not None:
+            self.store.append_decisions(self.decisions[self._logged :], now)
+            self._logged = len(self.decisions)
+            if self.anchor is not None:
+                f = self.factory
+                saved = Saved(f.epoch, self.anchor, list(f.current_plan()), tuple(f.current_breaks()), f.publication)
+                self.store.save(saved)
         self.log(f"{now.isoformat()} {reason}: {len(merged)} events, {published} published, {rejected} not published")
+
+    def resume(self) -> bool:
+        """Decision 22: continue from the saved state if the MES still serves its publication, else start fresh
+        (the first step is then a complete rescheduling)."""
+        saved = self.store.load() if self.store is not None else None
+        if not resumable(saved, self.factory.client.schedules(), VARIANT, self.factory.epoch):
+            self.log("no matching saved state: complete rescheduling")
+            return False
+        assert saved is not None
+        self.factory.restore(saved.plan, saved.breaks, saved.publication)
+        self.anchor = saved.anchor
+        self.log(f"resumed from publication {saved.publication}")
+        return True
 
     def next_wake(self, now: datetime) -> tuple[datetime, str]:
         """The earliest timer after now, at the latest the safety poll."""
@@ -108,6 +132,10 @@ class Runner:
 
     def run(self, stop: threading.Event, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         reason = "start"
+        try:
+            self.resume()
+        except Exception as e:  # the MES may be down: start fresh
+            self.log(f"resume failed: {e}")
         while not stop.is_set():
             now = clock()
             try:
@@ -127,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--url", default=os.environ.get("MES_URL", "http://localhost:8080"))
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--state-dir", default="mes_bridge_state", help="anchor.json and decisions.jsonl per variant")
     args = ap.parse_args(argv)
     password, token = os.environ.get("MES_SCHEDULER_PASSWORD"), os.environ.get("MES_EVENTS_TOKEN")
     if not password or not token:
@@ -136,7 +165,9 @@ def main(argv: list[str] | None = None) -> int:
     client.login(os.environ.get("MES_SCHEDULER_USERNAME", "scheduler"), password)
     tz = ZoneInfo(client.problem().instance.calendar.time_zone)
     runner = Runner(
-        MesFactory(client, epoch=epoch_of(datetime.now(UTC), tz)), ReschedulingPolicy(planner=dispatch_planner(spt))
+        MesFactory(client, epoch=epoch_of(datetime.now(UTC), tz)),
+        ReschedulingPolicy(planner=dispatch_planner(spt)),
+        store=Store(args.state_dir, VARIANT),
     )
     server = event_server(token, runner.events, args.host, args.port)
     threading.Thread(target=server.serve_forever, daemon=True).start()

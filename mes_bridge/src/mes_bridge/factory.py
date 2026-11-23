@@ -14,6 +14,7 @@ Time: minutes since the epoch fixed at the bridge's start (decision 17).
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from uuid import UUID
 
 from simulation.check.feasibility import Violation, check_schedule
 from simulation.control.rescheduling import Anchor, ReschedulingPolicy, adapt_plan
@@ -39,18 +40,26 @@ class MesFactory:
         self._breaks: tuple[Break, ...] = ()
         self.rejected: list[list[Violation]] = []  # plans not published (decision 23), newest last
         self.published = 0
+        self.publication: UUID | None = None  # id of the last publication in the MES
+        self._known: set[tuple[str, str]] | None = None  # the operations of the instance the plan covers
 
     def refresh(self) -> bool:
         """Fetch the problem and rebuild the instance; True if its set of operations changed (or it is the first)."""
         problem = self.client.problem()
-        before = None if self.ci is None else set(self.ci.op_keys)
+        before = self._known
         self.problem = problem
         if not problem.instance.operations:
-            self.ci, self.ids = None, None
+            self.ci, self.ids, self._known = None, None, None
             return before is not None
         self.ci = compile_instance(build_instance(problem, epoch=self.epoch))
         self.ids = id_map(problem, self.ci)
-        return before != set(self.ci.op_keys)
+        self._known = set(self.ci.op_keys)
+        return before != self._known
+
+    def restore(self, plan: Sequence[Assignment], breaks: Sequence[Break], publication: UUID | None) -> None:
+        """Continue from a saved state (decision 22): the plan it published, over the operations that plan covers."""
+        self._plan, self._breaks, self.publication = list(plan), tuple(breaks), publication
+        self._known = {(a.order_id, a.op_id) for a in plan}
 
     # --- Factory ---
 
@@ -70,7 +79,7 @@ class MesFactory:
         if violations := check_schedule(self.ci, plan, self.snapshot(), new_breaks):
             self.rejected.append(violations)
             return
-        self.client.publish(
+        out = self.client.publish(
             ScheduleIn(
                 variant=VARIANT,
                 snapshot_as_of=self.problem.as_of,
@@ -82,6 +91,7 @@ class MesFactory:
         self._plan = sorted(plan, key=lambda x: self.ci.op_index[x.order_id, x.op_id])
         self._breaks = new_breaks
         self.published += 1
+        self.publication = out.id
 
 
 def step(

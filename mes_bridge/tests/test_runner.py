@@ -108,6 +108,8 @@ def test_an_event_wakes_the_loop_and_a_failing_step_does_not_stop_it():
     calls = []
 
     def log(line):
+        if " start:" not in line and " event:" not in line:
+            return  # the resume line
         calls.append(line)
         if len(calls) == 1:
             fake.problem_status = 500  # the MES goes down: the next step fails
