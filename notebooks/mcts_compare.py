@@ -39,6 +39,8 @@ GA_SEEDS = (1, 2, 3)
 # GA variants: all keys; overtime keys 0 (no overtime, as MCTS); also delay_max 0 (non-delay, as MCTS)
 GA_VARIANTS = {"GA": {}, "GA no-overtime": {"overtime": False}, "GA no-overtime no-delay": {"overtime": False,
                                                                                            "delay_max": 0}}
+# MCTS variants: overtime candidates on (default, M4) and off (non-delay, no overtime, as before M4)
+MCTS_VARIANTS = {"MCTS": {}, "MCTS no-overtime": {"overtime": False}}
 GENERATOR = ROOT / "data/generator"
 CASES = {  # name -> (generator file, parameter update)
     "dental-example": ("dental-carriers-example.json", {}),
@@ -47,7 +49,8 @@ CASES = {  # name -> (generator file, parameter update)
     "balanced": ("fidentis.json", {"workers": ("A", "B", "C")}),
 }
 OBJECTIVES = {"makespan": MAKESPAN, "worker": worker_objective_with_slack(60)}
-DIGEST = hashlib.sha256((repr(CASES) + repr(sorted(OBJECTIVES)) + repr((BUDGET, GA_SEEDS, GA_VARIANTS))
+DIGEST = hashlib.sha256((repr(CASES) + repr(sorted(OBJECTIVES))
+                         + repr((BUDGET, GA_SEEDS, GA_VARIANTS, MCTS_VARIANTS, "resume"))
                          + "".join((GENERATOR / f).read_text() for f, _ in CASES.values())).encode()).hexdigest()[:12]
 
 
@@ -62,20 +65,24 @@ def pairs() -> list[tuple[str, str]]:
     return [(c, o) for c in CASES for o in OBJECTIVES if o == "makespan" or c == "dental-workers"]
 
 
-def iterations_for(ci: CompiledInstance, objective, budget: float) -> tuple[int, int, float]:
-    """N^it that fits the budget: (N^it, decisions, seconds per rollout incl. evaluation), from one SPT rollout."""
+def iterations_for(ci: CompiledInstance, objective, budget: float, overtime: bool) -> tuple[int, int, float]:
+    """N^it that fits the budget: (N^it, decisions, seconds per rollout incl. evaluation), from one SPT decode with
+    the overtime candidates MCTS offers. A rollout resumes at the root, so it costs about half a decode (math/15 §5)."""
     sizes: list[int] = []
+    option = ci.calendar.max_overtime if overtime and ci.calendar is not None and ci.calendar.max_overtime else None
 
     def count(eligible, _state):
         sizes.append(len(eligible))
-        return 0
+        return next(i for i, c in enumerate(eligible) if len(c) == 4)
 
     t0 = time.perf_counter()
-    plan = dispatch_plan(ci, spt, choose=count)
+    plan = dispatch_plan(ci, spt, choose=count, overtime_option=option)
+    decode = time.perf_counter() - t0
+    t0 = time.perf_counter()
     objective.evaluate(ci, plan.assignments, plan.breaks)
-    rollout = time.perf_counter() - t0
+    rollout = decode / 2 + time.perf_counter() - t0  # shortcut: half a decode on average, measured 0.3-0.5 of it
     decisions = sum(n > 1 for n in sizes)
-    seeding = 15 * rollout  # the rule plans
+    seeding = 15 * decode  # the rule plans
     return max(1, int((budget - seeding) / (decisions * rollout))), decisions, rollout
 
 
@@ -117,9 +124,10 @@ def run(case: str, objective_name: str, method: str, seed: int = 0) -> dict:
             return {"case": case, "objective": objective_name, "method": "CP-SAT", "status": r.status}
         return row(case, objective_name, ci, objective, r.schedule, r.breaks, method="CP-SAT", status=r.status,
                    wall=time.perf_counter() - t0)
-    n_it, decisions, rollout = iterations_for(ci, objective, BUDGET)
-    r = solve_mcts(ci, objective, MctsParams(iterations=n_it, time_limit=BUDGET))
-    return row(case, objective_name, ci, objective, r.plan.assignments, r.plan.breaks, method="MCTS",
+    setting = MCTS_VARIANTS[method]
+    n_it, decisions, rollout = iterations_for(ci, objective, BUDGET, setting.get("overtime", True))
+    r = solve_mcts(ci, objective, MctsParams(iterations=n_it, time_limit=BUDGET, **setting))
+    return row(case, objective_name, ci, objective, r.plan.assignments, r.plan.breaks, method=method,
                iterations=n_it, decisions=decisions, rollout_s=round(rollout, 4), committed=r.decisions,
                evaluations=r.evaluations, wall_limited=r.wall_limited, rollout_rule=r.rollout_rule,
                wall=time.perf_counter() - t0)
@@ -128,7 +136,7 @@ def run(case: str, objective_name: str, method: str, seed: int = 0) -> dict:
 def tasks() -> list[tuple]:
     out = []
     for case, obj in pairs():
-        out += [(case, obj, "rule"), (case, obj, "cpsat"), (case, obj, "mcts")]
+        out += [(case, obj, "rule"), (case, obj, "cpsat")] + [(case, obj, v) for v in MCTS_VARIANTS]
         out += [(case, obj, v, s) for v in GA_VARIANTS for s in GA_SEEDS]
     return out
 

@@ -171,3 +171,30 @@ def test_change_budget_zero_keeps_every_machine():
 def test_invalid_params_rejected(params, message):
     with pytest.raises(ValueError, match=message):
         MctsParams(**params)
+
+
+def test_trades_overtime_for_makespan_only_when_the_objective_wants_it():
+    # late_pack (test_ga): the tree's one decision is the pack tomorrow (no overtime) or today in overtime
+    from test_ga import late_pack, pack_times
+
+    from simulation.objectives import OVERTIME, overtime
+
+    ci = late_pack()
+    short = solve_mcts(ci, MAKESPAN, FAST)
+    assert short.value == 600 and pack_times(short.plan) == (510, 600) and overtime(ci, short.plan.assignments) == 30
+    assert check_schedule(ci, short.plan.assignments, breaks=short.plan.breaks) == []
+    assert solve_mcts(ci, OVERTIME, FAST).value == 0
+    without = solve_mcts(ci, MAKESPAN, MctsParams(iterations=5, width=3, overtime=False))
+    assert pack_times(without.plan) == (24 * 60, 24 * 60 + 90) and without.decisions == 0
+
+
+def test_overtime_plans_are_feasible_and_replay_on_dental_workers():
+    from simulation.objectives import overtime
+
+    ci = compile_instance(generate_carrier_instance(read_model(
+        DATA / "generator" / "dental-carriers-workers.json", CarrierGeneratorParams)))
+    plan = solve_mcts(ci, MAKESPAN, MctsParams(iterations=1, width=2)).plan
+    assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
+    realized = replay(ci, plan.assignments, breaks=plan.breaks).schedule
+    assert sorted((a.order_id, a.op_id, a.start, a.end) for a in realized) == sorted(
+        (a.order_id, a.op_id, a.start, a.end) for a in plan.assignments)

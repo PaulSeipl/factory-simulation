@@ -92,7 +92,7 @@ Rules do not optimize an objective directly; the schedule is evaluated afterward
 
 ## 5. Implementation in code
 
-Module `simulation.planners.dispatching`: `dispatch(ci, sequencing, assignment=None) -> list[Assignment]`; sequencing rules `spt`, `fifo`, `mwkr`, `lrp`, `edd` (registry `SEQUENCING_RULES`); assignment rules `least_load`, `ect` (registry `ASSIGNMENT_RULES`); `assignment=None` is the joint mode. Rules read the dispatcher state `DispatchState` ($\underline{S}$ `ready_at`, $\phi$ `machine_free`, $V$ `load`, $V^{\mathrm{q}}$ `backlog`, $\mathrm{wr}$ `work_left`, $\ell$ `remaining_path`).
+Module `simulation.planners.dispatching`: `dispatch(ci, sequencing, assignment=None) -> list[Assignment]`; sequencing rules `spt`, `fifo`, `mwkr`, `lrp`, `edd` (registry `SEQUENCING_RULES`); assignment rules `least_load`, `ect` (registry `ASSIGNMENT_RULES`); `assignment=None` is the joint mode. Rules read the dispatcher state `DispatchState` ($\underline{S}$ `ready_at`, $\phi$ `machine_free`, $V$ `load`, $V^{\mathrm{q}}$ `backlog`, $\mathrm{wr}$ `work_left`, $\ell$ `remaining_path`, and since 2026-11-23 $V_z$ `worker_load`, the booked share minutes per worker, for the RL features of [16](16_rl.md)).
 
 
 **Candidate hook** (2026-11-22, for the tree search and a later learned policy). `dispatch_plan(..., choose=)`:
@@ -139,6 +139,18 @@ Checks:
   - a chain of checkpoints every 25 decisions from a DES snapshot with GA delay, overtime and join keys gives the
     uninterrupted plan;
   - a resume with other arguments is rejected.
+
+**Overtime candidates** (2026-11-22, for the tree search, [15](15_mcts.md) M4): `dispatch_plan(..., overtime_option=L)`
+with $0 < L \le \overline{\mathrm{ot}}$, not together with `overtime`.
+- A candidate $(t, o, m, p)$ whose earliest start lies after its base (it waits for a worker or the shift) also comes
+  as $(t', o, m, p, L)$, if $t'$ is earlier than $t$ and lies within the reach. Here $t'$ is its earliest start when
+  $o$'s shares may run $L$ minutes past shift end.
+- The reach stays the one without overtime, so the choice is "now in overtime" or "later without".
+- Choosing the variant gives $o$ the allowance $\mathrm{ot}^{\mathrm{al}}_o = L$, and for a run all its parts. The
+  overtime allowances are part of the checkpoint.
+- Without a chooser the rules take the variant without overtime on ties, so the rule plans are unchanged.
+- Hand case (`late_pack` of [14](14_genetic-algorithm.md)): the pack comes as (Tuesday 08:00) and as (Monday 16:30,
+  $L$). Choosing the second gives the plan of the GA's allowance 30.
 
 Hand-computed examples (test `test_spt_on_toy_dag_matches_hand_computation`), SPT on `toy-dag-3x4`, one per assignment variant.
 
@@ -285,3 +297,5 @@ Measured one change at a time: the bisection alone gives dental workers 2.2× an
 | 2026-11-20 | uncommitted | `part_fits` cached, `calendar.shift_window` with its helpers inlined (same results, 200,000 random calls compared); with both, dental workers 4.9× and Fidentis 2.4× faster than before the speed-up. |
 | 2026-11-22 | uncommitted | Candidate hook `choose(eligible, state)` in `dispatch_plan` (§5); rule plans unchanged without it; decision depth measured. |
 | 2026-11-22 | uncommitted | Pause and resume (§5): `dispatch_until`, `Checkpoint`, `dispatch_plan(..., resume=)`; all 1710 plans of `notebooks/dispatch_speed.py` unchanged. |
+| 2026-11-22 | uncommitted | Overtime candidates (`overtime_option`, §5) for the tree search; rule and GA plans unchanged (`dispatch_speed.py`: all equal). |
+| 2026-11-23 | uncommitted | `DispatchState.worker_load` ($V_z$), the dispatcher's own list; plans unchanged. |

@@ -64,7 +64,7 @@
   Used for: fixture set $F$, index $f$, eligible fixtures $F_{i,j}$ (PDF p. 4, notation table) ([notation.md](notation.md)).
 
 - Lv, L., Zhang, C., Fan, J., & Shen, W. (2025). Deep reinforcement learning for job shop scheduling problems: A comprehensive literature review. *Knowledge-Based Systems*, 321, 113633. https://doi.org/10.1016/j.knosys.2025.113633 (Zotero `QACURDAW`)
-  Used for: JSP and FJSP as a Markov decision process, p. 1, p. 3 ([15](15_mcts.md)).
+  Used for: JSP and FJSP as a Markov decision process, p. 1, p. 3 ([15](15_mcts.md), [16](16_rl.md)); instance-by-instance, instance-class and size-agnostic training, p. 2, p. 13 ([16](16_rl.md)).
 
 - Lunardi, W. T., Birgin, E. G., Laborie, P., Ronconi, D. P., & Voos, H. (2020). Mixed integer linear programming and constraint programming models for the online printing shop scheduling problem. *Computers and Operations Research*, 123, 105020. https://doi.org/10.1016/j.cor.2020.105020
   Used for: DAG precedence per job and release times per operation, MILP (1)–(9) (§2, pp. 4–5), CP model (33)–(40) (§3, p. 8), example job DAGs (Fig. 1, p. 2). Cited in [01](01_basic-fjsp.md) and [notation.md](notation.md).

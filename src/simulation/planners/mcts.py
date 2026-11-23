@@ -38,7 +38,7 @@ from simulation.planners.ga import budget_excess, decode, encode
 if TYPE_CHECKING:
     from simulation.sim.snapshot import Snapshot
 
-type Key = tuple[int, int | None]  # a candidate: (operation, machine)
+type Key = tuple[int, int | None, int]  # a candidate: (operation, machine, overtime allowance)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +49,8 @@ class MctsParams:
     # optimum within 200 iterations, √2 did with 100 (math/15 §5)
     exploration: float = math.sqrt(2)
     time_limit: float | None = None  # seconds, checked before every rollout (safety net); None: only N^it
+    # offer every waiting candidate also with the calendar's maximum overtime (math/15 §3, M4); False: never overtime
+    overtime: bool = True
 
     def __post_init__(self):
         if self.iterations < 1:
@@ -111,15 +113,25 @@ def solve_mcts(
             if a is None and v < rollout_value:
                 rollout, rollout_value = s, v
     seq = SEQUENCING_RULES[rollout]
+    cal = ci.calendar
+    option = cal.max_overtime if params.overtime and cal is not None and cal.max_overtime > 0 else None
+
+    def key_of(c) -> Key:
+        return c[1], c[2], c[4] if len(c) > 4 else 0
 
     def by_rule(eligible, state) -> list[int]:
+        """Candidates in the rollout rule's order, each overtime variant right after its own candidate's rank."""
         return sorted(range(len(eligible)), key=lambda i: (
-            *seq(ci, state, *eligible[i][1:]), eligible[i][1], eligible[i][2] is None, eligible[i][2] or 0))
+            *seq(ci, state, *eligible[i][1:4]), eligible[i][1], eligible[i][2] is None, eligible[i][2] or 0,
+            len(eligible[i]) > 4))
+
+    def rollout_choice(eligible, state) -> int:  # the rule, without overtime
+        return next(i for i in by_rule(eligible, state) if len(eligible[i]) == 4)
 
     committed = 0
     root, lo, hi = _Node(), math.inf, -math.inf  # lo, hi: best and worst scalar value seen (normalization)
     # the dispatcher before the root's decision; a plan: no decision at all
-    at_root = dispatch_until(ci, seq, None, snapshot, lambda _e, _s: 0, 0)
+    at_root = dispatch_until(ci, seq, None, snapshot, lambda _e, _s: 0, 0, overtime_option=option)
 
     def ucb(parent: _Node, child: _Node) -> float:
         mean = child.total / child.visits
@@ -135,10 +147,10 @@ def solve_mcts(
             nonlocal expanded
             if len(eligible) == 1:
                 return 0
-            keys: list[Key] = [(c[1], c[2]) for c in eligible]
+            keys = [key_of(c) for c in eligible]
             node = path[-1]
             if expanded:
-                return by_rule(eligible, state)[0]  # rollout below the tree
+                return rollout_choice(eligible, state)  # rollout below the tree
             if node.untried is None:
                 node.untried = [keys[i] for i in by_rule(eligible, state)[:params.width]]
             if node.untried:
@@ -150,7 +162,7 @@ def solve_mcts(
             path.append(node.children[key])
             return keys.index(key)
 
-        x = evaluate(dispatch_plan(ci, seq, None, snapshot, choose=choose, resume=at_root))
+        x = evaluate(dispatch_plan(ci, seq, None, snapshot, choose=choose, resume=at_root, overtime_option=option))
         lo, hi = min(lo, x), max(hi, x)
         for node in path:
             node.visits += 1
@@ -171,9 +183,9 @@ def solve_mcts(
             break
         key = min(root.children, key=lambda c: root.children[c].best)  # first in expansion order on ties
         def to_key(eligible, _state, key=key) -> int:  # the committed choice; a lone candidate is no decision
-            return 0 if len(eligible) == 1 else [(c[1], c[2]) for c in eligible].index(key)
+            return 0 if len(eligible) == 1 else [key_of(c) for c in eligible].index(key)
 
-        at_root = dispatch_until(ci, seq, None, snapshot, to_key, 1, at_root)
+        at_root = dispatch_until(ci, seq, None, snapshot, to_key, 1, at_root, overtime_option=option)
         root, committed = root.children[key], committed + 1
     assert best is not None  # the rule plans are always evaluated
     return MctsResult(best[1], best[0][1], evaluations, committed, rollout, wall_limited, best[0][0])

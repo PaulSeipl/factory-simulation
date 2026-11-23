@@ -39,6 +39,13 @@ New symbols (central definitions in [notation.md](notation.md)):
 A **decision** is an iteration $\zeta$ of the dispatcher with more than one eligible candidate $(t, o, m, p)$ (all
 that can start by the earliest start; non-delay). Iterations with one candidate are not part of the tree.
 
+**Overtime in the action** (M4, 2026-11-22): with a calendar, a candidate that waits for a worker or the shift also
+comes as $(t', o, m, p, \overline{\mathrm{ot}})$, if its shares may run up to the calendar's maximum overtime
+$\overline{\mathrm{ot}}$ past shift end and that lets it start earlier, within the reach
+([11](11_dispatching-rules.md) §5, overtime candidates). Choosing it gives $o$ the allowance
+$\mathrm{ot}^{\mathrm{al}}_o = \overline{\mathrm{ot}}$; the overtime actually used is what the shares need. A tree
+key is $(o, m, \mathrm{ot}^{\mathrm{al}})$. `MctsParams.overtime = False` switches the variants off.
+
 ## 3. Algorithm
 
 Value of a plan $\pi$: $f(\pi)$, the objective's value. With a change budget $\kappa$ it becomes
@@ -49,13 +56,14 @@ difference, the same order as the GA's rank ([14](14_genetic-algorithm.md) §3b)
    best of them is the first incumbent. The best **joint** rule plan names the rollout rule, so the tree chooses
    machines too.
 2. **Iteration** (from the root $\vartheta_0$):
-   - The committed decisions are replayed.
+   - The rollout resumes from the root's checkpoint (§5).
    - **Selection:** at a node whose children have all been expanded, take the child with the largest
      $$\frac{f^{\max} - \bar f_{\vartheta'}}{f^{\max} - f^{\min}} + \beta \sqrt{\frac{\ln N^{\mathrm{vis}}_\vartheta}{N^{\mathrm{vis}}_{\vartheta'}}}$$
      The first term is 0 while $f^{\max} = f^{\min}$; smaller values are better.
    - **Expansion:** at the first node that still has untried children, add the next one. A node's children are its
-     $N^{\mathrm{wid}}$ best candidates by the rollout rule, tried in that order.
-   - **Rollout:** the rollout rule decides all later decisions.
+     $N^{\mathrm{wid}}$ best candidates by the rollout rule, tried in that order. An overtime variant ranks right
+     after its own candidate's rank.
+   - **Rollout:** the rollout rule decides all later decisions, never with overtime.
    - **Backup:** the plan's value is added to every node on the path (visits, sum, best value). The incumbent is
      updated.
 3. **Commitment:** after $N^{\mathrm{it}}$ iterations, fix the root's child with the best value seen below it (ties:
@@ -180,14 +188,48 @@ earlier round on a more loaded machine gave the same ranking.
   - In a loaded run it failed with "level active_makespan: no solution within the time limit".
   - Whether the hint is kept across the levels is open ([12](12_cp-sat.md)).
 
+## 5b. M4: overtime in the action (2026-11-22)
+
+Same setup as §5a: 60 s, one core, `notebooks/mcts_compare.py`. The GA rows were rerun and lie within the ranges of
+§5a. MCTS now resumes at the root, and the script derives $N^{\mathrm{it}}$ from half a decode with the overtime
+candidates.
+
+| Case, objective | Rule | MCTS with overtime ($N^{\mathrm{it}}$, committed) | MCTS without overtime | GA | GA no overtime |
+|---|---|---|---|---|---|
+| dental example, makespan | 1138 | 1130 (57, **cut** at 51 of 132) | **1122** (31) | 1128–1130 | 1128–1130 |
+| dental workers, makespan | 2963 | 2963 (1) | 2935 (2) | **2915**–2943 | 2946–2952 |
+| dental workers, worker obj. ($10^{17}$) | 1.736 | 1.679 (1; OT 15) | 1.736 (1) | **1.27**–1.44 | 1.56–1.61 |
+| Fidentis, makespan | 24850 | 24850 (42, **cut** at 29 of 90) | 24640 (26) | **23150**–24520 | 23200–24570 |
+| balanced, makespan | 24640 | 24510 (21; OT 290) | 24640 (33) | **22180**–22260 | 23160–23200 |
+
+**Findings:**
+- **Without a time cut, overtime in the action helps MCTS where it has budget.**
+  - Worker objective on dental workers: 1.679 against 1.736 (the rule and MCTS without overtime). It is the first
+    time MCTS improves on the rule there.
+  - Balanced: 24510 against 24640.
+- **Overtime candidates cost time.** Each waiting candidate gets a second earliest start. On dental workers
+  (makespan) that dropped $N^{\mathrm{it}}$ from 2 to 1, and MCTS stayed at the rule plan.
+- **Cut runs.** On dental example and Fidentis the estimate "half a decode per rollout" was too low. The time limit
+  cut the search after 51 of 132 and 29 of 90 decisions, and the rest came from the rollout rule. These two rows do
+  not measure overtime; the runs without overtime ($N^{\mathrm{it}}$ 31, 26) were not cut.
+- **The GA stays far ahead on the worker instances**, also without overtime on balanced and on the worker objective.
+  With 1–2 iterations per decision on dental workers, MCTS is limited by its budget there, not by its action set.
+
+**Open:**
+- A time-based commitment: per decision the remaining time divided by the remaining decisions, which the last
+  rollout counts. That would replace the predicted $N^{\mathrm{it}}$ and avoid cut runs.
+- A cheaper rollout, e.g. evaluating a partial plan instead of rolling out to the end.
+
 ## 6. Assumptions and open points
 
-- **Non-delay only, no overtime, greedy partners.**
-  - The tree never waits and never plans overtime. The GA's delay and overtime keys can do both (toy-3x3: the optimum
-    needs a delay).
+- **Non-delay, one overtime level, greedy partners.**
+  - The tree never waits (toy-3x3: the optimum needs a delay). The GA's delay keys can.
+  - Overtime has one level, $\overline{\mathrm{ot}}$ (M4). The GA's overtime key gives any allowance in
+    $[0, \overline{\mathrm{ot}}]$. An allowance only matters through the start it allows, and the shares use only
+    what they need, so a larger allowance never gives a later start. But it can let an s-batch partner join that a
+    smaller one would keep out.
   - Load and s-batch partners follow the rollout rule. The GA's priority and join keys steer them, so the GA has
     more control over how loads are composed.
-  - M4 adds overtime to the action, if M3 shows the gap.
 - **Budget.** Decision depth is 133 (dental example) and 174 (dental workers) ([11](11_dispatching-rules.md) §5). On
   dental workers, 60 s gave 1–2 iterations per decision in M3 (§5a). Resuming at the root doubles that; the rest of
   every rollout still runs to the end of the plan.
@@ -214,3 +256,4 @@ earlier round on a more loaded machine gave the same ranking.
 | 2026-11-22 | uncommitted | M2: `planners/mcts.py`, `tests/test_mcts.py`, planner `"mcts"` in the experiments; first numbers. |
 | 2026-11-22 | uncommitted | §5a M3: comparison at 60 s against rule, CP-SAT and three GA variants (`notebooks/mcts_compare.py`). |
 | 2026-11-22 | uncommitted | §5: rollouts resume from the root's checkpoint (`dispatch_until`); same plans, about 2× faster. |
+| 2026-11-22 | uncommitted | §2, §3, §5b M4: overtime in the action (`MctsParams.overtime`, overtime candidates of the dispatcher); comparison rerun. |
