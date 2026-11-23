@@ -4,6 +4,16 @@
 
 ## Unreleased
 
+- 3.1b2: the PRIMARY lane on blanks (B2 (1) A). A blank is the primary mill job's once DATA_PREP_PRIMARY formed it,
+  before that one assumed blank per order (`B:<mill job>` / `B:<order>`). Blank milling (MILL_PREP_PRIMARY setup +
+  run, REMOVE_MOUNT removal) and the flipped milling (PREP_MILL_FLIPPED setup + run) are given runs per blank;
+  Gegenbetten (work, then curing as an unattended rest) and the removal from the blank (the separating step) are
+  `per_carrier` steps; data prep, primary polishing and finishing are order steps. Per-carrier steps take the
+  params' base once per carrier as the estimator base (math/21 §4), the rest of the MES minutes as part times. QM
+  waits for its orders' primary polishing, inspection for the primary finishing (the cross-lane joins). Shortcut:
+  REMOVE_MOUNT's per-part minutes (10 + 2 per part) are added to the blank's run, since a run's removal is one value
+  per step; the mill's time stays exact, the worker misses 2 min per part. The interim `MAPPED` filter now lists the
+  whole route.
 - 3.1b1: the SECONDARY lane to the packaging. QM and sawing are `per_carrier` steps (one run per plate, main =
   sum of part times, estimator fixed 0 / share 1; the plate's MES minutes split over its parts; QM on the mill the
   MES params name); support removal, grinding, steam cleaning, polishing, inspection, documentation and packaging

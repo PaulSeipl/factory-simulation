@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from mes_bridge.api import ProblemOut
-from mes_bridge.instance import MILL, PRINT, MappingError, at, build_instance, epoch_of, span
+from mes_bridge.instance import MILL, MILL_BLANK, MILL_FLIPPED, PRINT, MappingError, at, build_instance, epoch_of, span
 from simulation.check.feasibility import check_schedule
 from simulation.model.compiled import compile_instance
 from simulation.planners.dispatching import dispatch_plan, spt
@@ -40,7 +40,7 @@ def test_plates_are_carriers_the_print_one_run_each_plate_one_mill_run():
     raw = _raw()
     inst = _build(raw)
     (am,) = [j for j in raw["instance"]["jobs"] if j["kind"] == "AM"]
-    assert [c.id for c in inst.carriers] == [f"C:{am['id']}:1", f"C:{am['id']}:2"]
+    assert [c.id for c in inst.carriers if c.id.startswith("C:")] == [f"C:{am['id']}:1", f"C:{am['id']}:2"]
     prints = [r for r in inst.runs if r.step == PRINT]
     mills = [r for r in inst.runs if r.step == MILL]
     assert [r.carriers for r in prints] == [(f"C:{am['id']}:1", f"C:{am['id']}:2")]
@@ -69,10 +69,10 @@ def test_cleaning_and_blasting_are_s_batches_of_the_mes_linear_form():
     assert "HEAT_TREATMENT" not in sb
 
 
-def test_order_route_runs_from_the_print_to_the_packaging():
+def test_order_route_covers_both_lanes_from_the_arrival_to_the_packaging():
     order = _build(_raw()).orders[0]
     ops = {o.id: o for o in order.operations}
-    assert [o.id for o in order.operations] == [
+    assert set(ops) == {
         "DATA_PREP_SEC_MILL",
         PRINT,
         "PART_CLEANING",
@@ -88,13 +88,105 @@ def test_order_route_runs_from_the_print_to_the_packaging():
         "INSPECTION",
         "DOCUMENTATION",
         "PACKAGING_SHIPPING",
-    ]
+        "DATA_PREP_PRIMARY",
+        MILL_BLANK,
+        "GEGENBETTEN",
+        MILL_FLIPPED,
+        "PART_REMOVAL_FROM_BLANK",
+        "PRIMARY_POLISHING",
+        "FINISHING_PRIMARY",
+    }
     assert ops[PRINT].predecessors == ("DATA_PREP_SEC_MILL",) and ops[PRINT].role == "form"
     assert ops[MILL].predecessors == ("SAND_BLASTING",) and ops[MILL].role is None
-    assert ops["REWORK_CHECKOUT"].predecessors == (MILL,)  # the primary join comes with 3.1b2
     assert ops["SAWING"].predecessors == ("REWORK_CHECKOUT",) and ops["SAWING"].role == "separate"
     assert ops["SUPPORT_REMOVAL"].predecessors == ("SAWING",) and ops["SUPPORT_REMOVAL"].scope == "order"
+    # the primary lane on its blank, and the cross-lane joins
+    assert ops[MILL_BLANK].role == "form" and ops[MILL_BLANK].carries == "primary"
+    assert ops["PART_REMOVAL_FROM_BLANK"].role == "separate"
+    assert set(ops["REWORK_CHECKOUT"].predecessors) == {MILL, "PRIMARY_POLISHING"}
+    assert set(ops["INSPECTION"].predecessors) == {"FINISHING_PRIMARY", "POLISH"}
     assert ops["DATA_PREP_SEC_MILL"].duration == 20 and ops["DATA_PREP_SEC_MILL"].worker.whole
+
+
+def test_before_data_prep_each_order_has_one_assumed_blank_milled_in_its_own_run():
+    raw = _raw()
+    inst = _build(raw)
+    blanks = [c for c in inst.carriers if c.id.startswith("B:")]
+    assert sorted(c.id for c in blanks) == sorted(f"B:{o['id']}" for o in raw["instance"]["orders"])
+    for c in blanks:
+        assert {o for o, _ in c.parts} == {c.id.removeprefix("B:")}
+    mill = inst.carrier_steps[MILL_BLANK]
+    assert (mill.runs, mill.setup, mill.removal, mill.setup_attended, mill.removal_attended) == (
+        "given",
+        15,
+        10,
+        True,
+        True,
+    )
+    flip = inst.carrier_steps[MILL_FLIPPED]
+    assert (flip.runs, flip.setup, flip.removal) == ("given", 15, 0)
+    runs = {r.id: r for r in inst.runs}
+    for c in blanks:
+        # mill job 120 per part + the removal's per-part 2 min folded into the run (shortcut, logged)
+        assert runs[f"MB:{c.id}"].duration == 120 * len(c.parts) + 2 * len(c.parts)
+        assert runs[f"MF:{c.id}"].duration == 120 * len(c.parts)
+
+
+def test_gegenbetten_cures_unattended_after_its_work():
+    inst = _build(_raw())
+    g = inst.carrier_steps["GEGENBETTEN"]
+    assert g.runs == "per_carrier" and g.worker.rest == 15 and g.estimator.base == 5 + 15 and not g.options
+
+
+def test_after_data_prep_the_mill_jobs_blank_replaces_the_assumed_one():
+    raw = _raw()
+    job = "11111111-1111-1111-1111-111111111111"
+    for p in raw["instance"]["parts"]:
+        if p["part_type"] == "PRIMARY":
+            p["mill_job_id"] = job  # both orders' primary parts on one blank
+    for o in raw["instance"]["operations"]:
+        if o["task_type"] in (
+            "MILL_PREP_PRIMARY",
+            "REMOVE_MOUNT",
+            "GEGENBETTEN",
+            "PREP_MILL_FLIPPED",
+            "PART_REMOVAL_FROM_BLANK",
+        ):
+            o["key"] = f"job:{job}:{o['task_type']}"
+    ops = raw["instance"]["operations"]
+    seen, kept = set(), []
+    for o in ops:  # the job node is shared: one per task type
+        if o["key"] in seen:
+            continue
+        seen.add(o["key"])
+        kept.append(o)
+    for o in kept:
+        o["predecessors"] = sorted(
+            {
+                d
+                if not d.startswith("order:")
+                or d.rsplit(":", 1)[1]
+                not in (
+                    "MILL_PREP_PRIMARY",
+                    "REMOVE_MOUNT",
+                    "GEGENBETTEN",
+                    "PREP_MILL_FLIPPED",
+                    "PART_REMOVAL_FROM_BLANK",
+                )
+                else f"job:{job}:{d.rsplit(':', 1)[1]}"
+                for d in o["predecessors"]
+            }
+        )
+        if o["key"].startswith(f"job:{job}"):
+            o["order_ids"] = sorted(x["id"] for x in raw["instance"]["orders"])
+    raw["instance"]["operations"] = kept
+    inst = _build(raw)
+    (blank,) = [c for c in inst.carriers if c.id.startswith("B:")]
+    assert blank.id == f"B:{job}" and len(blank.parts) == 2
+    assert [r.carriers for r in inst.runs if r.step == MILL_BLANK] == [(blank.id,)]
+    ci = compile_instance(inst)
+    plan = dispatch_plan(ci, spt)
+    assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
 
 
 def test_qm_and_sawing_are_runs_per_plate_whose_part_times_add_up_to_the_mes_minutes():
@@ -108,7 +200,7 @@ def test_qm_and_sawing_are_runs_per_plate_whose_part_times_add_up_to_the_mes_min
     times = {p.id: p.times for o in inst.orders for p in o.parts}
     for c in raw["instance"]["carriers"]:
         for tt in ("REWORK_CHECKOUT", "SAWING"):
-            total = sum(times[str(p)][tt] for p in c["part_ids"])
+            total = inst.carrier_steps[tt].estimator.base + sum(times[str(p)][tt] for p in c["part_ids"])
             assert total == minutes[f"carrier:{c['key']}:{tt}"], (c["key"], tt)
     ci = compile_instance(inst)
     assert {k[1] for k in ci.op_keys if k[0].startswith("C:")} >= {"REWORK_CHECKOUT", "SAWING"}

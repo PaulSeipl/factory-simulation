@@ -18,7 +18,23 @@ from simulation.model.compiled import CompiledInstance
 from simulation.sim.snapshot import FrozenOperation, Snapshot
 
 from mes_bridge.api import ProblemOperationOut, ProblemOut, ProblemTaskOut
-from mes_bridge.instance import LEFT_OUT, MAPPED, MILL, PRINT, MappingError, at, carrier_id, mill_run, print_run
+from mes_bridge.instance import (
+    BLANK_TASKS,
+    LEFT_OUT,
+    MAPPED,
+    MILL,
+    MILL_BLANK,
+    MILL_FLIPPED,
+    PRINT,
+    MappingError,
+    at,
+    blank_of_key,
+    blank_run,
+    carrier_id,
+    flip_run,
+    mill_run,
+    print_run,
+)
 
 OpKey = tuple[str, str]
 
@@ -36,6 +52,13 @@ def _candidates(o: ProblemOperationOut) -> list[OpKey] | None:
     if tt in LEFT_OUT or tt not in MAPPED:
         return None
     kind, _, rest = o.key.partition(":")
+    if tt in BLANK_TASKS:  # on the order's assumed blank before DATA_PREP_PRIMARY, the mill job's after
+        b = blank_of_key(o.key)
+        return {
+            "MILL_PREP_PRIMARY": [(blank_run(b), "setup"), (blank_run(b), MILL_BLANK)],
+            "REMOVE_MOUNT": [(blank_run(b), "removal")],
+            "PREP_MILL_FLIPPED": [(flip_run(b), "setup"), (flip_run(b), MILL_FLIPPED)],
+        }.get(tt, [(b, tt)])
     if kind == "order":
         return [(rest.split(":", 1)[0], tt)]
     if kind == "job":

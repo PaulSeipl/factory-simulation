@@ -45,18 +45,25 @@ class MappingError(ValueError):
     """The problem holds something the slice-1 mapping cannot express."""
 
 
-PRINT, MILL = "AM_PRINT", "MILL_SECONDARY"  # instance steps of the two run kinds
+PRINT, MILL = "AM_PRINT", "MILL_SECONDARY"  # instance steps of the run kinds on plates
+MILL_BLANK, MILL_FLIPPED = "MILL_BLANK", "MILL_FLIPPED"  # and on blanks
 # MES task type -> instance operation (= step); the other task types keep their name
-OP_OF = {"AM_PREP": PRINT, "PART_POWDER_REMOVAL": PRINT, "MILL_PREP_SECONDARY": MILL, "SECONDARY_PLATE_REMOVAL": MILL}
+OP_OF = {
+    "AM_PREP": PRINT,
+    "PART_POWDER_REMOVAL": PRINT,
+    "MILL_PREP_SECONDARY": MILL,
+    "SECONDARY_PLATE_REMOVAL": MILL,
+    "MILL_PREP_PRIMARY": MILL_BLANK,
+    "REMOVE_MOUNT": MILL_BLANK,
+    "PREP_MILL_FLIPPED": MILL_FLIPPED,
+}
+BLANK_TASKS = {"MILL_PREP_PRIMARY", "REMOVE_MOUNT", "GEGENBETTEN", "PREP_MILL_FLIPPED", "PART_REMOVAL_FROM_BLANK"}
 PLATE_STEPS = ("PART_CLEANING", "HEAT_TREATMENT", "SAND_BLASTING")  # carrier steps without runs
 # carrier steps whose minutes vary with the carrier's parts: per-carrier runs over part times (math/21 §4: QM and
 # sawing pay their base once per carrier inside the main operation, then the per-part time)
-PER_CARRIER_STEPS = ("REWORK_CHECKOUT", "SAWING")
+PER_CARRIER_STEPS = ("REWORK_CHECKOUT", "SAWING", "GEGENBETTEN", "PART_REMOVAL_FROM_BLANK")
 CARRIER_TASKS = {*OP_OF, *PLATE_STEPS, *PER_CARRIER_STEPS}
-# shortcut: the export covers the whole route since 3.1a; until 3.1b2 maps the PRIMARY lane on blanks (and the joins
-# QM <- primary polishing, inspection <- primary finishing) the bridge maps the SECONDARY lane only; the PRIMARY steps
-# stay the MES fill's
-MAPPED = {
+MAPPED = {  # every route step after the arrival (slice 3)
     "DATA_PREP_SEC_MILL",
     "AM_PREP",
     "PART_POWDER_REMOVAL",
@@ -74,6 +81,10 @@ MAPPED = {
     "INSPECTION",
     "DOCUMENTATION",
     "PACKAGING_SHIPPING",
+    "DATA_PREP_PRIMARY",
+    *BLANK_TASKS,
+    "PRIMARY_POLISHING",
+    "FINISHING_PRIMARY",
 }
 LEFT_OUT = {"REWORK"}  # its predecessor QM is out of scope until slice 3 (decision 8: it comes with the verdict)
 LANE = "SECONDARY"
@@ -84,6 +95,25 @@ BREAK_START, BREAK_LENGTH = 720, 60
 def carrier_id(key: str) -> str:
     """Instance id of the MES carrier `<am job>:<quadrant>`."""
     return f"C:{key}"
+
+
+def blank_id(owner: UUID | str) -> str:
+    """Instance id of a blank: its primary mill job's, or the order's before DATA_PREP_PRIMARY formed it (B2 (1) A:
+    one assumed blank per order)."""
+    return f"B:{owner}"
+
+
+def blank_run(blank: str) -> str:
+    return f"MB:{blank}"
+
+
+def flip_run(blank: str) -> str:
+    return f"MF:{blank}"
+
+
+def blank_of_key(key: str) -> str:
+    """The blank a primary blank step's MES key names: `order:<order>:<task>` before data prep, `job:<mill job>:...`."""
+    return blank_id(key.split(":")[1])
 
 
 def print_run(am_job: UUID | str) -> str:
@@ -115,8 +145,8 @@ class _Params:
     def __init__(self, rows: list[ProblemParamsOut]):
         self._rows = {(r.task_type, r.part_type): r for r in rows if r.task_type is not None}
 
-    def __call__(self, task_type: str) -> ProblemParamsOut:
-        row = self._rows.get((task_type, LANE)) or self._rows.get((task_type, None))
+    def __call__(self, task_type: str, lane: str = LANE) -> ProblemParamsOut:
+        row = self._rows.get((task_type, lane)) or self._rows.get((task_type, None))
         if row is None:
             raise MappingError(f"no planning params for {task_type}")
         return row
@@ -126,10 +156,8 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
     inst = problem.instance
     ops = [o for o in inst.operations if o.task_type in MAPPED and o.task_type not in LEFT_OUT]
     for o in ops:
-        if o.lane != LANE:
-            raise MappingError(f"{o.key}: lane {o.lane} is not mapped in slice 1")
         if (
-            o.task_type in CARRIER_TASKS
+            o.task_type in CARRIER_TASKS - BLANK_TASKS
             and o.task_type not in ("AM_PREP", "PART_POWDER_REMOVAL")
             and not (o.key.startswith("carrier:"))
         ):
@@ -194,23 +222,58 @@ def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -
             if sb is not None:
                 s_batches[tt] = sb
 
+    blanks = _blanks(inst)
+    for setup_tt, removal_tt, step, run_of in (
+        ("MILL_PREP_PRIMARY", "REMOVE_MOUNT", MILL_BLANK, blank_run),
+        ("PREP_MILL_FLIPPED", None, MILL_FLIPPED, flip_run),
+    ):
+        if group := by_type.get(setup_tt):
+            ms = sorted({str(m) for o in group for m in o.machine_options})
+            if not ms:
+                raise MappingError(f"{setup_tt}: no plannable mill")
+            machines |= set(ms)
+            removal = {blank_of_key(o.key): o.attended_minutes for o in by_type.get(removal_tt or "", [])}
+            row = params(removal_tt, "PRIMARY") if removal_tt else None
+            mains = {}
+            for o in group:
+                b = blank_of_key(o.key)
+                # shortcut: the run's removal is one value per step (the base); the per-part rest of the MES removal
+                # (REMOVE_MOUNT 10 + 2 per part) is added to the unattended run, so the mill's time stays exact and
+                # the worker misses that rest; lift with per-carrier setups and removals in the format
+                extra = span(removal[b]) - span(row.base_minutes_attended) if b in removal and row else 0
+                mains[b] = span(o.unattended_minutes) + max(0, extra)
+                runs.append(Run(id=run_of(b), step=step, carriers=(b,), duration=mains[b]))
+            carrier_steps[step] = _run_step(
+                params(setup_tt, "PRIMARY"), row, ms, max(mains.values()), per_part_removal_folded=True
+            )
+
     part_times: dict[UUID, dict[str, int]] = defaultdict(dict)
-    parts_on = {c.key: c.part_ids for c in inst.carriers}
+    parts_on = {carrier_id(c.key): c.part_ids for c in inst.carriers} | blanks
     for tt in PER_CARRIER_STEPS:
         if group := by_type.get(tt):
-            carrier_steps[tt] = _per_carrier_step(tt, group, parts_on, part_times)
+            row = params(tt, group[0].lane)
+            carrier_steps[tt] = _per_carrier_step(tt, group, parts_on, part_times, row)
             machines |= set(carrier_steps[tt].options)
 
-    orders = _orders(problem, ops, cal, epoch, part_times)
+    orders = _orders(problem, ops, cal, epoch, part_times, blanks)
+    # a blank is a carrier while a blank step still acts on it (a separated blank has none, V15)
+    used_blanks = {blank_of_key(o.key) for o in ops if o.task_type in BLANK_TASKS}
     return Instance(
         schema_version="0.8",
         name=name,
         machines=tuple(sorted(machines)),
         orders=orders,
         carrier_steps=carrier_steps,
-        carriers=tuple(
-            Carrier(id=carrier_of[c.key], parts=tuple((str(_order_of(inst, p)), str(p)) for p in c.part_ids))
-            for c in sorted(inst.carriers, key=lambda c: c.key)
+        carriers=(
+            *(
+                Carrier(id=carrier_of[c.key], parts=tuple((str(_order_of(inst, p)), str(p)) for p in c.part_ids))
+                for c in sorted(inst.carriers, key=lambda c: c.key)
+            ),
+            *(
+                Carrier(id=b, parts=tuple((str(_order_of(inst, p)), str(p)) for p in ps))
+                for b, ps in sorted(blanks.items())
+                if b in used_blanks
+            ),
         ),
         runs=tuple(runs),
         calendar=cal,
@@ -223,29 +286,51 @@ def _carrier_key(o: ProblemOperationOut) -> str:
     return o.key.removeprefix("carrier:").rsplit(":", 1)[0]
 
 
+def _carrier_of_op(o: ProblemOperationOut) -> str:
+    """Instance id of the carrier a carrier operation of the export acts on."""
+    return blank_of_key(o.key) if o.task_type in BLANK_TASKS else carrier_id(_carrier_key(o))
+
+
+def _blanks(inst: ProblemInstanceOut) -> dict[str, list[UUID]]:
+    """blank -> its primary parts: the mill job's once DATA_PREP_PRIMARY formed it, else one blank per order."""
+    out: dict[str, list[UUID]] = defaultdict(list)
+    for p in inst.parts:
+        if p.part_type == "PRIMARY":
+            out[blank_id(p.mill_job_id or p.order_id)].append(p.id)
+    return {b: sorted(ps) for b, ps in out.items()}
+
+
 def _order_of(inst: ProblemInstanceOut, part: UUID) -> UUID:
     return next(p.order_id for p in inst.parts if p.id == part)
 
 
-def _run_step(prep: ProblemParamsOut, removal: ProblemParamsOut, machines: list[str], main: int) -> CarrierStep:
-    """A step in given runs: setup = prep's attended minutes, removal = removal's, each base + per plate."""
-    for row in (prep, removal):
-        if row.unit_kind != "PLATE" and row.per_unit_minutes_attended:
-            raise MappingError(f"{row.task_type}: attended minutes per {row.unit_kind} vary per run within a plate")
-    if prep.base_minutes_unattended or prep.per_unit_minutes_unattended:
-        raise MappingError(f"{prep.task_type}: unattended setup minutes besides the run are not mapped")
-    if removal.base_minutes_unattended or removal.per_unit_minutes_unattended:
-        raise MappingError(f"{removal.task_type}: an unattended removal is not mapped")
+def _run_step(
+    prep: ProblemParamsOut,
+    removal: ProblemParamsOut | None,
+    machines: list[str],
+    main: int,
+    per_part_removal_folded: bool = False,
+) -> CarrierStep:
+    """A step in given runs: setup = prep's attended minutes, removal = removal's (none without), each base + per
+    plate. The unattended minutes of the setup row are the run itself (Run.duration), not a separate operation.
+    `per_part_removal_folded`: the removal's per-part minutes are in Run.duration (the caller added them)."""
+    if prep.unit_kind != "PLATE" and prep.per_unit_minutes_attended:
+        raise MappingError(f"{prep.task_type}: attended minutes per {prep.unit_kind} vary per run within a plate")
+    if removal is not None:
+        if removal.unit_kind != "PLATE" and removal.per_unit_minutes_attended and not per_part_removal_folded:
+            raise MappingError(f"{removal.task_type}: attended minutes per {removal.unit_kind} vary per run")
+        if removal.base_minutes_unattended or removal.per_unit_minutes_unattended:
+            raise MappingError(f"{removal.task_type}: an unattended removal is not mapped")
     return CarrierStep(
         # every run carries its own duration (Run.duration); the constant is a placeholder the runs override
         options=dict.fromkeys(machines, main),
         runs="given",
         setup=span(prep.base_minutes_attended),
         setup_per_carrier=_per_plate(prep) if prep.unit_kind == "PLATE" else 0,
-        removal=span(removal.base_minutes_attended),
-        removal_per_carrier=_per_plate(removal) if removal.unit_kind == "PLATE" else 0,
+        removal=span(removal.base_minutes_attended) if removal else 0,
+        removal_per_carrier=_per_plate(removal) if removal and removal.unit_kind == "PLATE" else 0,
         setup_attended=True,
-        removal_attended=True,
+        removal_attended=removal is not None,
     )
 
 
@@ -282,32 +367,37 @@ def _per_carrier_step(
     group: list[ProblemOperationOut],
     parts_on: dict[str, list[UUID]],
     part_times: dict[UUID, dict[str, int]],
+    row: ProblemParamsOut,
 ) -> CarrierStep:
     """A carrier step whose minutes vary per carrier: one run per carrier (`per_carrier`) whose main operation is the
-    sum of its parts' times (estimator fixed 0, share 1: no clamp effect), the carrier's MES minutes split over its
-    parts (whole minutes, the rest to the first parts). On the step's machine if the MES names one."""
+    params' base once per carrier (estimator base: attended base + unattended minutes, math/21 §4) plus its parts'
+    times (fixed 0, share 1: no clamp effect), the rest of the carrier's MES minutes split over its parts (whole
+    minutes, the remainder to the first parts). Unattended minutes are a rest at the end (no machine), e.g. curing.
+    On the step's machine if the MES names one."""
     options = sorted({str(m) for o in group for m in o.machine_options})
-    unattended = {o.unattended_minutes for o in group}
-    if unattended != {0.0}:
-        raise MappingError(f"{tt}: unattended minutes in a per-carrier step are not mapped")
+    unattended = {span(o.unattended_minutes) if o.unattended_minutes else 0 for o in group}
+    if len(unattended) > 1:
+        raise MappingError(f"{tt}: unattended minutes differ between carriers {sorted(unattended)}")
+    (rest,) = unattended
+    if rest and options:
+        raise MappingError(f"{tt}: unattended minutes on a machine are not mapped")
+    base = span(row.base_minutes_attended) + rest if row.base_minutes_attended or rest else 0
     longest = 1
     for o in group:
-        minutes, parts = span(o.attended_minutes), sorted(parts_on[_carrier_key(o)])
-        if minutes < len(parts):
+        minutes, parts = span(o.attended_minutes + o.unattended_minutes), sorted(parts_on[_carrier_of_op(o)])
+        if minutes - base < len(parts):
             raise MappingError(f"{o.key}: {minutes} min for {len(parts)} parts, below one minute per part")
-        each, rest = divmod(minutes, len(parts))
+        each, extra = divmod(minutes - base, len(parts))
         for i, part in enumerate(parts):
-            part_times[part][tt] = each + (1 if i < rest else 0)
+            part_times[part][tt] = each + (1 if i < extra else 0)
         longest = max(longest, minutes)
-    estimator = RunEstimator(fixed=0, share=1.0)
+    estimator = RunEstimator(fixed=0, share=1.0, base=base)
+    worker = WorkerShare(rest=rest) if rest else WorkerShare(whole=True)
     if options:
         return CarrierStep(
-            options=dict.fromkeys(options, longest),
-            runs="per_carrier",
-            estimator=estimator,
-            worker=WorkerShare(whole=True),
+            options=dict.fromkeys(options, longest), runs="per_carrier", estimator=estimator, worker=worker
         )
-    return CarrierStep(duration=longest, runs="per_carrier", estimator=estimator, worker=WorkerShare(whole=True))
+    return CarrierStep(duration=longest, runs="per_carrier", estimator=estimator, worker=worker)
 
 
 def _calendar(inst: ProblemInstanceOut) -> Calendar:
@@ -336,14 +426,15 @@ def _orders(
     cal: Calendar,
     epoch: datetime,
     part_times: dict[UUID, dict[str, int]],
+    blanks: dict[str, list[UUID]],
 ) -> tuple[Order, ...]:
     inst = problem.instance
     exported = {o.key: o for o in ops}
     op_id = {o.key: OP_OF.get(o.task_type, o.task_type) for o in ops}
-    parts_of: dict[UUID, list[UUID]] = defaultdict(list)
+    parts_of: dict[UUID, list[tuple[UUID, str]]] = defaultdict(list)
     for p in inst.parts:
-        if p.carrier is not None:
-            parts_of[p.order_id].append(p.id)
+        if p.carrier is not None or p.part_type == "PRIMARY":
+            parts_of[p.order_id].append((p.id, p.part_type.lower()))
         elif p.part_type == LANE:
             raise MappingError(f"part {p.id}: a secondary part on no known plate")
 
@@ -360,7 +451,7 @@ def _orders(
         operations = []
         for o in sorted({op_id[o.key]: o for o in mine}.values(), key=lambda o: op_id[o.key]):
             a = op_id[o.key]
-            if o.key.startswith("order:"):
+            if o.key.startswith("order:") and o.task_type not in BLANK_TASKS:
                 if o.machine_options:
                     raise MappingError(f"{o.key}: an order step on a machine is not mapped in slice 1")
                 d = span(o.attended_minutes + o.unattended_minutes)
@@ -376,18 +467,20 @@ def _orders(
                         id=a,
                         step=a,
                         scope=CARRIER,
-                        carries=LANE.lower(),
-                        role="form" if a == PRINT else None,
+                        carries=o.lane.lower(),
+                        role="form" if a in (PRINT, MILL_BLANK) else None,
                         predecessors=tuple(sorted(preds[a])),
                     )
                 )
         # the carrier chain ends in a separating operation (V14): SAWING once the plate reaches it; the last carrier
         # operation in the instance takes the role, so a chain cut short (sawing done, or not in the export) still
         # validates (the role only shapes validation)
-        carrier_ops = {o.id for o in operations if o.scope == CARRIER}
-        tails = carrier_ops - {q for o in operations if o.id in carrier_ops for q in o.predecessors}
+        tails = set()
+        for kind in {o.carries for o in operations if o.scope == CARRIER}:
+            chain = {o.id for o in operations if o.scope == CARRIER and o.carries == kind}
+            tails |= chain - {q for o in operations if o.id in chain for q in o.predecessors}
         operations = [
-            o.model_copy(update={"role": "separate"}) if o.id in tails and o.id != PRINT else o for o in operations
+            o.model_copy(update={"role": "separate"}) if o.id in tails and o.role != "form" else o for o in operations
         ]
         arrival = at(order.arrival or problem.as_of, epoch)
         due = None
@@ -404,7 +497,7 @@ def _orders(
                 release=arrival,
                 due_date=due,
                 parts=tuple(
-                    Part(id=str(p), type=LANE.lower(), times=part_times.get(p, {})) for p in sorted(parts_of[order.id])
+                    Part(id=str(p), type=t, times=part_times.get(p, {})) for p, t in sorted(parts_of[order.id])
                 ),
                 operations=tuple(_topological(operations)),
             )
