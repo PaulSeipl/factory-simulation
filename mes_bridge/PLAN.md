@@ -120,7 +120,7 @@ baseline a CI error.
   merged per step, periodic trigger and safety poll, OVERDUE / PLANNED_START timers; `anchor.json`,
   `decisions.jsonl`; restart check against `GET /planning/schedule` (decision 22); instance change → complete
   rescheduling (decision 18).
-- [ ] 2.3 MES: `after_commit` listener posting events (decision 14), background, fire and forget; tests that a
+- [x] 2.3 MES: `after_commit` listener posting events (decision 14), background, fire and forget; tests that a
   rollback sends nothing. Docs.
 - [ ] 2.4 End-to-end test: start, handoff, finish of a task in the local MES produce a new schedule.
 
@@ -156,7 +156,8 @@ baseline a CI error.
 - Does `repair_plan` fail when the current plan holds operations missing from the instance? (Decision 18 assumes
   it does.)
 - Can `fill.py` take one break per worker without a structural change?
-- Does the MES test setup tolerate an `after_commit` listener (session fixtures, rollbacks)?
+- ~~Does the MES test setup tolerate an `after_commit` listener?~~ Yes (2026-11-23): the tests' session commits a
+  savepoint and `after_commit` fires on it; the listener is a no-op without `SCHEDULER_URL`; full suite green.
 - ~~Does the seed data hold orders past `DATA_PREP_SECONDARY`?~~ No (2026-11-23, scratch database from
   `initial_data.py`): the integration round trip publishes an empty schedule. An arrived order is seeded for
   the end-to-end test 2.4.
@@ -169,8 +170,9 @@ baseline a CI error.
   if it happens, the policy (e.g. publish when every violation is among frozen operations, log the rest) is a
   Blocked entry.
 - How does a rework clone or a repeated step map to a unique `Operation.id` within an order?
-- Do scrap and the rework clone change a `WorkTask` or `Equipment` row? If not, the listener misses them and
-  only the safety poll catches them; extend the listener to those rows.
+- ~~Do scrap and the rework clone change a `WorkTask` or `Equipment` row?~~ The listener also watches
+  `OrderPart.current_status` (scrap) and `ProductionOrder` planning status / completion (2026-11-23); a rework
+  clone creates a `WorkTask`, which is caught as a task status change.
 
 ## Later (not in the slices; user, 2026-11-23)
 
@@ -243,3 +245,4 @@ PR comments read until: 2026-11-23T13:40Z
 | 2026-11-23 | 2.2a | sim (this commit) | 2.2 split into 2.2a/b/c. `mes_bridge.factory`: `MesFactory` (the `Factory` over the MES) and `step` (changed set of operations → `adapt_plan(arrived=True)`; the thesis tool decides, no bridge-side copy). 7 tests against the shared fake MES. Gates: bridge 73 passed + 1 integration skipped (no MES), simulation 1811 passed. Findings: (u) `adapt_plan` compares the repaired and the current plan position by position (`_same`), so a factory must return its plan in a stable order: the DES uses operation order, `MesFactory` now too (an unchanged state republished before); (v) the arrival path of `adapt_plan` hands the old plan, which may name operations no longer in the instance, to the planner and the budget count; `dispatch_planner` ignores it and the count only looks up known operations, so it is safe for the rules; check again for CP-SAT and the GA warm start (5.1). |
 | 2026-11-23 | 2.2b | sim (this commit) | `mes_bridge.runner`: event server (`POST /events`, shared token), `Runner` (events merged per step; next wake = earliest of OVERDUE, PLANNED_START, period, safety poll 5 min; a failing step is logged and retried), CLI; `MesClient` re-login on 401. 12 tests (the event server on a local socket). Gates: bridge 85 passed + 1 skipped, simulation 1811 passed. Findings: (w) the MES recomputes a running step's expected end as now + 15 min at the floor on every export, so OVERDUE wakes about every 15 min while a step overruns, not every minute as in the DES (13 §3); fine for a proposal, the safety poll bounds it anyway; (x) the bridge listens on 127.0.0.1 by default; the MES must reach it, so a deployment sets `--host` and the MES's `SCHEDULER_URL` (2.3). |
 | 2026-11-23 | 2.2c | sim (this commit) | `mes_bridge.store` (`anchor.json` atomic, `decisions.jsonl`, per variant under `--state-dir`, git-ignored); `Runner.resume()` per decision 22 (resume only from the MES's current publication in the same epoch, else complete rescheduling). The fake MES serves `GET /planning/schedule`. 6 tests. Gates: bridge 91 passed + 1 skipped, simulation 1811 passed. Finding: (y) a resumed bridge compares the next problem's operations with the saved plan's, so a change while it was down (an arrival, a cancellation) is a complete rescheduling as required (decision 18), and an unchanged state republishes nothing. 2.2 complete. |
+| 2026-11-23 | 2.3 | MES d2c6e53 | `services/planning/scheduler_events.py`: listener on `Session` (collect at `after_flush`: task status → START / SHARE_END / COMPLETE / ARRIVAL / INSTANCE, machine status → MACHINE, scrapped part and order planning status / completion → INSTANCE; post per type after the commit in a daemon thread with `SCHEDULER_EVENTS_TOKEN`; drop on rollback; no-op without `SCHEDULER_URL`), registered in `app/main.py`; config `SCHEDULER_URL`, `SCHEDULER_EVENTS_TOKEN`. 8 tests incl. rollback sends nothing, the real POST with the token, an unreachable scheduler. Docs: `architecture.md` §8a, `AGENTS.md`, `docs/backend/authentication.md`. Gates: backend 1238 passed, ruff / format / mypy clean. Finding: (z) a rolled-back savepoint drops what earlier flushes of the outer transaction collected (shortcut, costs only delay). |
