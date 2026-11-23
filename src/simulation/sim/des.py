@@ -125,6 +125,7 @@ class Simulation:
         against it. Default: the whole instance (every order known, e.g. a hindsight plan). `overdue` False: no
         OVERDUE events (they only give a planning tool time points; for a replay without one, faster)."""
         self.overdue = overdue
+        self._plan: list[Assignment] | None = None  # cache of current_plan()
         self.breaks = tuple(breaks)
         self.visible = visible or (lambda _t: ci)
         # waiting would silently repair a broken plan, so it is validated first (C1-C5, C11-C14)
@@ -275,11 +276,15 @@ class Simulation:
         return snapshot(self.ci, self.current_plan(), self.state, self.breaks, self.share_len)
 
     def current_plan(self) -> list[Assignment]:
-        """The plan the factory currently executes (the one last sent to it)."""
+        """The plan the factory currently executes (the one last sent to it). Cached: the planning tool asks at every
+        time point, the plan changes only with `_apply` (plan updates, `grow`) and swaps, which clear the cache."""
+        if self._plan is not None:
+            return list(self._plan)
         s = self.state
-        return [Assignment(order_id=k, op_id=j, machine=self._machine_id(o), start=s.planned_start[o],
+        self._plan = [Assignment(order_id=k, op_id=j, machine=self._machine_id(o), start=s.planned_start[o],
                            end=s.planned_end[o], workers=self._worker_ids(o), batch=s.batch_id[o])
-                for o, (k, j) in enumerate(self.ci.op_keys) if o in self.planned]
+                      for o, (k, j) in enumerate(self.ci.op_keys) if o in self.planned]
+        return list(self._plan)
 
     def update_plan(self, plan: Sequence[Assignment], breaks: Sequence[Break] | None = None) -> None:
         """Replace the current plan and, if given, the breaks not taken yet; plan and breaks must respect the frozen
@@ -404,6 +409,7 @@ class Simulation:
     def _apply(self, plan: Sequence[Assignment]) -> None:
         """Machine, workers, planned times, order per machine and per worker, and realized durations of the
         operations not started."""
+        self._plan = None  # the cached current plan is stale
         ci, s = self.ci, self.state
         worker_index = {w: i for i, w in enumerate(ci.worker_ids)}
         for a in plan:
@@ -502,6 +508,7 @@ class Simulation:
         s.worker_order[best].insert(s.worker_next[best], (o, i))
         for q in s.started_batch.get(o, s.batch[o]):  # every member of a batch carries the same workers
             s.worker[q][i] = best
+        self._plan = None  # the current plan's workers changed
         self._record("SWAP", o, share=self.ci.shares[o][i].kind, planned=self.ci.worker_ids[planned],
                      actual=self.ci.worker_ids[best])
 
@@ -645,28 +652,5 @@ def replay(
 ) -> SimResult:
     """Execute the whole plan without a planning tool; without a scenario the realized schedule equals the plan."""
     sim = Simulation(ci, plan, scenario, breaks, overdue=False)  # no planning tool: OVERDUE not needed
-    sim.run()
-    return SimResult(sim.realized(), sim.log, sim.realized_breaks())
-
-
-def replay_from(
-    ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignment], scenario: Scenario, breaks: Iterable[Break] = ()
-) -> SimResult:
-    """Planner-side estimate (math/14 section 4a): execute a plan made from `snapshot` under the planner's own
-    `scenario`. The frozen part keeps its snapshot times, except that a running operation ends at its own draw,
-    at t + 1 at the earliest; the rest runs as in `replay`. Re-simulates the past from 0 (cheap: fixed times).
-    shortcut: frozen shares and s-batches get one factor per operation, so a running prefix or a started s-batch may
-    drift by rounding; good enough for an estimate, upgrade if the planner needs exact frozen worker times."""
-    factors = factors_by_index(ci, scenario)
-    fixed = {}
-    for f in snapshot.frozen:
-        o = ci.op_index[f.order_id, f.op_id]
-        p = ci.fixed_duration[o] if f.machine is None else dict(ci.options[o])[ci.machine_index[f.machine]]
-        d = max(snapshot.t + 1 - f.start, realized_duration(p, factors[o].factor)) if f.running else f.end - f.start
-        fixed[f.order_id, f.op_id] = d / p
-    own = scenario.model_copy(update={"factors": tuple(
-        x.model_copy(update={"factor": fixed[k], "start_offset": 0}) if (k := (x.order_id, x.op_id)) in fixed else x
-        for x in scenario.factors)})
-    sim = Simulation(ci, plan, own, breaks, overdue=False, validate_from=snapshot)
     sim.run()
     return SimResult(sim.realized(), sim.log, sim.realized_breaks())

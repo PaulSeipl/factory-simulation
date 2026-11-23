@@ -179,6 +179,15 @@ mk01, 10 scenarios per setting (seeds 0–9), best dispatching plan as start pla
 
 With the OVERDUE event the means are unchanged on mk01 (overruns are seen through other events soon enough there); only the numbers of reschedulings rise slightly. Before the anchor, $\delta_C = 2$ triggered 0.1 reschedulings per run with offsets and realized 58.7 (drift). Repair alone gains nothing with start offsets: late workers keep the plan behind, so an operation is rarely ready before its planned start (no use for a left shift).
 
+- **Repair skipped when the factory ran as planned** (2026-11-22, speed): `control.rescheduling._unaffected` before
+  the shift repair: every started operation has its planned start, end, machine, share lengths and workers (a running
+  one's expected end included), no operation not started was planned before $t$, every break planned before $t$ was
+  taken at its planned start. Then the repair would return the plan unchanged and is not run. Not a model change:
+  test `tests/test_repair_skip.py` compares every run with the run that always repairs (schedule, decisions without
+  the wall-clock `planner_time`, breaks; four small instances incl. dental workers, offsets, repair only and rule
+  rescheduling); dropping the "planned before $t$" condition fails it. Effect small under disturbance (dental
+  example, $\sigma = 0.45$: 27 s → 26 s per run): almost every time point brings a deviation.
+
 ## 6. Assumptions and open points
 
 - The reference is always the plan last sent to the MES, i.e. after every repair the repaired plan, after an accepted rescheduling the new plan.

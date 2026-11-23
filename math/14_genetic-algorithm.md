@@ -364,7 +364,7 @@ $p \approx 0.11$). One instance each, one GA seed, a rule as rescheduler; each r
 - `objectives.py`, `expected(objective, scenarios_for)` (§4a): an `Objective` whose `evaluate` replays the plan
   under each of the planner's scenarios for the instance (`scenarios_for(ci)`, e.g. `planner_scenarios(sigma,
   seeds, ...)`, keyed draws `sim.scenario.sample_planner_scenario`) and averages; `cpsat` raises; `with_snapshot`
-  gives the objective for plans from a snapshot, which replays with `sim.des.replay_from`. `solve_ga` binds it when it
+  gives the objective for plans from a snapshot, which replays with `objectives.replay_from` (the planner's lookahead; the DES only checks the plan against the snapshot). `solve_ga` binds it when it
   plans from a snapshot (`ga_planner` in the DES). Tests `tests/test_expected_objective.py` (11): zero disturbance on
   the toy plan and on dental workers with breaks, hand example, no scenario rejected, no CP-SAT model, the planner's
   draws equal the keyed ones, the GA not worse than any rule; from a snapshot at 5 on the toy plan: zero disturbance

@@ -8,6 +8,31 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-23 (100) — Speed of `execute` — uncommitted
+
+**Decided.** User: speed up `execute`; Pydantic also validates, so check what it checks before dropping it; the DES
+must stay independent of any planner.
+
+**Done.**
+- `replay_from` moved from `sim/des.py` to `objectives.py`: it is the planner's lookahead with its own scenarios, not
+  the factory; the DES keeps only `validate_from` (check a plan against a snapshot, as for any plan update).
+- Pydantic checked: `Assignment` validates field types, `start >= 0`, `end > start`, no extra fields. In the loop,
+  `current_plan` and the snapshot copied validated values out of the DES state. Building them with `model_construct`
+  instead was slower (Python-level, 36 s → 53 s per run) and was reverted. Instead `current_plan` is cached and
+  cleared where the plan changes (`_apply`, swaps): Pydantic and the checker stay at the boundary (planner output,
+  every plan update).
+- Repair skipped when the factory ran as planned ([05](05_rescheduling-frozen-part.md) §5, `_unaffected`); equality
+  test `tests/test_repair_skip.py` (9), mutation-checked. Docs: [05](05_rescheduling-frozen-part.md) §5,
+  [13](13_des.md) change log, [14](14_genetic-algorithm.md) §5.
+
+**Found.** One `execute` run (dental example, repair only, profiled) 36 s → 27 s with the cache, 26 s with the skip:
+under $\sigma = 0.45$ nearly every time point deviates, so the repair runs anyway. Left: repair 12 s (9 ms per call,
+whole plan), plan check on every update 4 s (kept: trust boundary), snapshot 7 s (rebuilt every time, although
+finished operations do not change).
+
+**Open.** Incremental snapshot (finished operations once); a repair that only touches what a deviation reaches;
+fewer planning calls (e.g. only at deviations above a tolerance, a policy change, user to decide).
+
 ## 2026-11-22 (99) — Merge of the GA/MCTS branch; expected objective from a snapshot — uncommitted
 
 **Decided.** User: commit, merge the RL session's branch (`refs/heads/claude/friendly-chandrasekhar-67ee3e` at

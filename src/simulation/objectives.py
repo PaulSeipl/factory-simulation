@@ -30,8 +30,8 @@ from simulation.calendar import (
 from simulation.check.feasibility import worker_intervals
 from simulation.model.compiled import CompiledInstance, share_interval
 from simulation.model.schedule import Assignment, Break
-from simulation.sim.des import replay, replay_from
-from simulation.sim.scenario import Scenario, sample_planner_scenario
+from simulation.sim.des import SimResult, Simulation, replay
+from simulation.sim.scenario import Scenario, factors_by_index, realized_duration, sample_planner_scenario
 from simulation.sim.snapshot import Snapshot
 
 
@@ -391,6 +391,29 @@ def start_deviation(reference: Sequence[Assignment]) -> Objective:
                                                         if (k := (a.order_id, a.op_id)) in ref),
         cpsat=cpsat, spread=lambda ci: ci.n_ops * horizon_bound(ci),  # every start lies within the horizon
     )
+
+
+def replay_from(
+    ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignment], scenario: Scenario, breaks: Iterable[Break] = ()
+) -> SimResult:
+    """The planner's own lookahead, not the factory (math/14 section 4a): execute a plan made from `snapshot` under the planner's own
+    `scenario`. The frozen part keeps its snapshot times, except that a running operation ends at its own draw,
+    at t + 1 at the earliest; the rest runs as in `replay`. Re-simulates the past from 0 (cheap: fixed times).
+    shortcut: frozen shares and s-batches get one factor per operation, so a running prefix or a started s-batch may
+    drift by rounding; good enough for an estimate, upgrade if the planner needs exact frozen worker times."""
+    factors = factors_by_index(ci, scenario)
+    fixed = {}
+    for f in snapshot.frozen:
+        o = ci.op_index[f.order_id, f.op_id]
+        p = ci.fixed_duration[o] if f.machine is None else dict(ci.options[o])[ci.machine_index[f.machine]]
+        d = max(snapshot.t + 1 - f.start, realized_duration(p, factors[o].factor)) if f.running else f.end - f.start
+        fixed[f.order_id, f.op_id] = d / p
+    own = scenario.model_copy(update={"factors": tuple(
+        x.model_copy(update={"factor": fixed[k], "start_offset": 0}) if (k := (x.order_id, x.op_id)) in fixed else x
+        for x in scenario.factors)})
+    sim = Simulation(ci, plan, own, breaks, overdue=False, validate_from=snapshot)
+    sim.run()
+    return SimResult(sim.realized(), sim.log, sim.realized_breaks())
 
 
 def expected(objective: Objective, scenarios_for: Callable[[CompiledInstance], Sequence[Scenario]]) -> Objective:

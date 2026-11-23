@@ -11,11 +11,11 @@ from simulation.check.feasibility import check_schedule
 from simulation.control.rescheduling import ReschedulingPolicy, execute
 from simulation.io.json_loader import read_model
 from simulation.model.compiled import compile_instance
-from simulation.objectives import MAKESPAN, expected, planner_scenarios
+from simulation.objectives import MAKESPAN, expected, planner_scenarios, replay_from
 from simulation.planners.dispatching import dispatch_plan, spt
 from simulation.planners.ga import GaParams, ga_planner, rule_plans, solve_ga
 from simulation.planners.repair import repair
-from simulation.sim.des import PlanNotExecutable, Simulation, replay_from
+from simulation.sim.des import PlanNotExecutable, Simulation
 from simulation.sim.scenario import Scenario, sample_planner_scenario, sample_scenario
 
 
