@@ -23,9 +23,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from zoneinfo import ZoneInfo
 
 from simulation.control.rescheduling import Anchor, ReschedulingPolicy
-from simulation.planners.dispatching import dispatch_planner, spt
 
 from mes_bridge.client import MesClient, http
+from mes_bridge.config import SchedulerConfig
 from mes_bridge.factory import MesFactory, step
 from mes_bridge.instance import epoch_of
 from mes_bridge.once import VARIANT
@@ -156,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--state-dir", default="mes_bridge_state", help="anchor.json and decisions.jsonl per variant")
+    ap.add_argument("--config", help="SchedulerConfig JSON file (default: the defaults)")
     args = ap.parse_args(argv)
     password, token = os.environ.get("MES_SCHEDULER_PASSWORD"), os.environ.get("MES_EVENTS_TOKEN")
     if not password or not token:
@@ -164,9 +165,11 @@ def main(argv: list[str] | None = None) -> int:
     client = MesClient(http(args.url))
     client.login(os.environ.get("MES_SCHEDULER_USERNAME", "scheduler"), password)
     tz = ZoneInfo(client.problem().instance.calendar.time_zone)
+    config = SchedulerConfig.load(args.config)
     runner = Runner(
         MesFactory(client, epoch=epoch_of(datetime.now(UTC), tz)),
-        ReschedulingPolicy(planner=dispatch_planner(spt)),
+        config.rescheduling_policy(),
+        poll=timedelta(minutes=config.safety_poll_minutes),
         store=Store(args.state_dir, VARIANT),
     )
     server = event_server(token, runner.events, args.host, args.port)

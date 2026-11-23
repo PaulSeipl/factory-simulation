@@ -16,10 +16,10 @@ from zoneinfo import ZoneInfo
 from simulation.check.feasibility import Violation, check_schedule
 from simulation.model.compiled import CompiledInstance, compile_instance
 from simulation.model.schedule import Assignment, Plan
-from simulation.planners.dispatching import dispatch_plan, spt
 
 from mes_bridge.api import ProblemOut, ScheduleIn, ScheduleStepIn
 from mes_bridge.client import MesClient, http
+from mes_bridge.config import SchedulerConfig
 from mes_bridge.instance import build_instance, epoch_of
 from mes_bridge.state import IdMap, build_snapshot, id_map
 
@@ -32,14 +32,16 @@ class Outcome:
     violations: list[Violation]
 
 
-def solve(problem: ProblemOut, *, epoch: datetime, solved_at: datetime) -> Outcome:
-    """The rule plan for the problem as a schedule, or the checker's violations."""
+def solve(
+    problem: ProblemOut, *, epoch: datetime, solved_at: datetime, config: SchedulerConfig | None = None
+) -> Outcome:
+    """The configured planner's plan for the problem as a schedule, or the checker's violations."""
     if not problem.instance.operations:  # nothing has arrived: an empty schedule says so
         return Outcome(_schedule(problem, solved_at, []), [])
     ci = compile_instance(build_instance(problem, epoch=epoch))
     ids = id_map(problem, ci)
     snap = build_snapshot(problem, ci, ids, epoch=epoch)
-    plan = dispatch_plan(ci, spt, snapshot=snap)
+    plan = (config or SchedulerConfig()).solver.planner()(ci, snap, [])
     if violations := check_schedule(ci, plan.assignments, snapshot=snap, breaks=plan.breaks):
         return Outcome(None, violations)
     return Outcome(_schedule(problem, solved_at, steps(problem, ci, ids, plan, epoch)), [])
@@ -90,10 +92,10 @@ def _dt(epoch: datetime, minute: int) -> datetime:
     return (epoch + timedelta(minutes=minute)).astimezone(UTC)
 
 
-def run(client: MesClient, *, now: datetime, dry_run: bool = False) -> Outcome:
+def run(client: MesClient, *, now: datetime, dry_run: bool = False, config: SchedulerConfig | None = None) -> Outcome:
     problem = client.problem()
     epoch = epoch_of(now, ZoneInfo(problem.instance.calendar.time_zone))  # decision 17: the start week
-    outcome = solve(problem, epoch=epoch, solved_at=now)
+    outcome = solve(problem, epoch=epoch, solved_at=now, config=config)
     if outcome.schedule is not None and not dry_run:
         client.publish(outcome.schedule)
     return outcome
@@ -103,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--url", default=os.environ.get("MES_URL", "http://localhost:8080"))
     ap.add_argument("--dry-run", action="store_true", help="plan and check, do not publish")
+    ap.add_argument("--config", help="SchedulerConfig JSON file (default: the defaults)")
     args = ap.parse_args(argv)
     password = os.environ.get("MES_SCHEDULER_PASSWORD")
     if not password:
@@ -110,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     client = MesClient(http(args.url))
     client.login(os.environ.get("MES_SCHEDULER_USERNAME", "scheduler"), password)
-    outcome = run(client, now=datetime.now(UTC), dry_run=args.dry_run)
+    outcome = run(client, now=datetime.now(UTC), dry_run=args.dry_run, config=SchedulerConfig.load(args.config))
     if outcome.schedule is None:
         print(f"not published: {len(outcome.violations)} violations", file=sys.stderr)
         for v in outcome.violations:

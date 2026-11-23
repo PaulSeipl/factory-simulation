@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- 3.3b: `mes_bridge.config.SchedulerConfig` (decision 9; Pydantic, `extra="forbid"`, JSON via `--config` on the runner
+  and the one-shot command): the solver (a sequencing and an assignment rule of the thesis), the rescheduling policy's
+  thresholds (math/05 §3) and the safety-poll interval. CP-SAT and the GA join in 5.1, the frozen horizon in 5.2.
 - 3.2: a rework round (decision 8). While a plate's rework request is open, the MES has its QM done (suppressed) and
   REWORK open; the bridge plans the thesis route QM -> REWORK (a mill run per plate) -> RECHECK -> sawing, so sawing
   and the primary finishing wait for the re-check. RECHECK has no MES key until QM reopens (an instance change), so it
