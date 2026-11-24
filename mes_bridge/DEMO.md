@@ -45,10 +45,22 @@ On the first run (or with `-Reset`) it creates the demo database `mes_demo` (`te
 - shift: **08:00 to 17:30** (8 h 30 min including the break), overtime up to 19:30 (120 min)
 - one printer (**Printer 1**) and one mill (**Mill 1**)
 - the `scheduler` service account with a generated password
-- three orders that arrived today, each on its own print, due in 2, 3 and 4 days:
-  - D001: two secondary teeth
-  - D002: two teeth with both a primary and a secondary part, so the PRIMARY lane and the QM join show
-  - D003: three secondary teeth
+- five telescope orders, each with n primary crowns (milled) and one secondary bridge with n telescopes
+  (printed), so both lanes and the QM join show. Each is on its own print.
+  - two orders in the pipeline, with the three general tasks done. They are on *Planning → Ready for planning*,
+    not planned and not nested, so the scheduler does not see them yet:
+    - *Pipeline, urgent*: 3 telescopes, priority HIGH, due tomorrow
+    - *Pipeline, relaxed*: 2 telescopes, priority LOW, due in 8 days
+  - three orders planned and nested today (each on its own print), priority NORMAL:
+    - *4 telescopes*: 4 primary, 1 secondary, due in 3 days
+    - *6 telescopes*: 6 primary, 1 secondary, due in 4 days
+    - *3 telescopes*: 3 primary, 1 secondary, due in 5 days
+
+  The scheduler weighs the due dates (tardiness), not the priority field.
+
+  Known (2026-11-24): with these orders CP-SAT (`demo_cpsat.json`, worker objective, 10 s) finds no plan and the
+  bridge falls back to the SPT rule; `demo_scenario.py` fails at step 2 (a re-solve takes over 30 s). Slice 7 of
+  `PLAN.md` takes the long solves out of the automatic path.
 
 The generated secrets go to `%TEMP%\mes_demo_secrets.ps1`.
 

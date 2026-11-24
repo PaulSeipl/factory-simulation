@@ -7,8 +7,8 @@ whose helpers it reuses), from `backend/`, against a scratch database (`POSTGRES
     uv run python <this file> act <anchor.json of the running bridge>
     uv run python <this file> demo
 
-`demo` seeds the showcase of `mes_bridge/DEMO.md`: three arrived orders with due dates, each on its own print (two
-secondary-only, one with both lanes); one printer and one mill; Timo, Lukas and Quirin as the only workers
+`demo` seeds the showcase of `mes_bridge/DEMO.md`: five telescope orders (n primary crowns, one secondary bridge),
+each on its own print: two in the pipeline (urgent and relaxed), three arrived today; one printer and one mill; Timo, Lukas and Quirin as the only workers
 (08:00-17:30, overtime until 19:30). `second-printer` adds a printer (the scenario's machine-down step).
 
 `seed` creates an intern order of two telescopes and drives it through pre-planning and DATA_PREP_SECONDARY (with
@@ -41,6 +41,7 @@ from app.models.orders.order import OrderPart
 from app.models.orders.planning import PlanningSetting
 from app.models.orders.schedule import Schedule
 from app.models.orders.work_task import WorkTask
+from app.schemas.lookup import OrderPriorityEnum
 from app.schemas.order import CompositionEnum, InternOrderCreate
 from app.schemas.process_engine import AcceptTaskInput, AmJobSubmit, CompleteTaskInput, HandoffTaskInput, TaskPartResult
 from app.schemas.process_lookup import TaskOutcomeEnum, TaskTypeEnum
@@ -118,7 +119,13 @@ def seed(
     teeth: tuple[int, ...] = (11, 12),
     print_no: str = "E2E1",
     due_in_days: int | None = None,
+    priority: OrderPriorityEnum = OrderPriorityEnum.NORMAL,
+    name: str | None = None,
+    arrive: bool = True,
 ) -> None:
+    """An intern order driven through pre-planning (the three general tasks: data check, design, geometry) and, with
+    `arrive`, planned (parts and routes) and through DATA_PREP_SECONDARY (the nesting on the plate), which is its
+    arrival for the scheduler. Without `arrive` it stays READY_FOR_PLANNING (the Planning page's list)."""
     with SessionLocal() as db:
         seed_intern_customer(db)
         seed_routes(db)
@@ -126,11 +133,13 @@ def seed(
         order = create_intern_order(
             db,
             obj_in=InternOrderCreate(
+                name=name,
                 tooth_list=list(teeth),
                 composition=composition,
                 is_multimat=False,
                 primary_target=None,
                 secondary_target=None,
+                priority=priority,
             ),
         )
         if due_in_days is not None:
@@ -140,6 +149,9 @@ def seed(
         fx = Fixtures(db)
         _drive_preplanning(db, order, fx)
         db.refresh(order)
+        if not arrive:  # READY_FOR_PLANNING: on the Planning page's list, not planned, so not nested either
+            print(f"seeded order {order.short_id} ({order.id}), ready for planning")
+            return
         plan_order(db, order)
         db.refresh(order)
         for _ in range(20):  # the route up to the arrival (DATA_PREP_SECONDARY), with the plate quadrant
@@ -164,11 +176,18 @@ def seed(
 
 
 def demo() -> None:
-    """The showcase scene (`mes_bridge/DEMO.md`): orders with due dates 2, 3 and 4 days out, so the worker objective
-    has tardiness to weigh; the second one also has a primary part (the PRIMARY lane, its blank, the QM join)."""
-    seed(CompositionEnum.SECONDARY_ONLY, teeth=(11, 12), print_no="D001", due_in_days=2)
-    seed(CompositionEnum.BOTH, teeth=(21, 22), print_no="D002", due_in_days=3)
-    seed(CompositionEnum.SECONDARY_ONLY, teeth=(31, 32, 33), print_no="D003", due_in_days=4)
+    """The showcase scene (`mes_bridge/DEMO.md`). Every order is telescope work: n primary crowns (milled) and one
+    secondary bridge over the same n teeth (printed), so both lanes and the QM join show.
+    - in the pipeline: the three general tasks done, ready for planning (and so for nesting), not in the plan yet:
+      one urgent (due tomorrow, HIGH), one relaxed (due in 8 days, LOW)
+    - arrived today (nested), NORMAL, due in 3, 4 and 5 days: 4, 6 and 3 telescopes, each on its own print"""
+    seed(CompositionEnum.BOTH, teeth=(14, 13, 23), due_in_days=1,
+         priority=OrderPriorityEnum.HIGH, name="Pipeline, urgent", arrive=False)  # fmt: skip
+    seed(CompositionEnum.BOTH, teeth=(33, 43), due_in_days=8,
+         priority=OrderPriorityEnum.LOW, name="Pipeline, relaxed", arrive=False)  # fmt: skip
+    seed(CompositionEnum.BOTH, teeth=(13, 12, 22, 23), print_no="D004", due_in_days=3, name="4 telescopes")
+    seed(CompositionEnum.BOTH, teeth=(15, 14, 13, 23, 24, 25), print_no="D006", due_in_days=4, name="6 telescopes")
+    seed(CompositionEnum.BOTH, teeth=(34, 33, 43), print_no="D003", due_in_days=5, name="3 telescopes")
     with SessionLocal() as db:
         # the factory's day: 08:00-17:30 (8.5 h + the 1 h break), overtime until 19:30
         setting = db.get(PlanningSetting, 1)

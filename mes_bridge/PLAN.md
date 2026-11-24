@@ -178,6 +178,51 @@ baseline a CI error.
   Original 6.2: MES: `GET /planning/plan?variant=`; frontend switch and suggestions; accepting writes an assignment
   through the existing `PUT`. Split: backend and frontend in separate rounds.
 
+### Slice 7: planned nesting flow (user, 2026-11-24; not started, needs the user's OK per task)
+
+Why: nesting is manual today (the worker forms the print job in `DATA_PREP_SECONDARY` and nests the blank in
+`DATA_PREP_PRIMARY`). With five orders the thorough solve takes minutes (CP-SAT worker objective: 92 s at a 30 s
+limit, no plan at 10 s), so it must not run on every event. An MES-only rule, not a thesis rule (no automatic
+nesting exists); a real nesting system later replaces only the grouping.
+
+Flow, mode "planned":
+1. *Planning → Ready for planning* (three general tasks done) = ready for nesting. The planner selects orders and
+   presses *Plan selected*. Instead of typing an estimated done date per order, the MES asks the scheduler for a
+   **proposal** (thorough solve, by hand): the selected orders join the plan with **placeholder carriers** (print
+   runs grouped by due date, up to 4 plates per run; one blank per order). The placeholders are internal: not
+   shown (not well founded), neither as groups nor as printer slots.
+2. The solve runs **in the background**. When it is done, a toast says so, with a button to the **proposal page**
+   (under Planning). The toast must reach the user on any page, so the frontend watches the proposal's status
+   app-wide (layout), not only on the Planning page.
+3. Proposal page: per order its spec (number of telescopes, tooth numbers, material), the proposed done date
+   (prefilled, editable), and what changes for the orders already planned (finish dates earlier/later, steps
+   changing worker or machine, what moves today). *Apply*: `plan_order` as today (parts, routes), the proposal
+   becomes the plan. *Discard*: nothing changes, the orders stay ready for planning.
+4. The nesting tasks (`DATA_PREP_SECONDARY`, `DATA_PREP_PRIMARY`) are then planned, assignable steps. On the queue
+   page they get **their own section "Nesting"**, apart from the other tasks, since they decide the carriers and so
+   the plan. The worker forms the print job there as today (the placeholder grouping is not suggested).
+5. After a nesting: the bridge **maps** the real carriers onto the placeholders' times (no re-optimization) and the
+   MES shows *Plan update pending: n orders nested since hh:mm*. *Update plan* starts the same background solve,
+   toast and proposal page. Nothing re-optimizes the plan without the user seeing it.
+6. Events in between (start, finish, overrun, machine down, assignment) stay automatic and fast (repair or a
+   short solve), as today.
+
+Mode "classic" (today, kept): arrival when `DATA_PREP_SECONDARY` is done, estimated dates typed by hand, the bridge
+re-solves on arrival. Switch: planning setting *Nesting flow: classic / planned*.
+
+- [ ] 7.1 MES + bridge: setting `nesting_flow`; in "planned" an order arrives when planned (`plan_order`), its
+  nesting tasks are in scope, placeholder carriers in the export (keys per order until the print job exists).
+- [ ] 7.2 Bridge: two solver profiles (fast for events, thorough for proposals); the thorough one never runs
+  automatically in "planned".
+- [ ] 7.3 MES + bridge: proposal variant (`PROPOSED`): request, background solve, status (requested, solving,
+  ready, failed), publish, the comparison with the current plan, apply / discard.
+- [ ] 7.4 Bridge + MES: after a nesting, map real carriers onto the placeholders; *Plan update pending* notice.
+- [ ] 7.5 Frontend: *Plan selected* starts the proposal; app-wide status watch with the toast and its button;
+  the proposal page with the order specs and the comparison (design pass first).
+- [ ] 7.6 Frontend: queue section "Nesting" for `DATA_PREP_SECONDARY` and `DATA_PREP_PRIMARY` (design pass first).
+- [ ] 7.7 Demo (low priority, user 2026-11-24): seed, `DEMO.md`, scenario. Open: solver and time limit for the
+  thorough profile.
+
 ## Known unknowns (facts to look up, not decisions)
 
 - Does `repair_plan` fail when the current plan holds operations missing from the instance? (Decision 18 assumes
