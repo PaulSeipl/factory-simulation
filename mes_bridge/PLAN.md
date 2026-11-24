@@ -1,6 +1,7 @@
 # MES scheduler integration: implementation plan
 
-Driven by a self-paced `/loop`. **Read this file top to bottom at the start of every round.**
+Slices 1-6 were driven by a self-paced `/loop`; slice 7 runs task by task on the user's go, without the loop.
+**Read this file top to bottom before every task.**
 
 - **Design (binding):** MES spec `docs/specs/2026-11-22-scheduler-integration-design.md` (decisions 1–23) and
   ADR `docs/adr/0003-scheduler-publishes-a-stored-schedule.md`. If the code disagrees with the spec, that is a
@@ -23,9 +24,9 @@ Driven by a self-paced `/loop`. **Read this file top to bottom at the start of e
 
 - [x] `gh` logged in (checked 2026-11-22).
 - [x] Claude Code permissions allow `git push` and `gh pr …` without a prompt in both worktrees (worked 2026-11-22).
-- [ ] Local MES backend on port 8080 with its database (needed from slice 1, task 1.6). 2026-11-23: 8080 runs
-  an MES without `/planning/problem` (the main branch, left alone); 1.6 ran this branch's backend on 8091
-  against a scratch database instead (migrated, seeded, scheduler user, dropped after).
+- [x] ~~Local MES backend on port 8080 with its database~~ Not needed: 8080 runs the main branch (left alone);
+  this branch's backend runs on 8091 against scratch databases named `mes_demo*` (`tests/e2e/demo_db.py`,
+  `demo.ps1`), dropped after.
 
 ## Each round
 
@@ -178,7 +179,7 @@ baseline a CI error.
   Original 6.2: MES: `GET /planning/plan?variant=`; frontend switch and suggestions; accepting writes an assignment
   through the existing `PUT`. Split: backend and frontend in separate rounds.
 
-### Slice 7: planned nesting flow (user, 2026-11-24; not started, needs the user's OK per task)
+### Slice 7: planned nesting flow (user, 2026-11-24; each task needs the user's OK)
 
 Why: nesting is manual today (the worker forms the print job in `DATA_PREP_SECONDARY` and nests the blank in
 `DATA_PREP_PRIMARY`). With five orders the thorough solve takes minutes (CP-SAT worker objective: 92 s at a 30 s
@@ -277,15 +278,43 @@ re-solves on arrival. Switch: planning setting *Nesting flow: classic / planned*
   (`mes_driver.py record-nesting`), tests `test_mapping.py` (5), MES 3 tests, `demo_scenario.py` step 11.
   Open: the blank lane is mapped by the same code but not covered by a recording (DATA_PREP_PRIMARY not driven).
 - [ ] 7.5 Frontend: *Plan selected* starts the proposal; app-wide status watch with the toast and its button;
-  the proposal page with the order specs and the comparison (design pass first).
+  the proposal page with the order specs and the comparison (design pass first). Split (user, 2026-11-24):
+  - [ ] 7.5a MES + bridge + frontend: *Plan selected* (planned flow) requests the proposal; an app-wide watch shows
+    that a solve runs and tells the planners when it is done. Design proposal (2026-11-24, waits for the user's OK):
+    - Duration: the thorough solve may take up to 30 min (user). Thorough CP-SAT `time_limit` 600 s: the limit holds
+      per stage of the worker objective (3 stages), so about 30 min at most.
+    - Channel: in the app only, no email or push. The MES has no push channel (no SSE, websocket or notification
+      table) and polling with `setInterval` is its pattern (`UnattendedStrip`, heartbeat). The layout polls
+      `GET /planning/proposals?limit=1` every 15 s for users with planning rights, every 60 s while nothing is open.
+    - While it runs: a persistent indicator in the header for planners, "Proposal: solving since hh:mm (n orders),
+      ready by about hh:mm". `expected_by` comes from the bridge with SOLVING (its time limit x stages + 1 min), since
+      only the bridge knows its config. Past `expected_by` + 5 min the indicator says "taking longer than expected,
+      is the scheduler running?" (the offline notice's staleness covers the rest).
+    - Done: READY or FAILED once shows a toast with a button to the proposal page to every planner online, and the
+      indicator stays "Proposal ready, review" (or "failed: why") until it is applied or discarded. A missed toast
+      (away, logged out, another page) is caught by the indicator; no per-user read state.
+    - Who: `scheduler_proposal.requested_by_id` (new column, set on POST); the toast names who requested it and the
+      requester's says "your proposal". All planners see it, since only one proposal is open at a time anyway.
+    - A solve left behind: the bridge fails SOLVING proposals it does not run on its start ("the scheduler
+      restarted"). Discard during a solve: today the bridge only drops the result (409 on publish) and the thread runs
+      to its limit, so a new request can wait up to 30 min; stopping CP-SAT on discard (`StopSearch` from a solution
+      callback that checks a flag) is part of 7.5a if the thesis planner allows it without a model change.
+  - [ ] 7.5b Frontend: proposal page (order specs, editable done date, comparison), *Apply* and *Discard*.
+  - [ ] 7.5c Frontend: *Plan update pending* banner (`GET /planning/update-pending`) and *Update plan*.
 - [ ] 7.6 Frontend: queue section "Nesting" for `DATA_PREP_SECONDARY` and `DATA_PREP_PRIMARY` (design pass first).
 - [ ] 7.7 Demo (low priority, user 2026-11-24): seed, `DEMO.md`, scenario. Open: solver and time limit for the
   thorough profile.
 
 ## Known unknowns (facts to look up, not decisions)
 
-- Does `repair_plan` fail when the current plan holds operations missing from the instance? (Decision 18 assumes
-  it does.)
+- ~~Does `repair_plan` fail when the current plan holds operations missing from the instance?~~ Moot (7.4): an op
+  set changed by renaming only (a nesting) is mapped (`mapping.py`); any other change of the op set is a complete
+  rescheduling (`MesFactory.refresh`), so the repair never sees missing operations.
+- CP-SAT infeasible on real data (finding uu, 5.1): an open task over the break window makes the owed break
+  impossible (C14^f). The bridge falls back to the fast rule; since 2026-11-24 a proposal planned that way says so
+  (its note). The thesis fix is a model change (math/04, math/12, CP-SAT), not made.
+- Does the mapping after a nesting work for the blank lane (DATA_PREP_PRIMARY)? Same code as the plate lane, but no
+  recording drives it (7.4).
 - ~~Can `fill.py` take one break per worker without a structural change?~~ Yes (4.2): the worker calendar's
   windows split around the break; `fill` itself is unchanged.
 - ~~Does the MES test setup tolerate an `after_commit` listener?~~ Yes (2026-11-23): the tests' session commits a
@@ -417,7 +446,7 @@ per telescope (`math/21` §4, 2026-11-16); the earlier table compared parts with
 
 ## Log
 
-PR comments read until: 2026-11-23T13:40Z
+PR comments read until: 2026-11-24T16:30Z (none from the user since slice 6)
 
 | Date | Task | Commits | Findings |
 |---|---|---|---|
@@ -463,3 +492,11 @@ PR comments read until: 2026-11-23T13:40Z
 | 2026-11-23 | 6.1 | sim (this commit) | Pins on the compiled instance (`state.pin`): the format has machine options and qualified workers per step (`WorkerShare.qualified`), shared by every carrier, so a pin for one plate's step cannot be written there; `CompiledInstance.options` / `shares` are per operation, and the checker then enforces the pins too. Findings: (ww) a machine pin must cover the whole run (`machine_groups`): AM_PREP (setup + print) and PART_POWDER_REMOVAL (removal) are separate MES steps with separate assignments but one machine. (xx) In BOUND a changed pin must trigger a complete rescheduling: a repair keeps machine and worker, so the repaired plan would break the new pin and every publication would be rejected. Variants: one factory, anchor and state directory each; `runner.Runners` over one event queue. Not done: the end-to-end run against a live MES with two variants (the MES serves only BOUND until 6.2). Gates: bridge 166 passed + 1 skipped, ruff clean; no `src/simulation/` change (simulation 1811 at 5.1). |
 | 2026-11-23 | 6.2a | MES f1a33be | 6.2 split (backend / frontend). `GET /planning/plan?variant=BOUND|FREE` (default BOUND, so every existing caller is unchanged; unknown 422); `served.build_served_plan(variant=)` serves that variant's latest schedule, the fill (with the assignments) for the rest; `PlanOut.variant`. Tests: 1 served (each variant its own schedule), 1 API (FREE, default, unknown). Gates: backend 1269 passed, ruff / format / mypy clean; client regenerated, svelte-check 0 / 0. |
 | 2026-11-23 | 6.2b | MES 86c726d | Design pass (existing patterns, en / de): Team plan loads both variants; once a FREE schedule is served, a Carbon ContentSwitcher 'Plan' / 'Free plan' picks the one the timeline shows, and a suggestions list compares them: a not-started step the free plan gives another worker or starts >= 30 min earlier ('<worker> instead of <worker> · <h> earlier', largest gain first, 8 shown). Accept writes the step's worker (and machine where the step has one) as its first order's pick through the existing audited order assignment PUT (`picksFrom` / `itemsFrom` of the order page: every other pick kept; a job-level row is the job's assignment); a step no longer open or still locked is refused without writing. Shortcut: a carrier step's suggestion is accepted as its order's (or job's) row, so it holds for every carrier of that row (the MES assigns at node grain). Tests: 4 (`suggestions.test.ts`: the diff, what is left out, accept writes one pick, refusal). Gates: svelte-check 0 / 0, lint 0 errors, vitest 127 passed; no backend change. Not checked: the pages in a browser, the round trip with a live bridge publishing FREE. |
+| 2026-11-24 | demo | sim b177ef6, 09ab169, fdcfc3c; MES 3834805, a3c9010, f68e5f3 | Not a plan task (user's requests): one-command demo `demo.ps1` (MES 8091, bridge 8766, frontend 5173; Timo, Lukas, Quirin, 08:00-17:30 + 120 min overtime, Printer 1, Mill 1), overtime from the MES setting, telescope demo orders, max-overtime setting and time-field fixes in the MES settings page (checked in the browser), the order planning tab shows the served plan. |
+| 2026-11-24 | 7.1a | MES 47db8b1 | See 7.1a above. |
+| 2026-11-24 | 7.1b | sim aaa893d | See 7.1b above. |
+| 2026-11-24 | 7.2 | sim a8d678d | See 7.2 above. Thorough CP-SAT on 5 orders: 217-287 s at 60 s per stage. |
+| 2026-11-24 | 7.3 | MES 7dfbf67, 1a4aa42; sim 905e5f2 | See 7.3a-c above. Scenario step 10. |
+| 2026-11-24 | 7.4 | MES 7bd866f; sim 402c715 | See 7.4 above. Scenario 32/32 (step 11: MAP, no REPLAN). |
+| 2026-11-24 | fix | sim 03db779 | `demo_db.py`: one secrets file per database; the scenario's had overwritten the demo's, so `demo.ps1` rebuilt `mes_demo`. |
+| 2026-11-24 | review | (this commit) | Plan review answered by the user: (1) browser pass over 4.1, 4.4b, 5.3, 6.2b: 4.1, 4.4b, 6.2b from the shots of 11-23; 5.3 re-run on the scratch DB `mes_demo_offline` (one publish, bridge stopped, staleness set to 1 min in the settings UI): the notice shows on the dashboard, My plan and Team plan; dropped after. Noted: offline, the fill has no workers (it carries assignments only, `plan.py`) and runs through the night; by design, not 5.3. (2) A proposal the fast rule planned (CP-SAT no plan) says so: `PUT .../schedule?note=` sets `scheduler_proposal.message`. (4) Plan update pending counts from the later of the last applied proposal and the switch to the planned flow (`planning_setting.nesting_flow_since`, migration `375e140ab425`, up / down / `alembic check` clean on a scratch DB, dropped). (5) 7.5 split into 7.5a-c; (3) design for the long solve in 7.5a, waits for the user. `npm run lint` / `npm test` had been skipped in slice 7, run now: lint 0 errors (36 jsdoc style warnings), vitest 128 passed. MES 1309 passed, bridge 216 passed. Commits MES 9bce78f, sim b90de14. MES CI green on 7bd866f; simulation has no CI. |
