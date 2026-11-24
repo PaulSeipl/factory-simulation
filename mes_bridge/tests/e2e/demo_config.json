@@ -1,0 +1,5 @@
+{
+  "solver": {"kind": "rule", "sequencing": "edd"},
+  "thorough": {"kind": "cpsat", "objective": "worker", "time_limit": 60},
+  "policy": {"max_shift": 60, "period": 120}
+}

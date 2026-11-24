@@ -6,7 +6,7 @@
 .EXAMPLE
     .\demo.ps1            # first run: creates the demo database, then starts everything
     .\demo.ps1 -Reset     # a fresh demo database (drops mes_demo first), then starts everything
-    .\demo.ps1 -Solver rule   # the dispatching rule (SPT) instead of CP-SAT
+    .\demo.ps1 -Solver rule   # the SPT rule without the demo config (EDD, CP-SAT on request)
     .\demo.ps1 -Stop      # stops the three servers
     .\demo.ps1 -Drop      # stops them and drops the demo database
 #>
@@ -14,7 +14,7 @@ param(
     [switch]$Reset,
     [switch]$Stop,
     [switch]$Drop,
-    [ValidateSet('cpsat', 'rule')][string]$Solver = 'cpsat',
+    [ValidateSet('config', 'rule')][string]$Solver = 'config',
     [switch]$NoBrowser
 )
 $ErrorActionPreference = 'Stop'
@@ -64,7 +64,7 @@ if ($Reset -or -not $ours) {
 
 # 2. one script per pane (Windows Terminal splits its arguments at ';', so no inline commands)
 New-Item -ItemType Directory -Force $Work | Out-Null
-$config = if ($Solver -eq 'cpsat') { "--config `"$Bridge\tests\e2e\demo_cpsat.json`"" } else { '' }
+$config = if ($Solver -eq 'config') { "--config `"$Bridge\tests\e2e\demo_config.json`"" } else { '' }
 @{
     'mes.ps1'      = @"
 `$Host.UI.RawUI.WindowTitle = 'MES 8091'

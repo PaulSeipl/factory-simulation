@@ -5,7 +5,7 @@ Runs in the MES backend's environment, from `backend/`:
     uv run python <this file> [--keep]
 
 It creates the demo database `mes_demo_scenario` (`demo_db.py setup`), starts this branch's MES on 127.0.0.1:8091 and
-the bridge on 127.0.0.1:8766 (CP-SAT, `demo_cpsat.json`, both variants), then walks the showcase as a user would,
+the bridge on 127.0.0.1:8766 (`demo_config.json`: EDD automatically, both variants), then walks the showcase as a user would,
 each step through the HTTP API, and checks what the plan shows afterwards:
 
  1. first plan: both variants served (ONLINE), every open step from the scheduler, one break per worker and day,
@@ -173,7 +173,7 @@ def start_bridge(env, state):
     return subprocess.Popen(
         [str(python), "-m", "mes_bridge.runner", "--url",
          "http://127.0.0.1:8091", "--port", "8766", "--state-dir", str(state), "--config",
-         str(HERE / "demo_cpsat.json")],
+         str(HERE / "demo_config.json")],
         env=env, stdout=log, stderr=subprocess.STDOUT,
     )  # fmt: skip
 
@@ -206,7 +206,13 @@ def scenario(mes, env, bridge_state):
     open_steps = [s for s in b["steps"] if s["status"] not in STARTED]
     check("1 first plan: both variants ONLINE", b["scheduler"] == f["scheduler"] == "ONLINE", f"after {waited:.0f} s")
     srcs = {s["source"] for s in open_steps}
-    check("1 every open step from the scheduler", srcs == {"SCHEDULER"}, f"{len(open_steps)} steps, sources {srcs}")
+    # orders not arrived yet (the two ready for planning, classic flow) are the MES fill's by design
+    arrived = {o for s in open_steps if s["source"] == "SCHEDULER" for o in s["order_ids"]}
+    mine = [s for s in open_steps if set(s["order_ids"]) & arrived]
+    srcs = {s["source"] for s in mine}
+    fill = sorted({(s["task_type"], len(s["order_ids"])) for s in mine if s["source"] != "SCHEDULER"})
+    check("1 every open step of an arrived order from the scheduler", srcs == {"SCHEDULER"},
+          f"{len(mine)} steps of {len(arrived)} orders, sources {srcs}, not the scheduler's: {fill[:8]}")  # fmt: skip
     workers = {s["worker_id"] for s in b["steps"] if s["worker_id"]}
     days = {ts(x["start"]).astimezone(TZ).date() for x in b["breaks"]}
     per = {(x["worker_id"], ts(x["start"]).astimezone(TZ).date()) for x in b["breaks"]}

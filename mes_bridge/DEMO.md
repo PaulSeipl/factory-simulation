@@ -1,6 +1,6 @@
 # Showcase: the scheduler in the MES
 
-A demo of the integration: three orders arrive, the scheduler (CP-SAT) plans them with breaks, and the MES shows the
+A demo of the integration: three orders arrive, the scheduler plans them with breaks, and the MES shows the
 plan in My plan, the dashboard and Team plan. Then you change things (assignments, the break window, a machine, a
 started or overrunning task, the scheduler going down) and watch the plan follow.
 
@@ -29,7 +29,7 @@ $MES = "C:\Users\pauls\code\fidentis\PROD_DATA_MES_V2____postgres-dbms\.claude\w
 cd $SIM\mes_bridge
 .\demo.ps1            # first run: creates the demo database, then starts everything
 .\demo.ps1 -Reset     # a fresh demo database, then starts everything
-.\demo.ps1 -Solver rule   # the dispatching rule (SPT) instead of CP-SAT
+.\demo.ps1 -Solver rule   # the SPT rule without the demo config (EDD, CP-SAT on request)
 .\demo.ps1 -Stop      # stops the three servers
 .\demo.ps1 -Drop      # stops them and drops the demo database
 ```
@@ -58,9 +58,8 @@ On the first run (or with `-Reset`) it creates the demo database `mes_demo` (`te
 
   The scheduler weighs the due dates (tardiness), not the priority field.
 
-  Known (2026-11-24): with these orders CP-SAT (`demo_cpsat.json`, worker objective, 10 s) finds no plan and the
-  bridge falls back to the SPT rule; `demo_scenario.py` fails at step 2 (a re-solve takes over 30 s). Slice 7 of
-  `PLAN.md` takes the long solves out of the automatic path.
+  With these orders CP-SAT (worker objective) needs minutes, so it is not on the automatic path any more (task 7.2):
+  events are planned by the EDD rule; the thorough solve comes as a proposal (task 7.3).
 
 The generated secrets go to `%TEMP%\mes_demo_secrets.ps1`.
 
@@ -80,11 +79,13 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8091
 ```powershell
 . "$env:TEMP\mes_demo_secrets.ps1"
 cd $SIM\mes_bridge
-.\.venv\Scripts\python.exe -m mes_bridge.runner --url http://127.0.0.1:8091 --port 8766 --state-dir $env:TEMP\mes_demo\state --config tests\e2e\demo_cpsat.json
+.\.venv\Scripts\python.exe -m mes_bridge.runner --url http://127.0.0.1:8091 --port 8766 --state-dir $env:TEMP\mes_demo\state --config tests\e2e\demo_config.json
 ```
 It may start before the MES; it waits for it. Within about 20 s it prints `BOUND start ...: 1 published` and the
-same line for FREE. `demo_cpsat.json` selects CP-SAT (10 s per solve) and a policy that reschedules completely when
-a repair shifts a step by more than 60 min. Leave out `--config` to see the dispatching rule (SPT) instead. The
+same line for FREE. `demo_config.json` plans every automatic step with the EDD rule (earliest due date first,
+instant) and keeps CP-SAT (worker objective) as the thorough profile, which runs only on a request (slice 7.3, not
+built yet); its policy reschedules completely when a repair shifts a step by more than 60 min. Leave out `--config`
+to see the SPT rule instead. The
 bridge writes every decision to `$env:TEMP\mes_demo\state\<variant>\decisions.jsonl`: REPAIR or REPLAN, why, how
 many steps moved, the solver's status. That file is handy to show next to the UI.
 
@@ -131,8 +132,8 @@ Use two browser windows: one as **admin** (planner view) and one as a worker, e.
    (Ctrl+C). After a minute, My plan, the dashboard and Team plan say *Scheduler offline · last schedule from
    hh:mm*, and the plan comes from the MES's own rules. Restart it (arrow up, Enter): the notice disappears and the plan is the scheduler's
    again. Set the threshold back to 30 afterwards.
-8. **Solver choice (optional).** Stop the bridge, restart it without `--config` (dispatching rule) or with a copy of
-   `demo_cpsat.json` with `"kind": "ga"`, and compare the plans in Team plan.
+8. **Solver choice (optional).** Stop the bridge, restart it without `--config` (SPT rule) or with a copy of
+   `demo_config.json` whose `solver` is e.g. `{"kind": "ga", "time_limit": 10}`, and compare the plans in Team plan.
 
 ## 4. The same, checked automatically
 

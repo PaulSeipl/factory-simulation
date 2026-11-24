@@ -84,6 +84,21 @@ def test_events_since_the_last_step_are_merged_into_one():
     assert "3 events, 1 published" in lines[-1]
 
 
+def test_automatic_steps_never_run_the_thorough_planner():
+    """Task 7.2 (user, 2026-11-24): a long solve is never automatic. The first step (an arrival: a complete
+    rescheduling), events and the poll all plan with the policy's fast planner."""
+
+    def thorough(*_args, **_kw):
+        raise AssertionError("the thorough planner ran automatically")
+
+    fake, r, now, _ = _runner(thorough=thorough)
+    r.tick(now, "start")
+    r.events.put({"type": "INSTANCE"})
+    r.tick(now, "event")
+    r.tick(now + timedelta(minutes=5), "poll")
+    assert fake.published  # the fast planner planned and published
+
+
 def test_the_next_wake_is_the_earliest_timer_or_the_poll():
     fake, r, now, _ = _runner(poll=timedelta(seconds=30))
     fake.stale_minutes = 10**6  # the keep-alive deadline is not under test here

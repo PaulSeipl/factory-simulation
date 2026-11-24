@@ -225,8 +225,15 @@ re-solves on arrival. Switch: planning setting *Nesting flow: classic / planned*
   - Open: `PLATES_PER_PRINT` is a constant (the export does not carry the printers' plate slots); an order with a
     started nesting is still un-nested (its plates appear only when the nesting is done); the switch CLASSIC ->
     PLANNED changes the op set, so the bridge replans completely (expected).
-- [ ] 7.2 Bridge: two solver profiles (fast for events, thorough for proposals); the thorough one never runs
+- [x] 7.2 Bridge: two solver profiles (fast for events, thorough for proposals); the thorough one never runs
   automatically in "planned".
+  Done 2026-11-24: `SchedulerConfig.solver` is the fast profile for every automatic step (event, arrival, poll,
+  periodic) in both flows; `thorough` (optional, else `solver`) is held by the `Runner` for task 7.3 and never used
+  in `tick` (test `test_runner.py::test_automatic_steps_never_run_the_thorough_planner`). The demo config
+  (`tests/e2e/demo_config.json`, was `demo_cpsat.json`): EDD automatically, CP-SAT worker objective 60 s thorough.
+  Scenario 22/22, re-solves 1-2 s (were > 30 s with CP-SAT); its check 1 now covers arrived orders only (orders
+  ready for planning are the MES fill's by design). Measured and noted in `config.py`: CP-SAT's `time_limit` holds
+  per stage of the worker objective (30 -> 92 s, 60 -> 183 s on 125 operations).
 - [ ] 7.3 MES + bridge: proposal variant (`PROPOSED`): request, background solve, status (requested, solving,
   ready, failed), publish, the comparison with the current plan, apply / discard.
 - [ ] 7.4 Bridge + MES: after a nesting, map real carriers onto the placeholders; *Plan update pending* notice.

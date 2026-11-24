@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- Two solver profiles (slice 7, task 7.2; user 2026-11-24: a long solve is never automatic): `SchedulerConfig.solver`
+  plans every automatic step, `thorough` (new, optional) only a requested proposal (`thorough_planner()`, held by
+  `Runner.thorough` for task 7.3, never used in `tick`). Demo config renamed `tests/e2e/demo_config.json`: EDD rule
+  automatically, CP-SAT (worker objective, 60 s) thorough; `demo.ps1 -Solver config|rule`. `demo_scenario.py` check 1
+  covers arrived orders only (orders ready for planning are planned by the MES fill by design); 22/22 again, re-solves
+  1-2 s. Tests: `test_config.py` (profiles, invalid thorough), `test_runner.py` (automatic steps never call it).
 - Planned nesting flow (slice 7, task 7.1): in the MES setting `nesting_flow = PLANNED` an order reaches the scheduler
   once planned, before DATA_PREP_SECONDARY nested it, so its secondary parts have no plate and its print and plate
   steps are keyed per order. New `assumed.assume_plates` (called in `MesFactory.refresh` and `once.solve`) gives each

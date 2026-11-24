@@ -1,9 +1,15 @@
 """The scheduler's configuration (spec decision 9): one Pydantic model, read from a JSON file in v1; later stored in
 the MES and sent with the problem. Unknown keys fail loudly.
 
-    {"solver": {"kind": "cpsat", "time_limit": 30, "objective": "worker"},
+    {"solver": {"kind": "rule", "sequencing": "edd"},
+     "thorough": {"kind": "cpsat", "time_limit": 60, "objective": "worker"},
      "policy": {"max_shift": 60, "period": 480},
      "safety_poll_minutes": 5}
+
+Two solver profiles (task 7.2): `solver` plans every automatic step and must be fast; `thorough` plans only on a
+user's request (a proposal) and may take minutes. Measured on the five-order demo problem (125 operations, 3 workers,
+2026-11-24): the EDD rule instantly; CP-SAT with the worker objective found no plan in 10 s and took 92 s at
+`time_limit: 30` and 183 s at 60, since the limit holds per stage of its lexicographic objective, not per solve.
 
 The solver is one of the thesis planners (task 5.1): a dispatching rule pair (`kind: "rule"`, the default,
 `simulation.planners.dispatching`), CP-SAT (`"cpsat"`, `planners.cpsat.cpsat_planner`) or the GA (`"ga"`,
@@ -51,7 +57,9 @@ class SolverConfig(_Model):
     # kinds "cpsat" and "ga"
     objective: Literal["worker", "makespan"] = "worker"
     buffer: PositiveInt = Field(default=60, lt=1440)  # minutes before the shipping cutoff (math/04 (O7))
-    time_limit: PositiveFloat = 10.0  # seconds of wall clock per solve
+    # seconds of wall clock; CP-SAT with the worker objective spends it per stage of the lexicographic objective, so a
+    # solve takes several times this (measured 2026-11-24: 30 -> 92 s, 60 -> 183 s on 125 operations)
+    time_limit: PositiveFloat = 10.0
     deterministic_time: PositiveFloat | None = None  # CP-SAT only: a work-based limit, same result under any load
     seed: NonNegativeInt = 0
 
@@ -133,7 +141,11 @@ class PolicyConfig(_Model):
 
 
 class SchedulerConfig(_Model):
+    # Two profiles (slice 7, task 7.2; user 2026-11-24: a long solve is never automatic):
+    # `solver` plans every automatic step (an event, an arrival, the poll, the periodic deadline), so it must be fast;
+    # `thorough` only plans what a user requests (a proposal, task 7.3) and may take minutes; None: `solver` does both.
     solver: SolverConfig = SolverConfig()
+    thorough: SolverConfig | None = None
     # decision 4: both by default; if two solves per step are too slow, FREE can be left out
     variants: tuple[Literal["BOUND", "FREE"], ...] = Field(default=("BOUND", "FREE"), min_length=1)
 
@@ -148,7 +160,12 @@ class SchedulerConfig(_Model):
     safety_poll_minutes: PositiveInt = 5  # decision 14: a step without any event
 
     def rescheduling_policy(self) -> ReschedulingPolicy:
+        """The automatic path: always the fast profile (`solver`), never `thorough`."""
         return ReschedulingPolicy(planner=self.solver.planner(), **self.policy.model_dump())
+
+    def thorough_planner(self) -> Planner:
+        """The planner for a requested proposal: `thorough`, else `solver`."""
+        return (self.thorough or self.solver).planner()
 
     @classmethod
     def load(cls, path: str | Path | None) -> "SchedulerConfig":

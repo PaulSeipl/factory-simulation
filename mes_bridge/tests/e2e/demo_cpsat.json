@@ -1,4 +1,0 @@
-{
-  "solver": {"kind": "cpsat", "objective": "worker", "time_limit": 10},
-  "policy": {"max_shift": 60, "period": 120}
-}

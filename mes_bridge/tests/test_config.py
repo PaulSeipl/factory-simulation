@@ -47,11 +47,24 @@ def test_a_file_sets_the_solver_and_the_policy(tmp_path):
         {"solver": {"kind": "ga", "buffer": 1440}},  # the cutoff slack needs a buffer under a day
         {"solver": {"kind": "ga", "seed": -1}},
         {"horizon": 60},  # unknown key: fails loudly
+        {"thorough": {"kind": "cpsat", "time_limit": 0}},  # the thorough profile is checked like the fast one
+        {"thorough": {"sequencing": "fastest"}},
     ],
 )
 def test_an_invalid_configuration_is_rejected(body):
     with pytest.raises(ValidationError):
         SchedulerConfig.model_validate(body)
+
+
+def test_two_profiles_fast_for_the_automatic_path_thorough_on_request():
+    """Task 7.2: `solver` is the automatic path, `thorough` only the requested one; without it, `solver` does both."""
+    c = SchedulerConfig.model_validate(
+        {"solver": {"kind": "rule", "sequencing": "edd"}, "thorough": {"kind": "cpsat", "time_limit": 60}}
+    )
+    assert c.rescheduling_policy().planner.__qualname__ != "cpsat_planner"
+    assert c.thorough_planner().__qualname__ == "cpsat_planner"
+    alone = SchedulerConfig.model_validate({"solver": {"kind": "ga", "time_limit": 5}})
+    assert alone.thorough is None and alone.thorough_planner().__qualname__ == "ga_planner"
 
 
 def test_the_configured_rule_plans_the_one_shot(tmp_path):

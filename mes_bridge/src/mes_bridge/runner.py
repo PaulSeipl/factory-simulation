@@ -26,7 +26,7 @@ from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from zoneinfo import ZoneInfo
 
-from simulation.control.rescheduling import Anchor, ReschedulingPolicy
+from simulation.control.rescheduling import Anchor, Planner, ReschedulingPolicy
 
 from mes_bridge.client import MesClient, http
 from mes_bridge.config import SchedulerConfig
@@ -98,8 +98,9 @@ def event_server(
 @dataclass
 class Runner:
     factory: MesFactory
-    policy: ReschedulingPolicy
+    policy: ReschedulingPolicy  # the automatic path, always the fast profile (task 7.2)
     events: "queue.Queue[dict]" = field(default_factory=queue.Queue)
+    thorough: Planner | None = None  # the thorough profile: only for a requested proposal (task 7.3), never in `tick`
     poll: timedelta = SAFETY_POLL
     anchor: Anchor | None = None
     decisions: list[dict] = field(default_factory=list)
@@ -268,6 +269,7 @@ def main(argv: list[str] | None = None) -> int:
             Runner(
                 MesFactory(client, epoch=epoch, variant=variant),
                 config.rescheduling_policy(),
+                thorough=config.thorough_planner(),
                 poll=timedelta(minutes=config.safety_poll_minutes),
                 store=Store(args.state_dir, variant),
             )
