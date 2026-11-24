@@ -17515,6 +17515,30 @@
             ],
             "title": "Planned Start"
           },
+          "planned_worker_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Worker Id"
+          },
+          "planned_equipment_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Equipment Id"
+          },
           "step_state": {
             "$ref": "#/components/schemas/StepStateEnum",
             "default": "OPEN"
