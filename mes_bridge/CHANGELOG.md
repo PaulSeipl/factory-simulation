@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- A proposal the fast rule planned says so (user 2026-11-24): when the thorough planner found no plan and fell back
+  (`planner.last['fallback']`, e.g. CP-SAT infeasible on real data, finding uu), `ProposalWorker` publishes the
+  schedule with a note (`PUT .../schedule?note=`, the MES stores it in the proposal's `message`); the proposal is
+  READY all the same. `MesClient.publish_proposal(note=)`; test `test_a_proposal_the_fast_rule_planned_says_so`.
 - After a nesting (slice 7, task 7.4; user 2026-11-24: nothing re-optimizes the plan unseen): new `mapping.py`.
   `MesFactory.refresh` treats an operation set that changed only by renaming (the parts moved from assumed to real
   plates, prints or blanks) as no arrival: `map_plan` gives every real owner the machine, workers and start of the

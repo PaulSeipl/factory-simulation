@@ -1,5 +1,6 @@
 """A fake MES for the bridge's tests: the endpoints it calls, the token checked, the PUT bodies validated."""
 
+from urllib.parse import parse_qs
 from uuid import UUID, uuid4
 
 from mes_bridge.api import ScheduleIn
@@ -47,6 +48,7 @@ class FakeMes:
             status = rest.removeprefix("?status=") or None
             out = [p for p in self.proposals.values() if status is None or p["status"] == status]
             return 200, [dict(p) for p in reversed(out)]  # newest first
+        rest, _, query = rest.partition("?")
         pid, _, what = rest.strip("/").partition("/")
         p = self.proposals.get(str(UUID(pid)))
         if p is None:
@@ -67,7 +69,7 @@ class FakeMes:
             if p["status"] not in ("REQUESTED", "SOLVING"):
                 return 409, {"detail": f"The proposal is {p['status']}"}
             self.proposal_schedules[p["id"]] = ScheduleIn.model_validate(body)
-            p["status"] = "READY"
+            p["status"], p["message"] = "READY", parse_qs(query).get("note", [None])[0]
             return 200, dict(p)
         return 404, {"detail": "Not Found"}
 

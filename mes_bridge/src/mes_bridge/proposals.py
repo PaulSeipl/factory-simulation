@@ -100,7 +100,9 @@ class ProposalWorker:
                 return
             solved_at = max(self._clock(), problem.as_of)  # the solve took a while; the MES clock may run ahead
             schedule = outcome.schedule.model_copy(update={"solved_at": solved_at})
-            self.client.publish_proposal(proposal_id, schedule)
+            fallback = (getattr(self.planner, "last", None) or {}).get("fallback")
+            note = f"The thorough solver found no plan ({fallback}); the fast rule planned instead." if fallback else None
+            self.client.publish_proposal(proposal_id, schedule, note[:MESSAGE_LIMIT] if note else None)
             if outcome.plan is not None:
                 with self._lock:
                     self._solved[proposal_id] = Solved(proposal_id, outcome.plan)

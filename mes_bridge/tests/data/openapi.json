@@ -9684,6 +9684,25 @@
               "format": "uuid",
               "title": "Proposal Id"
             }
+          },
+          {
+            "name": "note",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What the planner should know (a fallback)",
+              "title": "Note"
+            },
+            "description": "What the planner should know (a fallback)"
           }
         ],
         "requestBody": {

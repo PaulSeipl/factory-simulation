@@ -6,6 +6,7 @@ token; credentials come from the caller (the environment), never from a file in 
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 
@@ -104,6 +105,8 @@ class MesClient:
         body = ProposalStatusIn(status=status, message=message).model_dump(mode="json")
         return ProposalOut.model_validate(self._call("PUT", f"/planning/proposals/{proposal_id}/status", body))
 
-    def publish_proposal(self, proposal_id: UUID, schedule: ScheduleIn) -> ProposalOut:
+    def publish_proposal(self, proposal_id: UUID, schedule: ScheduleIn, note: str | None = None) -> ProposalOut:
+        """`note`: what the planner should know (the thorough solver fell back to the fast rule)."""
         body = schedule.model_dump(mode="json")
-        return ProposalOut.model_validate(self._call("PUT", f"/planning/proposals/{proposal_id}/schedule", body))
+        query = "?" + urllib.parse.urlencode({"note": note}) if note else ""
+        return ProposalOut.model_validate(self._call("PUT", f"/planning/proposals/{proposal_id}/schedule{query}", body))

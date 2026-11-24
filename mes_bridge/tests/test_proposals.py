@@ -83,6 +83,25 @@ def test_a_failing_solve_reports_failed_with_why():
     assert "solver crashed" in fake.proposals[pid]["message"]
 
 
+def test_a_proposal_the_fast_rule_planned_says_so():
+    """CP-SAT found no plan (real MES data can make it infeasible, finding uu): the proposal is READY with the rule's
+    plan, and its note tells the planner it is not the thorough solve."""
+    fake, r, _now, _ = _runner()
+
+    def thorough(ci, snap, plan):
+        thorough.last = {"status": "INFEASIBLE", "fallback": "no solution"}
+        return FAST(ci, snap, plan)
+
+    w = _worker(r, thorough, background=False)
+    pid = fake.request()
+    w.start_next()
+    assert fake.proposals[pid]["status"] == "READY"
+    assert "fast rule planned instead" in fake.proposals[pid]["message"]
+    plain = fake.request()
+    _worker(r, _spy([]), background=False).start_next()
+    assert fake.proposals[plain]["message"] is None
+
+
 def test_a_plan_the_checker_rejects_is_failed_not_published():
     fake, r, _now, _ = _runner()
     w = _worker(r, lambda *_a: Plan([], ()), background=False)  # leaves every operation out
