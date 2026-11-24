@@ -8,7 +8,7 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-24 (109) — GA population size in rescheduling — uncommitted
+## 2026-11-24 (109) — GA population size in rescheduling — 0cf636e
 
 **Decided.** User: try a smaller population for the rescheduling GA. Own: compare on the same rescheduling calls
 (recorded snapshots), at equal generations and at equal evaluations, level by level.
