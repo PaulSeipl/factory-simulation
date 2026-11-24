@@ -9,6 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
+from datetime import datetime
 
 from uuid import UUID
 
@@ -101,8 +102,10 @@ class MesClient:
         """The what-if problem: the proposal's orders planned (the MES keeps nothing)."""
         return ProblemOut.model_validate(self._call("GET", f"/planning/proposals/{proposal_id}/problem"))
 
-    def proposal_status(self, proposal_id: UUID, status: str, message: str | None = None) -> ProposalOut:
-        body = ProposalStatusIn(status=status, message=message).model_dump(mode="json")
+    def proposal_status(
+        self, proposal_id: UUID, status: str, message: str | None = None, expected_by: datetime | None = None
+    ) -> ProposalOut:
+        body = ProposalStatusIn(status=status, message=message, expected_by=expected_by).model_dump(mode="json")
         return ProposalOut.model_validate(self._call("PUT", f"/planning/proposals/{proposal_id}/status", body))
 
     def publish_proposal(self, proposal_id: UUID, schedule: ScheduleIn, note: str | None = None) -> ProposalOut:

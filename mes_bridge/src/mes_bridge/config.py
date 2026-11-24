@@ -10,6 +10,8 @@ Two solver profiles (task 7.2): `solver` plans every automatic step and must be 
 user's request (a proposal) and may take minutes. Measured on the five-order demo problem (125 operations, 3 workers,
 2026-11-24): the EDD rule instantly; CP-SAT with the worker objective found no plan in 10 s and took 92 s at
 `time_limit: 30` and 183 s at 60, since the limit holds per stage of its lexicographic objective, not per solve.
+A thorough solve may take up to 30 min (user, 2026-11-24): the worker objective has up to five levels, so
+`time_limit: 360` for CP-SAT with it (`max_solve_seconds`, which the planners see as "ready by"). The demo keeps 60.
 
 The solver is one of the thesis planners (task 5.1): a dispatching rule pair (`kind: "rule"`, the default,
 `simulation.planners.dispatching`), CP-SAT (`"cpsat"`, `planners.cpsat.cpsat_planner`) or the GA (`"ga"`,
@@ -90,6 +92,15 @@ class SolverConfig(_Model):
     def horizon_minutes(self) -> int:
         """The frozen horizon (decision 19): the solve's time limit in whole minutes, rounded up; 0 for a rule."""
         return 0 if self.kind == "rule" else math.ceil(self.time_limit / 60)
+
+    @property
+    def max_solve_seconds(self) -> float:
+        """How long a solve takes at most, for the planners' "ready by" (task 7.5a): CP-SAT spends its limit per level
+        of a lexicographic objective (the worker objective has up to five), the GA once; a rule is instant."""
+        if self.kind == "rule":
+            return 0.0
+        levels = 5 if self.kind == "cpsat" and self.objective == "worker" else 1
+        return self.time_limit * levels
 
     def rule_planner(self) -> Planner:
         return dispatch_planner(SEQUENCING_RULES[self.sequencing], ASSIGNMENT_RULES.get(self.assignment or ""))

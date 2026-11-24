@@ -304,7 +304,14 @@ def main(argv: list[str] | None = None) -> int:
             Runner(
                 MesFactory(client, epoch=epoch, variant=variant),
                 config.rescheduling_policy(),
-                proposals=ProposalWorker(client, config.thorough_planner(), epoch=epoch) if variant == BOUND else None,
+                proposals=ProposalWorker(
+                    client,
+                    config.thorough_planner(),
+                    epoch=epoch,
+                    max_seconds=(config.thorough or config.solver).max_solve_seconds,
+                )
+                if variant == BOUND
+                else None,
                 poll=timedelta(minutes=config.safety_poll_minutes),
                 store=Store(args.state_dir, variant),
             )

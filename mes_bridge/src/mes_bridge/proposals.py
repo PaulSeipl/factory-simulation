@@ -15,7 +15,7 @@ import threading
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from simulation.control.rescheduling import Planner
@@ -26,6 +26,8 @@ from mes_bridge.once import BOUND, solve
 
 REQUESTED, SOLVING, APPLIED, DISCARDED, FAILED = "REQUESTED", "SOLVING", "APPLIED", "DISCARDED", "FAILED"
 MESSAGE_LIMIT = 500  # characters of a FAILED message
+MARGIN = timedelta(minutes=1)  # export, check and publish around the solve
+RESTARTED = "The scheduler restarted during the solve; request the proposal again."
 
 
 @dataclass(frozen=True)
@@ -44,9 +46,11 @@ class ProposalWorker:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         log: Callable[[str], None] = print,
         background: bool = True,  # tests: solve in the caller's thread
+        max_seconds: float = 0.0,  # the thorough profile's longest solve, for the planners' "ready by"
     ):
         self.client, self.planner, self.epoch, self._clock, self.log = client, planner, epoch, clock, log
-        self.background = background
+        self.background, self.max_seconds = background, max_seconds
+        self._recovered = False
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
         self._solved: dict[UUID, Solved] = {}  # published, waiting for the planner
@@ -59,12 +63,17 @@ class ProposalWorker:
         """Take the oldest REQUESTED proposal unless a solve is running; its id, or None."""
         if self.busy:
             return None
+        if not self._recovered:  # a solve this process does not run any more: nobody would ever finish it
+            for left in self.client.proposals(status=SOLVING):
+                self._fail(left.id, RESTARTED)
+            self._recovered = True
         requested = self.client.proposals(status=REQUESTED)
         if not requested:
             return None
         proposal = requested[-1]  # the list is newest first; the MES keeps one open anyway
         try:
-            self.client.proposal_status(proposal.id, SOLVING)
+            expected_by = self._clock() + timedelta(seconds=self.max_seconds) + MARGIN
+            self.client.proposal_status(proposal.id, SOLVING, expected_by=expected_by)
         except MesError as e:
             if e.status == 409:  # discarded or taken meanwhile
                 return None

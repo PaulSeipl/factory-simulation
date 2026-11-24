@@ -208,6 +208,7 @@ class ScheduleOut(_Model):
 class ProposalStatusIn(_Model):
     status: str  # SOLVING | FAILED
     message: str | None = None
+    expected_by: datetime | None = None  # SOLVING: done at the latest (the thorough profile's time limit)
 
 
 class ProposalOut(BaseModel):

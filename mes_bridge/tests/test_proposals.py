@@ -182,3 +182,43 @@ def test_a_discarded_proposal_is_not_taken_over():
     r.tick(now, "event")
     assert not any("applied" in line for line in lines)
     assert r.proposals._solved == {}
+
+
+def test_solving_says_when_the_proposal_is_ready_at_the_latest():
+    """The planners' "ready by" (task 7.5a): now + the thorough profile's longest solve + a minute."""
+    fake, r, now, _ = _runner()
+    w = _worker(r, FAST, background=False, max_seconds=1800)
+    pid = fake.request()
+    seen = {}
+    status = w.client.proposal_status
+
+    def spy(proposal_id, s, message=None, expected_by=None):
+        seen.setdefault(s, expected_by)
+        return status(proposal_id, s, message, expected_by)
+
+    w.client.proposal_status = spy
+    w.start_next()
+    assert seen["SOLVING"] == r.factory._clock() + timedelta(minutes=31)
+    assert fake.proposals[pid]["status"] == "READY"
+
+
+def test_a_solve_left_behind_by_a_restart_is_failed_once():
+    fake, r, _now, _ = _runner()
+    left = fake.request()
+    fake.proposals[left]["status"] = "SOLVING"  # the previous process took it and died
+    w = _worker(r, FAST, background=False)
+    assert w.start_next() is None
+    assert fake.proposals[left]["status"] == "FAILED" and "restarted" in fake.proposals[left]["message"]
+    fresh = fake.request()
+    fake.proposals[fresh]["status"] = "SOLVING"  # this process's own solve: never failed again
+    w.start_next()
+    assert fake.proposals[fresh]["status"] == "SOLVING"
+
+
+def test_the_longest_solve_of_a_profile():
+    from mes_bridge.config import SolverConfig
+
+    assert SolverConfig(kind="rule").max_solve_seconds == 0
+    assert SolverConfig(kind="cpsat", time_limit=360).max_solve_seconds == 1800  # five levels: 30 min
+    assert SolverConfig(kind="cpsat", objective="makespan", time_limit=360).max_solve_seconds == 360
+    assert SolverConfig(kind="ga", time_limit=60).max_solve_seconds == 60

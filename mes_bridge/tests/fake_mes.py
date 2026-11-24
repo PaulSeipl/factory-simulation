@@ -63,7 +63,7 @@ class FakeMes:
             allowed = {"SOLVING": {"REQUESTED"}, "FAILED": {"REQUESTED", "SOLVING"}}[body["status"]]
             if p["status"] not in allowed:
                 return 409, {"detail": f"The proposal is {p['status']}"}
-            p["status"], p["message"] = body["status"], body.get("message")
+            p["status"], p["message"], p["expected_by"] = body["status"], body.get("message"), body.get("expected_by")
             return 200, dict(p)
         if (method, what) == ("PUT", "schedule"):
             if p["status"] not in ("REQUESTED", "SOLVING"):

@@ -279,10 +279,12 @@ re-solves on arrival. Switch: planning setting *Nesting flow: classic / planned*
   Open: the blank lane is mapped by the same code but not covered by a recording (DATA_PREP_PRIMARY not driven).
 - [ ] 7.5 Frontend: *Plan selected* starts the proposal; app-wide status watch with the toast and its button;
   the proposal page with the order specs and the comparison (design pass first). Split (user, 2026-11-24):
-  - [ ] 7.5a MES + bridge + frontend: *Plan selected* (planned flow) requests the proposal; an app-wide watch shows
-    that a solve runs and tells the planners when it is done. Design proposal (2026-11-24, waits for the user's OK):
-    - Duration: the thorough solve may take up to 30 min (user). Thorough CP-SAT `time_limit` 600 s: the limit holds
-      per stage of the worker objective (3 stages), so about 30 min at most.
+  - [x] 7.5a MES + bridge + frontend: *Plan selected* (planned flow) requests the proposal; an app-wide watch shows
+    that a solve runs and tells the planners when it is done. Design agreed by the user 2026-11-24; changes while
+    building are marked *(built)*:
+    - Duration: the thorough solve may take up to 30 min (user). *(built)* Correction: the worker objective has five
+      levels with due dates (three without), and CP-SAT spends its limit on each, so 600 s could be 50 min;
+      `time_limit: 360` keeps it within 30 min (`SolverConfig.max_solve_seconds`). The demo keeps 60.
     - Channel: in the app only, no email or push. The MES has no push channel (no SSE, websocket or notification
       table) and polling with `setInterval` is its pattern (`UnattendedStrip`, heartbeat). The layout polls
       `GET /planning/proposals?limit=1` every 15 s for users with planning rights, every 60 s while nothing is open.
@@ -293,12 +295,18 @@ re-solves on arrival. Switch: planning setting *Nesting flow: classic / planned*
     - Done: READY or FAILED once shows a toast with a button to the proposal page to every planner online, and the
       indicator stays "Proposal ready, review" (or "failed: why") until it is applied or discarded. A missed toast
       (away, logged out, another page) is caught by the indicator; no per-user read state.
-    - Who: `scheduler_proposal.requested_by_id` (new column, set on POST); the toast names who requested it and the
-      requester's says "your proposal". All planners see it, since only one proposal is open at a time anyway.
+    - Who: the toast names who requested it and the requester's says "You requested it". All planners see it, since
+      only one proposal is open at a time anyway. *(built)* No new column: the proposal's `created_by` (AuditMixin,
+      stamped from the request) is the requester; `ProposalOut.requested_by` names them. The MES has no planner role,
+      so "planners" is every logged-in user.
     - A solve left behind: the bridge fails SOLVING proposals it does not run on its start ("the scheduler
       restarted"). Discard during a solve: today the bridge only drops the result (409 on publish) and the thread runs
       to its limit, so a new request can wait up to 30 min; stopping CP-SAT on discard (`StopSearch` from a solution
       callback that checks a flag) is part of 7.5a if the thesis planner allows it without a model change.
+      *(built)* Not done: `planners/cpsat.py` has no stop hook, and adding one is a change to thesis code
+      (`src/simulation`). Open, for the user: add the hook (no model change, a protocol entry), or accept the wait.
+    - *(built)* The proposal page itself is 7.5b: until then the Review button and the ready / failed indicator lead
+      to a missing page.
   - [ ] 7.5b Frontend: proposal page (order specs, editable done date, comparison), *Apply* and *Discard*.
   - [ ] 7.5c Frontend: *Plan update pending* banner (`GET /planning/update-pending`) and *Update plan*.
 - [ ] 7.6 Frontend: queue section "Nesting" for `DATA_PREP_SECONDARY` and `DATA_PREP_PRIMARY` (design pass first).
@@ -499,4 +507,5 @@ PR comments read until: 2026-11-24T16:30Z (none from the user since slice 6)
 | 2026-11-24 | 7.3 | MES 7dfbf67, 1a4aa42; sim 905e5f2 | See 7.3a-c above. Scenario step 10. |
 | 2026-11-24 | 7.4 | MES 7bd866f; sim 402c715 | See 7.4 above. Scenario 32/32 (step 11: MAP, no REPLAN). |
 | 2026-11-24 | fix | sim 03db779 | `demo_db.py`: one secrets file per database; the scenario's had overwritten the demo's, so `demo.ps1` rebuilt `mes_demo`. |
-| 2026-11-24 | review | (this commit) | Plan review answered by the user: (1) browser pass over 4.1, 4.4b, 5.3, 6.2b: 4.1, 4.4b, 6.2b from the shots of 11-23; 5.3 re-run on the scratch DB `mes_demo_offline` (one publish, bridge stopped, staleness set to 1 min in the settings UI): the notice shows on the dashboard, My plan and Team plan; dropped after. Noted: offline, the fill has no workers (it carries assignments only, `plan.py`) and runs through the night; by design, not 5.3. (2) A proposal the fast rule planned (CP-SAT no plan) says so: `PUT .../schedule?note=` sets `scheduler_proposal.message`. (4) Plan update pending counts from the later of the last applied proposal and the switch to the planned flow (`planning_setting.nesting_flow_since`, migration `375e140ab425`, up / down / `alembic check` clean on a scratch DB, dropped). (5) 7.5 split into 7.5a-c; (3) design for the long solve in 7.5a, waits for the user. `npm run lint` / `npm test` had been skipped in slice 7, run now: lint 0 errors (36 jsdoc style warnings), vitest 128 passed. MES 1309 passed, bridge 216 passed. Commits MES 9bce78f, sim b90de14. MES CI green on 7bd866f; simulation has no CI. |
+| 2026-11-24 | review | sim 3fe9854, b90de14; MES 9bce78f | Plan review answered by the user: (1) browser pass over 4.1, 4.4b, 5.3, 6.2b: 4.1, 4.4b, 6.2b from the shots of 11-23; 5.3 re-run on the scratch DB `mes_demo_offline` (one publish, bridge stopped, staleness set to 1 min in the settings UI): the notice shows on the dashboard, My plan and Team plan; dropped after. Noted: offline, the fill has no workers (it carries assignments only, `plan.py`) and runs through the night; by design, not 5.3. (2) A proposal the fast rule planned (CP-SAT no plan) says so: `PUT .../schedule?note=` sets `scheduler_proposal.message`. (4) Plan update pending counts from the later of the last applied proposal and the switch to the planned flow (`planning_setting.nesting_flow_since`, migration `375e140ab425`, up / down / `alembic check` clean on a scratch DB, dropped). (5) 7.5 split into 7.5a-c; (3) design for the long solve in 7.5a, waits for the user. `npm run lint` / `npm test` had been skipped in slice 7, run now: lint 0 errors (36 jsdoc style warnings), vitest 128 passed. MES 1309 passed, bridge 216 passed. Commits MES 9bce78f, sim b90de14. MES CI green on 7bd866f; simulation has no CI. |
+| 2026-11-24 | 7.5a | MES 8c6cca4; sim (this commit) | MES: `scheduler_proposal.expected_by` (migration `b7c1d93e5a20`, down / up / `alembic check` clean on a scratch DB), set with SOLVING; `ProposalOut.created_by` / `requested_by`; header `ProposalIndicator` (every page: requested, solving since / ready by, late, ready, failed; polls 15 s while running, 60 s otherwise) with a toast and a Review button when a watched solve finishes; toasts take an optional link action; *Plan selected* in the planned flow requests the proposal. Bridge: `expected_by` from `max_solve_seconds`, SOLVING proposals left by a restart failed once. Checked in the browser on the scratch DB `mes_demo_75a` (dropped after): request from Planning, "Solving proposal since 16:21, ready by about 16:27" on the dashboard (phone: icon only), READY after 242 s with the toast "You requested it" and Review; Review leads to the proposal page, which is 7.5b (404 until then). Found: the worker objective has five levels, so the agreed 600 s could be 50 min; 360 s for 30 min. Not done: stopping CP-SAT on discard (thesis code, open for the user). Gates: MES 1310 passed, bridge 219 passed, vitest 128, svelte-check 0 errors, eslint / prettier clean on the changed files. |
