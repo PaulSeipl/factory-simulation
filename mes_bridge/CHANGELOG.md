@@ -4,6 +4,18 @@
 
 ## Unreleased
 
+- After a nesting (slice 7, task 7.4; user 2026-11-24: nothing re-optimizes the plan unseen): new `mapping.py`.
+  `MesFactory.refresh` treats an operation set that changed only by renaming (the parts moved from assumed to real
+  plates, prints or blanks) as no arrival: `map_plan` gives every real owner the machine, workers and start of the
+  assumed one its parts were on, `step` re-times it (`retime`: `dispatch_plan` narrowed to those machines and
+  workers, each operation released at its mapped start and ranked by it, ties by due date) and records a `MAP`
+  decision; a result the checker rejects falls back to the complete rescheduling. The shift repair was tried first
+  and failed on the recordings (an assumed print of three plates split into a real print of two and a new assumed
+  one: overlapping runs on the printer, a run straddling another on the mill, a non-converging order). Recordings
+  `tests/data/problem_before_nesting.json`, `problem_after_nesting.json` (scratch MES, `mes_driver.py
+  record-nesting`), tests `tests/test_mapping.py` (5: successors, MAP not REPLAN, the urgent print keeps its slot and
+  printer and the left-over one is queued after it, no step changes worker or machine or moves earlier, an arrival
+  is still a complete rescheduling). `demo_scenario.py` step 11 (nesting the order the proposal planned).
 - Proposals (slice 7, task 7.3; user 2026-11-24: the long solve runs on request, in the background, and the planner
   applies or discards it): new `proposals.ProposalWorker` takes the oldest REQUESTED proposal of the MES
   (`/planning/proposals`), sets it SOLVING, solves the what-if problem (the selected orders planned) with the thorough

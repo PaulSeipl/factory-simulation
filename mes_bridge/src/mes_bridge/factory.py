@@ -30,6 +30,7 @@ from mes_bridge.api import ProblemOut, ScheduleIn
 from mes_bridge.assumed import Aliases, assume_plates
 from mes_bridge.client import MesClient
 from mes_bridge.instance import build_instance
+from mes_bridge.mapping import map_plan, retime
 from mes_bridge.once import BOUND, FREE, schedule_breaks, steps
 from mes_bridge.state import IdMap, Pins, build_snapshot, id_map, out_of_service, pin
 
@@ -54,13 +55,15 @@ class MesFactory:
         self._known: set[tuple[str, str]] | None = None  # the operations of the instance the plan covers
         self._machines: dict | None = None  # machine options per operation of the last instance (a machine went down)
         self._calendar = None  # the last instance's calendar (break window, shift)
+        self.mapped = False  # the last refresh mapped the plan onto real carriers after a nesting (task 7.4)
 
     def refresh(self) -> bool:
         """Fetch the problem and rebuild the instance; True if its set of operations changed (or it is the first).
         Orders not nested yet (planned nesting flow) get assumed plates and prints (`assumed.assume_plates`)."""
         problem, self.aliases = assume_plates(self.client.problem())
-        before = self._known
+        before, old = self._known, self.problem
         self.problem = problem
+        self.mapped = False
         if not problem.instance.operations:
             self.ci, self.ids, self._known, self._machines = None, None, None, None
             return before is not None
@@ -95,7 +98,15 @@ class MesFactory:
         # in; a repair keeps the old breaks, so it is a complete rescheduling as well
         changed_calendar = self._calendar is not None and self.ci.calendar != self._calendar
         self._calendar = self.ci.calendar
-        return before != self._known or changed_pins or changed_machines or changed_calendar
+        changed_ops = before != self._known
+        # a nesting renames the assumed carriers' operations: the plan is mapped onto the real ones (task 7.4), the
+        # step repairs it (`step`), nothing is re-optimized
+        if changed_ops and old is not None and self._plan:
+            mapped = map_plan(self._plan, old, problem, self.ci)
+            if mapped is not None:
+                self._plan = sorted(mapped, key=lambda a: self.ci.op_index[a.order_id, a.op_id])
+                self.mapped, changed_ops = True, False
+        return changed_ops or changed_pins or changed_machines or changed_calendar
 
     def restore(self, plan: Sequence[Assignment], breaks: Sequence[Break], publication: UUID | None) -> None:
         """Continue from a saved state (decision 22): the plan it published, over the operations that plan covers."""
@@ -175,6 +186,26 @@ class MesFactory:
         return self.published > before
 
 
+def _repair_mapped(factory: MesFactory, decisions: list[dict]) -> Anchor | None:
+    """Task 7.4: the plan mapped onto the real carriers, re-timed with its machines, workers and order (`retime`; no
+    replan, whatever the shifts: the planner's *Update plan* re-optimizes); the new anchor. None if the result does
+    not pass the checker."""
+    ci = factory.ci
+    assert ci is not None
+    snap = factory.snapshot()
+    try:
+        repaired, repaired_breaks = retime(ci, snap, factory.current_plan())
+    except (PlanNotExecutable, KeyError, ValueError) as e:  # the mapping left the plan unexecutable
+        factory.rejected.append([Violation(constraint="mapping", ops=(), message=str(e))])
+        return None
+    before = len(factory.rejected)
+    factory.update_plan(repaired, repaired_breaks)
+    if len(factory.rejected) > before:
+        return None
+    decisions.append({"t": snap.t, "type": "MAP", "operations": len(repaired)})
+    return Anchor(list(repaired), snap.t, tuple(repaired_breaks))
+
+
 def _differ(new: dict, old: dict, keys) -> bool:
     """A value differs on one of `keys` (missing counts as a value: a pin set or cleared)."""
     return any(new.get(k) != old.get(k) for k in keys)
@@ -193,6 +224,11 @@ def step(
         return None
     if anchor is None:
         anchor = Anchor([], 0)
+    if factory.mapped and not changed:
+        mapped = _repair_mapped(factory, decisions)
+        if mapped is not None:
+            return mapped
+        changed = True  # the mapped plan does not pass the checker: plan the instance anew
     try:
         return adapt_plan(factory.ci, factory, policy, decisions, anchor, arrived=changed)
     except PlanNotExecutable as e:

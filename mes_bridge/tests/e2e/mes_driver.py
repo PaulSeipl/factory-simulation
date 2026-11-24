@@ -287,7 +287,54 @@ def act(anchor: Path) -> int:
         return 0 if ok else 1
 
 
+def nest(db, fx, order_ids, print_no: str):
+    """One nesting (DATA_PREP_SECONDARY) putting the secondary parts of `order_ids` on one print, plate i per order."""
+    pts = [_proposable(db, o, T.DATA_PREP_SECONDARY) for o in order_ids]
+    if any(pt is None for pt in pts):
+        raise RuntimeError("DATA_PREP_SECONDARY is not proposable for every order")
+    parts = [p for pt in pts for p in pt.order_part_ids]
+    task = _accept_start(db, fx, pts[0].model_copy(update={"order_part_ids": parts}))
+    extra = dict(_complete_extra(T.DATA_PREP_SECONDARY.value, fx))
+    extra["am_job"] = AmJobSubmit(print_job_no=print_no, print_version=1, est_non_precious_powder_kg=Decimal("0.020"))
+    extra["part_quadrant_assignments"] = {p: str(i) for i, pt in enumerate(pts, start=1) for p in pt.order_part_ids}
+    task_service.complete(db, task.id, CompleteTaskInput(results=_ok(parts), **extra))
+
+
+def record_nesting(out: Path) -> None:
+    """Recordings for task 7.4 (`tests/data/problem_before_nesting.json`, `..._after_nesting.json`): three orders
+    planned in the planned nesting flow (no plates yet), then two of them nested onto one print."""
+    from app.services.planning import problem as problem_service  # noqa: PLC0415
+
+    ids = []
+    for teeth, due in (((13, 12, 22), 2), ((34, 33), 3), ((15, 14), 5)):
+        seed(CompositionEnum.BOTH, teeth=teeth, due_in_days=due, arrive=False)
+    with SessionLocal() as db:
+        row = db.get(PlanningSetting, 1) or PlanningSetting(id=1)
+        row.nesting_flow = "PLANNED"
+        db.add(row)
+        db.commit()
+        from app.models.orders.order import ProductionOrder  # noqa: PLC0415
+
+        for order in db.scalars(select(ProductionOrder).order_by(ProductionOrder.due_date)):
+            plan_order(db, order)
+            ids.append(order.id)
+
+        def record(name):
+            db.expire_all()
+            now = db.scalar(select(func.now()))
+            p = problem_service.build_problem(db, now=now)
+            (out / name).write_text(p.model_dump_json(indent=1), encoding="utf-8")
+            print(f"recorded {name}: {len(p.instance.operations)} operations")
+
+        record("problem_before_nesting.json")
+        nest(db, Fixtures(db), ids[:2], "N001")
+        record("problem_after_nesting.json")
+
+
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["record-nesting"]:
+        record_nesting(Path(sys.argv[2]))
+        sys.exit(0)
     if sys.argv[1:2] == ["seed"]:
         seed(CompositionEnum.BOTH if "--both" in sys.argv else CompositionEnum.SECONDARY_ONLY)
     elif sys.argv[1:2] == ["demo"]:

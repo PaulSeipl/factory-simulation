@@ -9817,6 +9817,28 @@
         }
       }
     },
+    "/api/v1/planning/update-pending": {
+      "get": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Read Update Pending",
+        "description": "*Plan update pending* (planned nesting flow): orders nested since the last applied proposal was requested;\nthe scheduler mapped them onto the plan, *Update plan* re-solves.",
+        "operationId": "read_update_pending",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanUpdatePendingOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/kpi/capacity": {
       "get": {
         "tags": [
@@ -18935,6 +18957,42 @@
         ],
         "title": "PartTypeEnum"
       },
+      "PendingOrderOut": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Order Id"
+          },
+          "short_id": {
+            "type": "string",
+            "title": "Short Id"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "nested_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Nested At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id",
+          "short_id",
+          "nested_at"
+        ],
+        "title": "PendingOrderOut"
+      },
       "PlanOrderFinishOut": {
         "properties": {
           "order_id": {
@@ -19123,6 +19181,36 @@
           "WAITING"
         ],
         "title": "PlanStepStatusEnum"
+      },
+      "PlanUpdatePendingOut": {
+        "properties": {
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/PendingOrderOut"
+            },
+            "type": "array",
+            "title": "Orders"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          }
+        },
+        "type": "object",
+        "required": [
+          "orders",
+          "since"
+        ],
+        "title": "PlanUpdatePendingOut",
+        "description": "*Plan update pending: n orders nested since hh:mm* (slice 7.4, planned nesting flow): orders whose nesting\nfinished after the last applied proposal was requested. The scheduler mapped them onto the plan without\nre-optimizing; *Update plan* (a proposal without orders) is the re-solve. Empty in the classic flow."
       },
       "PlannedBreakOut": {
         "properties": {

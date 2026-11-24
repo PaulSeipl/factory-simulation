@@ -19,6 +19,8 @@ each step through the HTTP API, and checks what the plan shows afterwards:
  8. a printer goes DOWN: nothing is planned on it any more
 10. (before 9) a proposal (task 7.3): the planned nesting flow, *Plan selected* for the urgent pipeline order, solved
     in the background with the thorough profile, applied: the order is planned and the bridge continues from it
+11. (before 9) that order is nested (task 7.4): the bridge maps the plan onto its real print (no replan), the MES
+    lists it under *Plan update pending*
  9. the bridge stops: after the staleness setting (1 min here) the plan falls back to the fill (OFFLINE)
 
 Prints PASS / FAIL per step; exit code 0 when all pass. `--keep` leaves the MES, the bridge and the database
@@ -350,7 +352,7 @@ def scenario(mes, env, bridge_state):
     check("8 printer DOWN: no print that has not started is planned on it", used and not left,
           f"{waited:.0f} s, {len(used)} print(s) moved off; still on it: {left[:3]}; started job kept: {len(kept)}")  # fmt: skip
 
-    b8 = proposal(mes, bridge_state, b8)
+    b8 = proposal(mes, bridge_state, b8, env)
 
     # 9 bridge offline
     settings = mes.call("GET", "/planning/settings")
@@ -358,7 +360,7 @@ def scenario(mes, env, bridge_state):
     return b8
 
 
-def proposal(mes, bridge_state, b8):
+def proposal(mes, bridge_state, b8, env):
     """10 (task 7.3): the planned nesting flow; *Plan selected* for the urgent pipeline order: the thorough solve runs
     in the background, the automatic plan stays without it; applied, the order is planned and the bridge continues
     from the proposal's plan."""
@@ -409,7 +411,43 @@ def proposal(mes, bridge_state, b8):
     after = [json.loads(x) for x in decisions if ts(json.loads(x)["at"]).timestamp() >= since]
     replans = [d["triggers"] for d in after if d["type"] == "REPLAN"]
     check("10 no complete rescheduling replaced it", not replans, str(replans))
+    nesting(mes, bridge_state, urgent.id, env)
     return b10
+
+
+def nesting(mes, bridge_state, order_id, env):
+    """11 (task 7.4): the order the proposal planned is nested (DATA_PREP_SECONDARY forms its real print): the bridge
+    maps the plan onto it, nothing is replanned, and the MES shows the plan update as pending."""
+    from mes_driver import nest  # noqa: PLC0415
+
+    since = time.time()
+    with SessionLocal() as db:
+        nest(db, Fixtures(db), [order_id], "U001")
+    # this process does not post the MES's events (no SCHEDULER_URL here): wake the bridge as the MES would
+    req = urllib.request.Request(
+        "http://127.0.0.1:8766/events", json.dumps({"type": "ARRIVAL", "ids": [], "at": None}).encode(),
+        {"Authorization": f"Bearer {env['MES_EVENTS_TOKEN']}", "Content-Type": "application/json"}, method="POST",
+    )  # fmt: skip
+    urllib.request.urlopen(req, timeout=10).close()
+
+    def decided():  # a step that was already running when the nesting committed rewrites the anchor too: wait for
+        lines = (bridge_state / "BOUND" / "decisions.jsonl").read_text(encoding="utf-8").splitlines()  # a decision
+        out = [json.loads(x) for x in lines if ts(json.loads(x)["at"]).timestamp() >= since]
+        return [d for d in out if d["type"] in ("MAP", "REPLAN")] and out
+
+    after, waited = wait_for(decided, 90, "the bridge's decision on the nesting")
+    types = [d["type"] for d in after]
+    time.sleep(2)  # the publication follows the decision
+    check("11 nested: the bridge mapped the plan, no complete rescheduling", "MAP" in types and "REPLAN" not in types,
+          f"{waited:.0f} s, {types}")  # fmt: skip
+    b11 = mes.plan("BOUND")
+    mine = [s for s in b11["steps"] if str(order_id) in s["order_ids"]]
+    real = [s for s in mine if s["key"].startswith("job:") and s["task_type"] == "AM_PREP"]
+    check("11 its print step is the real print's, from the scheduler",
+          real and {s["source"] for s in mine} == {"SCHEDULER"}, f"{len(mine)} steps, print {[s['key'] for s in real]}")  # fmt: skip
+    pending = mes.call("GET", "/planning/update-pending")
+    check("11 the MES shows the plan update as pending",
+          [o["order_id"] for o in pending["orders"]] == [str(order_id)], str(pending))  # fmt: skip
 
 
 def _free(port):

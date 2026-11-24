@@ -264,7 +264,18 @@ re-solves on arrival. Switch: planning setting *Nesting flow: classic / planned*
     change worker or machine, steps that move today). Done 2026-11-24: `proposals.compare`, both sides served plans
     (`build_served_plan(schedule=)` serves the proposal as if applied); a selected order's current finish is the
     fill's rough estimate, its proposed one the proposal's last order-keyed step.
-- [ ] 7.4 Bridge + MES: after a nesting, map real carriers onto the placeholders; *Plan update pending* notice.
+- [x] 7.4 Bridge + MES: after a nesting, map real carriers onto the placeholders; *Plan update pending* notice.
+  Done 2026-11-24: bridge `mapping.py`: the op set changing by renaming only (parts moved from assumed to real
+  carriers, prints, blanks) is not an arrival; `map_plan` gives each real owner the assignments of the assumed one
+  its parts were on (the first planned of several), `retime` re-times with the dispatcher narrowed to those machines
+  and workers, released at the mapped start, ranked by it (ties: earlier due date). A plan the checker rejects falls
+  back to the complete rescheduling. Why not the shift repair: on the recordings an assumed print of three plates
+  became a real print of two plus a new assumed one; both inherit one slot and the repair failed (overlapping runs,
+  a run straddling another, a cycle). MES `GET /planning/update-pending`: orders nested (DATA_PREP_SECONDARY or
+  _PRIMARY done) since the last applied proposal was requested, open orders, planned flow only. The notice itself is
+  frontend work (7.5, with the toast). Recordings `problem_before_nesting.json` / `problem_after_nesting.json`
+  (`mes_driver.py record-nesting`), tests `test_mapping.py` (5), MES 3 tests, `demo_scenario.py` step 11.
+  Open: the blank lane is mapped by the same code but not covered by a recording (DATA_PREP_PRIMARY not driven).
 - [ ] 7.5 Frontend: *Plan selected* starts the proposal; app-wide status watch with the toast and its button;
   the proposal page with the order specs and the comparison (design pass first).
 - [ ] 7.6 Frontend: queue section "Nesting" for `DATA_PREP_SECONDARY` and `DATA_PREP_PRIMARY` (design pass first).
