@@ -8,6 +8,24 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-24 (108) — GA stagnation stop — uncommitted
+
+**Decided.** User: an early stop for the GA, unsure how to choose the number of generations. Own: measure first
+when the GA still improves during rescheduling, then choose; keep the stop off by default.
+
+**Done.** `GaParams.patience` ($N^{\mathrm{pat}}$, validated $\ge 1$) stops after that many generations without a
+better incumbent; `PolicyConfig.patience` (GA only, left out of the hash while unset). Tests: 3 in
+`tests/test_ga.py`, 2 negative in `tests/test_experiment.py`. Measurement script `scripts/ga_gain_generations.py`.
+Docs: [14](14_genetic-algorithm.md) §3 and change log, [notation](notation.md).
+
+**Found.** 30 rescheduling calls (dental workers, 30 generations): the last improvement in generation 25 or later in
+22 calls; $N^{\mathrm{pat}} = 10$ saves 3 generations per call and cuts a later improvement in 7 calls,
+$N^{\mathrm{pat}} = 15$ saves nothing. At this budget the stop gives no speed-up; `robust-start` (10 generations) is
+left without it.
+
+**Open.** A run with a large generation cap (100 to 200) to find where the GA converges; the cost per GA call
+(population, triggers) as the lever for the run time; literature on stopping rules not checked in Zotero.
+
 ## 2026-11-23 (107) — Experiment configuration with robust start plans — uncommitted
 
 **Decided.** User: the best way to run an experiment with the stochastic scheduler, the normal GA and CP-SAT, with

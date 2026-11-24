@@ -68,6 +68,8 @@ class PolicyConfig(BaseModel):
     iterations: PositiveInt | None = None
     # the start plan: CP-SAT (default) or the GA (with `generations`); math/14 section 4c
     start: Literal["cpsat", "ga"] = "cpsat"
+    # GA only: stop after this many generations without a better incumbent (`GaParams.patience`); None: all generations
+    patience: PositiveInt | None = None
     # robust GA (math/14 sections 4a, 4b): "expected" scores plans by the expected objective over `n_scenarios` of
     # the planner's own scenarios (start plan and rescheduling); "buffer" plans the start plan with durations
     # inflated to their `alpha` quantile. None: the planned objective
@@ -82,6 +84,8 @@ class PolicyConfig(BaseModel):
             raise ValueError("generations is required for the GA (planner or start 'ga') and only allowed there")
         if (self.planner == "mcts") != (self.iterations is not None):
             raise ValueError("iterations is required for planner 'mcts' and only allowed there")
+        if self.patience is not None and not ga:
+            raise ValueError("patience needs the GA (planner or start 'ga')")
         if self.robust is not None and not ga:
             raise ValueError(f"robust '{self.robust}' needs the GA (planner or start 'ga')")
         if self.robust == "buffer" and self.start != "ga":
@@ -119,7 +123,7 @@ class ExperimentConfig(BaseModel):
     def digest(self) -> str:
         # generations, iterations (added 2026-11-22) only where set: older configurations keep their hash and so their
         # result rows
-        unset = {"policies": {k: {f for f in ("generations", "iterations", "robust", "n_scenarios", "alpha")
+        unset = {"policies": {k: {f for f in ("generations", "iterations", "robust", "n_scenarios", "alpha", "patience")
                                   if getattr(p, f) is None} | ({"start"} if p.start == "cpsat" else set())
                               for k, p in self.policies.items()}}  # start, robust, ... added 2026-11-23
         return hashlib.sha256(self.model_dump_json(exclude=unset).encode()).hexdigest()[:12]
@@ -134,7 +138,7 @@ def _ga_start(ci: CompiledInstance, pc: PolicyConfig, objective, config: Experim
     rho = quantile_factor(config.sigma, pc.alpha) if pc.robust == "buffer" else 1.0
     limit = config.hindsight_time_limit if pc.hindsight else config.time_limit
     t0 = time.perf_counter()
-    r = solve_ga(inflate(ci, rho), objective, GaParams(generations=pc.generations, time_limit=limit, seed=seed))
+    r = solve_ga(inflate(ci, rho), objective, GaParams(generations=pc.generations, time_limit=limit, seed=seed, patience=pc.patience))
     plan = shorten(ci, r.plan.assignments, r.plan.breaks) if rho > 1 else r.plan.assignments
     return CpSatResult(status="GA", schedule=plan, objective=r.value, bound=None,
                        wall_time=time.perf_counter() - t0, breaks=r.plan.breaks,
@@ -170,7 +174,7 @@ def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) ->
                                        deterministic_time=config.deterministic_time),
         "rule": lambda: dispatch_planner(spt, ect),
         "ga": lambda: ga_planner(planner_objective, GaParams(generations=pc.generations, time_limit=config.time_limit,
-                                                     seed=seed)),
+                                                     seed=seed, patience=pc.patience)),
         "mcts": lambda: mcts_planner(objective, MctsParams(iterations=pc.iterations, time_limit=config.time_limit)),
     }[pc.planner]()
     policy = ReschedulingPolicy(planner=planner, max_makespan_change=pc.max_makespan_change,

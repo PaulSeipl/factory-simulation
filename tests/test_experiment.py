@@ -140,6 +140,8 @@ def test_cli_unknown_configuration_rejected():
     {"planner": "rule", "start": "ga", "generations": 1, "robust": "buffer"},  # buffer without alpha
     {"planner": "rule", "start": "ga", "generations": 1, "alpha": 0.8},  # alpha without buffer
     {"planner": "rule", "start": "ga", "generations": 1, "robust": "buffer", "alpha": 1.0},  # alpha outside (0, 1)
+    {"planner": "rule", "patience": 3},  # patience without the GA
+    {"planner": "ga", "generations": 5, "patience": 0},  # patience below one
 ])
 def test_robust_settings_rejected(policy):
     with pytest.raises(ValidationError):

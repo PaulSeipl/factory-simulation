@@ -47,10 +47,15 @@ class GaParams:
     generations: int | None = None  # stop after this many generations; None: only the time limit
     time_limit: float | None = 10.0  # seconds, checked after every decode; None: only the generation limit
     seed: int = 0
+    # stop after this many completed generations without a better incumbent (stagnation rule, math/14 section 3);
+    # None: only the generation and time limits
+    patience: int | None = None
 
     def __post_init__(self):
         if self.generations is None and self.time_limit is None:
             raise ValueError("give a generation limit, a time limit or both")
+        if self.patience is not None and self.patience < 1:
+            raise ValueError(f"patience {self.patience}: at least one generation")
         n_el, n_mut = self.n_elite, self.n_mutants
         if n_el < 1 or n_el + n_mut >= self.population:
             raise ValueError(f"population {self.population}: needs at least one elite and one child "
@@ -181,10 +186,12 @@ def solve_ga(
     population.sort(key=lambda s: s[0])  # stable: ties keep their order, so a seed gives one result
     history, generation = [], 0
 
+    last_gain = 0  # generation of the last better incumbent (0: the seeding)
+
     def improve() -> None:
-        nonlocal best_rank, best_plan
+        nonlocal best_rank, best_plan, last_gain
         if population and population[0][0] < best_rank:
-            best_rank, best_plan = population[0][0], population[0][2]
+            best_rank, best_plan, last_gain = population[0][0], population[0][2], generation
         history.append(best_rank[1])
 
     improve()
@@ -192,7 +199,7 @@ def solve_ga(
 
     def stop() -> bool:
         return (len(population) <= n_el or (params.generations is not None and generation >= params.generations)
-                or out_of_time())
+                or (params.patience is not None and generation - last_gain >= params.patience) or out_of_time())
 
     while not stop():
         elite, rest = population[:n_el], population[n_el:]

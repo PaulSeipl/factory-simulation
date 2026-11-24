@@ -341,3 +341,19 @@ def test_random_join_keys_mix_batches_and_replay():
     assert check_schedule(ci, plan.assignments, breaks=plan.breaks) == []
     rows = lambda s: sorted((a.order_id, a.op_id, a.machine, a.start, a.end, a.workers, a.batch) for a in s)  # noqa: E731
     assert rows(replay(ci, plan.assignments, breaks=plan.breaks).schedule) == rows(plan.assignments)
+
+
+def test_patience_stops_after_that_many_generations_without_a_better_incumbent():
+    result = solve_ga(TOY, MAKESPAN, GaParams(population=20, generations=200, time_limit=None, patience=3))
+    h = result.history  # incumbent after the seeding, then after every generation
+    last_gain = max((g for g in range(1, len(h)) if h[g] < h[g - 1]), default=0)
+    assert result.generations < 200 and result.generations - last_gain == 3
+
+
+def test_without_patience_the_generation_limit_holds():
+    assert solve_ga(TOY, MAKESPAN, GaParams(population=20, generations=12, time_limit=None)).generations == 12
+
+
+def test_patience_below_one_rejected():
+    with pytest.raises(ValueError, match="patience"):
+        GaParams(generations=5, patience=0)

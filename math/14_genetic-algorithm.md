@@ -125,6 +125,22 @@ under a very short limit the guarantee "never worse than the best rule" holds on
 time. With a time limit the number of generations depends on the machine, so only a generation limit gives
 reproducible results.
 
+**Stagnation stop (2026-11-24).** Optionally also after $N^{\mathrm{pat}}$ completed generations without a better
+incumbent (`GaParams.patience`, `PolicyConfig.patience`; None: off). Measured on dental workers ($\sigma = 0.45$, GA
+rescheduling with 30 generations, the first 30 calls of seed 1, script `scripts/ga_gain_generations.py`): the last
+improvement fell in generation 25 or later in 22 of 30 calls (7 in generation 30), the longest stretch without
+improvement was 10 generations. Generations per call and calls that would lose a later improvement:
+
+| $N^{\mathrm{pat}}$ | 5 | 8 | 10 | 15 |
+|---|---|---|---|---|
+| generations per call (of 30) | 13.4 | 24.1 | 27.1 | 29.4 |
+| calls losing a later improvement | 26 | 12 | 7 | 0 |
+
+So at this budget the GA has not converged and no $N^{\mathrm{pat}}$ saves time without losing improvements; the
+stop is not the lever for the run time of §4c. Limits: one episode (consecutive, correlated calls), one instance, one
+objective; how much objective a lost improvement costs was not measured. Stagnation stops are a common rule in the
+literature **[uncertain]**: not checked in the Zotero library (unreachable on 2026-11-24).
+
 ### 3a. NSGA-II (offline trade-off analysis)
 
 The same chromosome and decoder, but a vector of objectives $(f_1, \dots, f_q)$ instead of one, e.g. tardiness,
@@ -594,6 +610,7 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 
 | Date | Commit | Change |
 |---|---|---|
+| 2026-11-24 | uncommitted | Stagnation stop `GaParams.patience` ($N^{\mathrm{pat}}$), `PolicyConfig.patience`; measurement of the improvement generations in rescheduling (§3). |
 | 2026-11-19 | uncommitted | Step 1: delay window in `dispatch_plan`, `planners/ga.py` (BRKGA with priority, machine and delay keys), `tests/test_ga.py`. |
 | 2026-11-19 | uncommitted | Step 2: overtime key (allowance per operation) in `dispatch_plan` and the chromosome ($4\lvert O \rvert$ keys); hand example 2; s-batches with overtime tested. |
 | 2026-11-19 | uncommitted | Step 3: `solve_ga` from a snapshot with warm start, change budget (rank by excess) and a time check after every decode; `ga_planner`; tests in the DES, budget mutation-checked, zero disturbance. |
