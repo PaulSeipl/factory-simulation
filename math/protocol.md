@@ -8,7 +8,7 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-24 (90) — Endless loop in the calendar repair for long shares (found by the drift trigger) — uncommitted
+## 2026-11-24 (90) — Endless loop in the calendar repair for long shares (found by the drift trigger) — commit 4bc202c
 
 **Decided.** User: run notebook 09 §8 (rescheduling on drift, `max_objective_change=1`) on the home PC; after it was
 killed, find the memory growth first, at most 3.5 GHz, a 500 MB limit per probe; then a guard in the repair, and

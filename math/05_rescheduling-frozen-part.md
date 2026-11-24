@@ -215,7 +215,7 @@ With the OVERDUE event the means are unchanged on mk01 (overruns are seen throug
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-11-24 | uncommitted | Long shares with the calendar (user): the pending break moves behind a share that would otherwise leave the day; a share longer than every part without overtime gets overtime; a share that fits no day raises after two weeks instead of looping (protocol (90)). |
+| 2026-11-24 | 4bc202c | Long shares with the calendar (user): the pending break moves behind a share that would otherwise leave the day; a share longer than every part without overtime gets overtime; a share that fits no day raises after two weeks instead of looping (protocol (90)). |
 | 2026-11-19 | uncommitted | Change budget implemented for the GA (rank by changes beyond the budget, warm start keeps every machine; [14](14_genetic-algorithm.md) §3b). |
 | 2026-10-29 | 17d05a8–28ac70f | Shift repair (left and right shift, gaps kept) at every time point of the DES; C6, C7; trigger metrics logged; open points thresholds, drift, stability, QM rework. |
 | 2026-10-29 | 17d05a8–28ac70f | Thresholds trigger a complete rescheduling with a planner on the snapshot; acceptance with change budget and improvement condition; checker C6/C7; examples. |
