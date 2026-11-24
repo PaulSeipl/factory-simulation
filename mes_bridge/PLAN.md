@@ -234,8 +234,36 @@ re-solves on arrival. Switch: planning setting *Nesting flow: classic / planned*
   Scenario 22/22, re-solves 1-2 s (were > 30 s with CP-SAT); its check 1 now covers arrived orders only (orders
   ready for planning are the MES fill's by design). Measured and noted in `config.py`: CP-SAT's `time_limit` holds
   per stage of the worker objective (30 -> 92 s, 60 -> 183 s on 125 operations).
-- [ ] 7.3 MES + bridge: proposal variant (`PROPOSED`): request, background solve, status (requested, solving,
+- [x] 7.3 MES + bridge: proposal variant (`PROPOSED`): request, background solve, status (requested, solving,
   ready, failed), publish, the comparison with the current plan, apply / discard.
+  Design (2026-11-24): not a third schedule variant but a `scheduler_proposal` row (status REQUESTED -> SOLVING ->
+  READY | FAILED, then APPLIED | DISCARDED; `order_ids`: the selected orders, empty for *Update plan*) whose schedule
+  is a BOUND `schedule` row with `proposal_id` set, which `schedule.latest()` skips, so served plan, staleness and
+  variants stay as they are. Selected orders are not planned yet (no parts): the proposal's problem is a what-if
+  export, `plan_order` for them in a transaction that is rolled back (needs the planned flow, 422 otherwise). A new
+  request discards the open ones. Apply: `plan_order` for the selected orders (estimated done date: the proposal's
+  finish, editable), the proposal's steps published again as the current BOUND schedule, status APPLIED. The bridge
+  solves with `thorough` in a background thread (automatic steps go on), publishes, sets the status; after APPLIED
+  the BOUND factory takes the proposal's plan over (`restore`) before its next step, so the new orders are not
+  replanned by the fast profile. Events: a proposal requested or applied posts `PROPOSAL`; the bridge also picks up
+  REQUESTED ones on start and poll.
+  - [x] 7.3a MES: table, migration, service, routes, events, tests. Done 2026-11-24: `orders.scheduler_proposal`
+    (migration `f779eb8937c2`), `services/planning/proposals.py`, routes under `/planning/proposals` (POST request,
+    GET list / one, scheduler only: GET `{id}/problem` in a writable REPEATABLE READ session that is rolled back,
+    PUT `{id}/status` SOLVING | FAILED, PUT `{id}/schedule` -> READY; POST `{id}/apply` with `done_dates`, POST
+    `{id}/discard`). The applied copy gets `solved_at = max(proposal's, now)` so a fast re-solve published meanwhile
+    does not hide it. `PROPOSAL` also on DISCARDED (stops a running solve). 17 tests.
+  - [x] 7.3b Bridge: client, proposal worker thread, publish and status, take-over after apply, tests. Done
+    2026-11-24: `proposals.ProposalWorker` (one solve at a time in its own thread, thorough planner, SOLVING ->
+    publish -> READY, FAILED with why, a 409 drops it), held by the BOUND `Runner` (`proposals`, replaces
+    `thorough`): started after each step, an applied one taken over before it (`restore` + anchor at now).
+    `once.solve(planner=)` returns the plan. Found end to end: the step after the take-over compared machine options
+    with the instance before the apply and replanned (EDD replaced the proposal); `refresh` now compares pins and
+    machine options only over operations the last instance had too. `demo_scenario.py` step 10.
+  - [x] 7.3c MES: the comparison in `GET /planning/proposals/{id}` (finish per order now vs proposed, steps that
+    change worker or machine, steps that move today). Done 2026-11-24: `proposals.compare`, both sides served plans
+    (`build_served_plan(schedule=)` serves the proposal as if applied); a selected order's current finish is the
+    fill's rough estimate, its proposed one the proposal's last order-keyed step.
 - [ ] 7.4 Bridge + MES: after a nesting, map real carriers onto the placeholders; *Plan update pending* notice.
 - [ ] 7.5 Frontend: *Plan selected* starts the proposal; app-wide status watch with the toast and its button;
   the proposal page with the order specs and the comparison (design pass first).

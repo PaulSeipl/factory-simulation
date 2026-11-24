@@ -16,6 +16,7 @@ from mes_bridge import runner as runner_mod
 from mes_bridge.client import MesClient, MesError
 from mes_bridge.factory import MesFactory
 from mes_bridge.instance import epoch_of
+from mes_bridge.proposals import ProposalWorker
 from mes_bridge.runner import Runner, _login_when_up, event_server
 from simulation.control.rescheduling import ReschedulingPolicy
 from simulation.planners.dispatching import dispatch_planner, spt
@@ -91,7 +92,8 @@ def test_automatic_steps_never_run_the_thorough_planner():
     def thorough(*_args, **_kw):
         raise AssertionError("the thorough planner ran automatically")
 
-    fake, r, now, _ = _runner(thorough=thorough)
+    fake, r, now, _ = _runner()
+    r.proposals = ProposalWorker(r.factory.client, thorough, epoch=r.factory.epoch, background=False)
     r.tick(now, "start")
     r.events.put({"type": "INSTANCE"})
     r.tick(now, "event")

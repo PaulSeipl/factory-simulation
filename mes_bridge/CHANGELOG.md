@@ -4,9 +4,23 @@
 
 ## Unreleased
 
+- Proposals (slice 7, task 7.3; user 2026-11-24: the long solve runs on request, in the background, and the planner
+  applies or discards it): new `proposals.ProposalWorker` takes the oldest REQUESTED proposal of the MES
+  (`/planning/proposals`), sets it SOLVING, solves the what-if problem (the selected orders planned) with the thorough
+  profile in its own thread and publishes the schedule to the proposal (READY), or reports FAILED with why; a
+  proposal discarded meanwhile refuses the publication (409) and the solve is dropped. One solve at a time; the
+  automatic steps go on with the fast profile. The BOUND `Runner.proposals` (replaces `Runner.thorough`) starts it
+  after each step and, once the planner applied one, takes its plan over before the next step (`restore`, anchor at
+  now), so the new orders are repaired, not replanned. `once.solve(planner=)` and `Outcome.plan`;
+  `MesClient.proposals / proposal / proposal_problem / proposal_status / publish_proposal`; `api.ProposalStatusIn`,
+  partial `api.ProposalOut`. Fix found end to end: `MesFactory.refresh` compared machine options (and pins) over all
+  operations, so the step after the take-over saw the new order's operations as a machine change and replanned with
+  EDD (makespan 12420 -> 16410 min); now only over operations the last instance had too (a new one is the set
+  change). Tests `tests/test_proposals.py` (7, one reproducing the replan), fake MES proposal endpoints,
+  `test_contract.py`; `demo_scenario.py` step 10 (planned flow, Plan selected, apply, take-over).
 - Two solver profiles (slice 7, task 7.2; user 2026-11-24: a long solve is never automatic): `SchedulerConfig.solver`
   plans every automatic step, `thorough` (new, optional) only a requested proposal (`thorough_planner()`, held by
-  `Runner.thorough` for task 7.3, never used in `tick`). Demo config renamed `tests/e2e/demo_config.json`: EDD rule
+  `Runner.thorough` for task 7.3, never used in `tick`; since 7.3 by `Runner.proposals`). Demo config renamed `tests/e2e/demo_config.json`: EDD rule
   automatically, CP-SAT (worker objective, 60 s) thorough; `demo.ps1 -Solver config|rule`. `demo_scenario.py` check 1
   covers arrived orders only (orders ready for planning are planned by the MES fill by design); 22/22 again, re-solves
   1-2 s. Tests: `test_config.py` (profiles, invalid thorough), `test_runner.py` (automatic steps never call it).

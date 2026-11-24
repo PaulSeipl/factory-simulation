@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 from simulation.check.feasibility import Violation, check_schedule
 from simulation.model.compiled import CompiledInstance, compile_instance
+from simulation.control.rescheduling import Planner
 from simulation.model.schedule import Assignment, Plan
 
 from mes_bridge.api import ProblemOut, ScheduleBreakIn, ScheduleIn, ScheduleStepIn
@@ -32,6 +33,7 @@ BOUND, FREE = "BOUND", "FREE"
 class Outcome:
     schedule: ScheduleIn | None  # None: not publishable
     violations: list[Violation]
+    plan: Plan | None = None  # the planner's plan in the instance's minutes (None: nothing planned or not publishable)
 
 
 def solve(
@@ -41,8 +43,10 @@ def solve(
     solved_at: datetime,
     config: SchedulerConfig | None = None,
     variant: str = BOUND,
+    planner: Planner | None = None,
 ) -> Outcome:
-    """The configured planner's plan for the problem as the variant's schedule, or the checker's violations."""
+    """The planner's plan for the problem as the variant's schedule, or the checker's violations. `planner`: default
+    the configured fast one (`config.solver`); a proposal passes the thorough one (task 7.3)."""
     if not problem.instance.operations:  # nothing has arrived: an empty schedule says so
         return Outcome(_schedule(problem, solved_at, [], variant=variant), [])
     problem, aliases = assume_plates(problem)  # orders not nested yet (planned nesting flow)
@@ -53,7 +57,7 @@ def solve(
     ci = out_of_service(ci, problem, started)  # no new work on a machine that is down
     if variant == BOUND:  # the assignments as pins (state.pin)
         ci = pin(ci, problem, ids, started).ci
-    plan = (config or SchedulerConfig()).solver.planner()(ci, snap, [])
+    plan = (planner or (config or SchedulerConfig()).solver.planner())(ci, snap, [])
     if violations := check_schedule(ci, plan.assignments, snapshot=snap, breaks=plan.breaks):
         return Outcome(None, violations)
     return Outcome(
@@ -65,6 +69,7 @@ def solve(
             variant=variant,
         ),
         [],
+        plan,
     )
 
 

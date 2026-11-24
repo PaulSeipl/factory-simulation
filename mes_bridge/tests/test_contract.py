@@ -15,8 +15,8 @@ from mes_bridge import api
 
 DATA = Path(__file__).parent / "data"
 SCHEMAS = json.loads((DATA / "openapi.json").read_text(encoding="utf-8"))["components"]["schemas"]
-REQUESTS = {api.ScheduleIn, api.ScheduleStepIn, api.ScheduleBreakIn}  # validation mode, the rest are responses
-PARTIAL = {api.PlanningSettingsOut}  # reads only some fields (extra="ignore"): its fields must be a subset
+REQUESTS = {api.ScheduleIn, api.ScheduleStepIn, api.ScheduleBreakIn, api.ProposalStatusIn}  # validation mode, the rest are responses
+PARTIAL = {api.PlanningSettingsOut, api.ProposalOut}  # reads only some fields (extra="ignore"): its fields must be a subset
 MODELS = [
     m
     for m in vars(api).values()
@@ -62,7 +62,10 @@ def test_model_matches_the_mes_schema(model):
 def test_every_problem_and_schedule_schema_has_a_model():
     """A new MES schema of these endpoints needs a model (or a deliberate exception here)."""
     unused = {"ScheduleVariantEnum", "SchedulerStateEnum"}  # enums (strings here); the second is the plan's
-    wanted = {n for n in SCHEMAS if n.startswith(("Problem", "Schedule"))} - unused
+    # proposals: the scheduler's side only; request, apply and the comparison are the planner's (the frontend)
+    unused |= {"ProposalStatusEnum", "ProposalCreate", "ProposalApply"}
+    unused |= {"ProposalComparisonOut", "ProposalOrderOut", "ProposalStepChangeOut"}
+    wanted = {n for n in SCHEMAS if n.startswith(("Problem", "Schedule", "Proposal"))} - unused - {"ProposalOut"}
     assert wanted == {m.__name__ for m in MODELS} - {m.__name__ for m in PARTIAL}
 
 

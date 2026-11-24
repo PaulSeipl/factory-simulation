@@ -1,7 +1,7 @@
 """Hand-written models of the MES endpoints the bridge uses (spec decision 15).
 
-`GET /planning/problem` (what the scheduler plans from) and `PUT` / `GET /planning/schedule` (what it
-publishes). Names match the MES schemas, so `tests/test_contract.py` can compare them field by field
+`GET /planning/problem` (what the scheduler plans from), `PUT` / `GET /planning/schedule` (what it
+publishes) and the proposals (`/planning/proposals`, task 7.3: requested thorough solves). Names match the MES schemas, so `tests/test_contract.py` can compare them field by field
 with the checked-in copy `tests/data/openapi.json`. `extra="forbid"`: a field the MES adds fails loudly
 until the copy and these models are updated on purpose. MES enums are plain strings here; the MES
 validates them.
@@ -200,3 +200,20 @@ class ScheduleOut(_Model):
     created_at: datetime | None  # nullable in the MES schema (TimestampMixin)
     steps: list[ScheduleStepOut]
     breaks: list[ScheduleBreakOut]
+
+
+# --- /planning/proposals (task 7.3) ---
+
+
+class ProposalStatusIn(_Model):
+    status: str  # SOLVING | FAILED
+    message: str | None = None
+
+
+class ProposalOut(BaseModel):
+    """A requested thorough solve: only what the bridge reads; the MES returns more (the comparison, ignored)."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+    id: UUID
+    status: str  # REQUESTED | SOLVING | READY | FAILED | APPLIED | DISCARDED
+    order_ids: list[UUID]

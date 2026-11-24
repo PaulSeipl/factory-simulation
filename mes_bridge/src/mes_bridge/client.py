@@ -9,7 +9,9 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 
-from mes_bridge.api import ProblemOut, ScheduleIn, ScheduleOut, PlanningSettingsOut
+from uuid import UUID
+
+from mes_bridge.api import PlanningSettingsOut, ProblemOut, ProposalOut, ProposalStatusIn, ScheduleIn, ScheduleOut
 
 # method, path, JSON body, headers -> (status, parsed JSON body); swapped for a fake in tests
 Send = Callable[[str, str, dict | None, dict[str, str]], tuple[int, object]]
@@ -82,3 +84,26 @@ class MesClient:
         out = self._call("GET", "/planning/schedule")
         assert isinstance(out, list)
         return [ScheduleOut.model_validate(s) for s in out]
+
+    # --- proposals (task 7.3) ---
+
+    def proposals(self, status: str | None = None) -> list[ProposalOut]:
+        """The newest first, optionally of one status."""
+        out = self._call("GET", "/planning/proposals" + (f"?status={status}" if status else ""))
+        assert isinstance(out, list)
+        return [ProposalOut.model_validate(p) for p in out]
+
+    def proposal(self, proposal_id: UUID) -> ProposalOut:
+        return ProposalOut.model_validate(self._call("GET", f"/planning/proposals/{proposal_id}"))
+
+    def proposal_problem(self, proposal_id: UUID) -> ProblemOut:
+        """The what-if problem: the proposal's orders planned (the MES keeps nothing)."""
+        return ProblemOut.model_validate(self._call("GET", f"/planning/proposals/{proposal_id}/problem"))
+
+    def proposal_status(self, proposal_id: UUID, status: str, message: str | None = None) -> ProposalOut:
+        body = ProposalStatusIn(status=status, message=message).model_dump(mode="json")
+        return ProposalOut.model_validate(self._call("PUT", f"/planning/proposals/{proposal_id}/status", body))
+
+    def publish_proposal(self, proposal_id: UUID, schedule: ScheduleIn) -> ProposalOut:
+        body = schedule.model_dump(mode="json")
+        return ProposalOut.model_validate(self._call("PUT", f"/planning/proposals/{proposal_id}/schedule", body))

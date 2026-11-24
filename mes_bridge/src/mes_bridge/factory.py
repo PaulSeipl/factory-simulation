@@ -67,6 +67,11 @@ class MesFactory:
         self.ci = compile_instance(build_instance(problem, epoch=self.epoch))
         self.ids = id_map(problem, self.ci)
         changed_pins = False
+        # pins and machines are compared over the operations the last instance had too: a new or removed operation
+        # is the set change below. After a proposal's take-over (`restore`) the plan covers the new orders already,
+        # while the last instance did not have them. Without a last instance (a resume): over all.
+        ops = set(self.ci.op_keys)
+        common = ops & self._machines.keys() if self._machines is not None else ops
         started = {(f.order_id, f.op_id) for f in self.snapshot().frozen}
         self.ci = out_of_service(self.ci, problem, started)
         if self.variant == BOUND:
@@ -76,7 +81,7 @@ class MesFactory:
             values = {
                 k: (self.ci.options[self.ci.op_index[k]], self.ci.shares[self.ci.op_index[k]]) for k in self.pins.pinned
             }
-            changed_pins = values != self._pin_values and before is not None
+            changed_pins = before is not None and _differ(values, self._pin_values, common)
             self._pin_values = values
         self._known = set(self.ci.op_keys)
         # a machine going down (or coming back) changes the options of the operations that have not started: the plan
@@ -84,7 +89,7 @@ class MesFactory:
         machines = {
             k: tuple(self.ci.machine_ids[m] for m, _ in self.ci.options[self.ci.op_index[k]]) for k in self._known
         }
-        changed_machines = self._machines is not None and machines != self._machines
+        changed_machines = self._machines is not None and _differ(machines, self._machines, common)
         self._machines = machines
         # a new break window or day start (planning settings) changes the calendar every break and shift is planned
         # in; a repair keeps the old breaks, so it is a complete rescheduling as well
@@ -168,6 +173,11 @@ class MesFactory:
         before = self.published
         self.update_plan(self.current_plan(), self.current_breaks())
         return self.published > before
+
+
+def _differ(new: dict, old: dict, keys) -> bool:
+    """A value differs on one of `keys` (missing counts as a value: a pin set or cleared)."""
+    return any(new.get(k) != old.get(k) for k in keys)
 
 
 def step(

@@ -10,6 +10,8 @@
   the policy, and the safety poll (a step without any event).
 - Variants (decision 4, task 6.1): one `Runner` per variant (BOUND, FREE), each with its factory, anchor and state
   directory; `Runners` drains the events once per wake, steps every variant and wakes at the earliest timer of any.
+- Proposals (task 7.3): after each step the BOUND runner starts the oldest requested proposal in the background
+  (`proposals.ProposalWorker`, thorough profile); before each step it takes an applied one over as its plan.
 """
 
 import argparse
@@ -26,12 +28,14 @@ from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from zoneinfo import ZoneInfo
 
-from simulation.control.rescheduling import Anchor, Planner, ReschedulingPolicy
+from simulation.control.rescheduling import Anchor, ReschedulingPolicy
 
 from mes_bridge.client import MesClient, http
 from mes_bridge.config import SchedulerConfig
 from mes_bridge.factory import MesFactory, step
 from mes_bridge.instance import epoch_of
+from mes_bridge.once import BOUND
+from mes_bridge.proposals import ProposalWorker
 from mes_bridge.store import Saved, Store, resumable
 
 SAFETY_POLL = timedelta(minutes=5)  # decision 14: a step without any event
@@ -100,7 +104,9 @@ class Runner:
     factory: MesFactory
     policy: ReschedulingPolicy  # the automatic path, always the fast profile (task 7.2)
     events: "queue.Queue[dict]" = field(default_factory=queue.Queue)
-    thorough: Planner | None = None  # the thorough profile: only for a requested proposal (task 7.3), never in `tick`
+    # BOUND only: requested proposals, solved with the thorough profile in their own thread (task 7.3); `tick` itself
+    # always plans with the policy's fast planner
+    proposals: ProposalWorker | None = None
     poll: timedelta = SAFETY_POLL
     anchor: Anchor | None = None
     decisions: list[dict] = field(default_factory=list)
@@ -117,6 +123,7 @@ class Runner:
                 merged.append(self.events.get_nowait())
             except queue.Empty:
                 break
+        self._take_applied(now)
         before = len(self.factory.rejected), self.factory.published
         self.anchor = step(self.factory, self.policy, self.anchor, self.decisions)
         rejected, published = len(self.factory.rejected) - before[0], self.factory.published - before[1]
@@ -132,6 +139,34 @@ class Runner:
             f"{now.isoformat()} {reason}: {len(merged)} events, {published} published, {rejected} not published"
             + (f", {kept} kept alive" if kept else "")
         )
+        self._start_proposal()
+
+    def _take_applied(self, now: datetime) -> None:
+        """An applied proposal is the current plan: continue from it (the step after it repairs, it does not replan
+        the new orders with the fast profile), as a complete rescheduling at `now` (the anchor)."""
+        if self.proposals is None:
+            return
+        try:
+            applied = self.proposals.take_applied()
+        except Exception as e:  # the MES may be down: the next tick asks again
+            self.log(f"proposal check failed: {str(e)[:300]}")
+            return
+        if applied is None:
+            return
+        f = self.factory
+        current = next((s for s in f.client.schedules() if s.variant == f.variant), None)
+        f.restore(applied.plan.assignments, applied.plan.breaks, current.id if current is not None else None)
+        t = int((now - f.epoch).total_seconds() // 60)
+        self.anchor = Anchor(list(applied.plan.assignments), t, tuple(applied.plan.breaks))
+        self.log(f"proposal {applied.proposal_id}: applied, continuing from its plan")
+
+    def _start_proposal(self) -> None:
+        if self.proposals is None:
+            return
+        try:
+            self.proposals.start_next()
+        except Exception as e:  # the MES may be down: the next tick tries again
+            self.log(f"proposal start failed: {str(e)[:300]}")
 
     def _keep_alive(self) -> int:
         """Republish an unchanged plan before the MES calls the scheduler stale; a failure is logged, not raised."""
@@ -269,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
             Runner(
                 MesFactory(client, epoch=epoch, variant=variant),
                 config.rescheduling_policy(),
-                thorough=config.thorough_planner(),
+                proposals=ProposalWorker(client, config.thorough_planner(), epoch=epoch) if variant == BOUND else None,
                 poll=timedelta(minutes=config.safety_poll_minutes),
                 store=Store(args.state_dir, variant),
             )

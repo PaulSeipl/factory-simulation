@@ -9418,6 +9418,405 @@
         }
       }
     },
+    "/api/v1/planning/proposals": {
+      "post": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Request Proposal",
+        "description": "Ask the scheduler for a thorough plan (slice 7.3, nesting flow PLANNED): with `order_ids` (ready for\nplanning) planned, or none for a re-solve of what is planned. Solved in the background; discards open ones.",
+        "operationId": "request_proposal",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "List Proposals",
+        "description": "The newest proposals first (without their schedules).",
+        "operationId": "list_proposals",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ProposalStatusEnum"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProposalOut"
+                  },
+                  "title": "Response List Proposals"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/planning/proposals/{proposal_id}": {
+      "get": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Read Proposal",
+        "description": "The proposal with its schedule and, READY, the comparison with the plan served now.",
+        "operationId": "read_proposal",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/planning/proposals/{proposal_id}/problem": {
+      "get": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Read Proposal Problem",
+        "description": "The problem with the proposal's orders planned (what-if: nothing is kept). Scheduler only.",
+        "operationId": "read_proposal_problem",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/planning/proposals/{proposal_id}/status": {
+      "put": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Set Proposal Status",
+        "description": "The scheduler took the proposal (SOLVING) or gave up on it (FAILED). Scheduler only.",
+        "operationId": "set_proposal_status",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalStatusIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/planning/proposals/{proposal_id}/schedule": {
+      "put": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Publish Proposal Schedule",
+        "description": "The scheduler's solve of the proposal; the proposal is READY. Scheduler only.",
+        "operationId": "publish_proposal_schedule",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/planning/proposals/{proposal_id}/apply": {
+      "post": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Apply Proposal",
+        "description": "Plan the proposal's orders and make its schedule the current one.",
+        "operationId": "apply_proposal",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalApply"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/planning/proposals/{proposal_id}/discard": {
+      "post": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Discard Proposal",
+        "operationId": "discard_proposal",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/kpi/capacity": {
       "get": {
         "tags": [
@@ -21513,6 +21912,366 @@
           "order_part_ids"
         ],
         "title": "ProposableTask"
+      },
+      "ProposalApply": {
+        "properties": {
+          "done_dates": {
+            "additionalProperties": {
+              "type": "string",
+              "format": "date"
+            },
+            "propertyNames": {
+              "format": "uuid"
+            },
+            "type": "object",
+            "title": "Done Dates",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "title": "ProposalApply",
+        "description": "The estimated done date per selected order; a missing one is the proposal's finish."
+      },
+      "ProposalComparisonOut": {
+        "properties": {
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalOrderOut"
+            },
+            "type": "array",
+            "title": "Orders"
+          },
+          "reassigned": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalStepChangeOut"
+            },
+            "type": "array",
+            "title": "Reassigned"
+          },
+          "moved_today": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalStepChangeOut"
+            },
+            "type": "array",
+            "title": "Moved Today"
+          }
+        },
+        "type": "object",
+        "required": [
+          "orders",
+          "reassigned",
+          "moved_today"
+        ],
+        "title": "ProposalComparisonOut",
+        "description": "The proposal against the plan served now (READY only): what applying it changes."
+      },
+      "ProposalCreate": {
+        "properties": {
+          "order_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Order Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "ProposalCreate",
+        "description": "`POST /planning/proposals`: *Plan selected* (orders ready for planning) or, empty, *Update plan*."
+      },
+      "ProposalOrderOut": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Order Id"
+          },
+          "short_id": {
+            "type": "string",
+            "title": "Short Id"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "current_finish": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Finish"
+          },
+          "proposed_finish": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Finish"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id",
+          "short_id",
+          "selected",
+          "due_date",
+          "current_finish",
+          "proposed_finish"
+        ],
+        "title": "ProposalOrderOut",
+        "description": "One order's finish now and with the proposal applied."
+      },
+      "ProposalOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProposalStatusEnum"
+          },
+          "order_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Order Ids"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProposalComparisonOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "order_ids",
+          "message",
+          "created_at",
+          "finished_at"
+        ],
+        "title": "ProposalOut"
+      },
+      "ProposalStatusEnum": {
+        "type": "string",
+        "enum": [
+          "REQUESTED",
+          "SOLVING",
+          "READY",
+          "FAILED",
+          "APPLIED",
+          "DISCARDED"
+        ],
+        "title": "ProposalStatusEnum"
+      },
+      "ProposalStatusIn": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "SOLVING",
+              "FAILED"
+            ],
+            "title": "Status"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ProposalStatusIn",
+        "description": "The scheduler took a proposal (SOLVING) or gave up on it (FAILED, with why)."
+      },
+      "ProposalStepChangeOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "task_type": {
+            "$ref": "#/components/schemas/TaskTypeEnum"
+          },
+          "order_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Order Ids"
+          },
+          "current_worker_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Worker Id"
+          },
+          "proposed_worker_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Worker Id"
+          },
+          "current_equipment_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Equipment Id"
+          },
+          "proposed_equipment_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Equipment Id"
+          },
+          "current_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Current Start"
+          },
+          "proposed_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Proposed Start"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "task_type",
+          "order_ids",
+          "current_worker_id",
+          "proposed_worker_id",
+          "current_equipment_id",
+          "proposed_equipment_id",
+          "current_start",
+          "proposed_start"
+        ],
+        "title": "ProposalStepChangeOut",
+        "description": "An open step the proposal gives another worker or machine, or moves while it starts today."
       },
       "ReadyWork": {
         "properties": {

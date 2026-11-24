@@ -17,6 +17,8 @@ each step through the HTTP API, and checks what the plan shows afterwards:
  6. they finish it
  7. the print is started and handed off with a run of 2000 min, far longer than planned: its successors move
  8. a printer goes DOWN: nothing is planned on it any more
+10. (before 9) a proposal (task 7.3): the planned nesting flow, *Plan selected* for the urgent pipeline order, solved
+    in the background with the thorough profile, applied: the order is planned and the bridge continues from it
  9. the bridge stops: after the staleness setting (1 min here) the plan falls back to the fill (OFFLINE)
 
 Prints PASS / FAIL per step; exit code 0 when all pass. `--keep` leaves the MES, the bridge and the database
@@ -46,6 +48,9 @@ os.environ["POSTGRESQL_DB_NAME"] = DB  # before the app's settings load: every l
 
 from app.core.db import SessionLocal  # noqa: E402
 from app.models.config.hardware import AmSystem, EEquipmentStatus  # noqa: E402
+from app.models.orders.order import ProductionOrder  # noqa: E402
+from app.schemas.lookup import OrderPlanningStatusEnum  # noqa: E402
+from app.services.order import planning_status_id  # noqa: E402
 from scripts.seed_intern_order import Fixtures  # noqa: E402
 
 API = "http://127.0.0.1:8091/api/v1"
@@ -345,10 +350,66 @@ def scenario(mes, env, bridge_state):
     check("8 printer DOWN: no print that has not started is planned on it", used and not left,
           f"{waited:.0f} s, {len(used)} print(s) moved off; still on it: {left[:3]}; started job kept: {len(kept)}")  # fmt: skip
 
+    b8 = proposal(mes, bridge_state, b8)
+
     # 9 bridge offline
     settings = mes.call("GET", "/planning/settings")
     mes.call("PUT", "/planning/settings", {"day_start": settings["day_start"], "scheduler_stale_minutes": 1})
     return b8
+
+
+def proposal(mes, bridge_state, b8):
+    """10 (task 7.3): the planned nesting flow; *Plan selected* for the urgent pipeline order: the thorough solve runs
+    in the background, the automatic plan stays without it; applied, the order is planned and the bridge continues
+    from the proposal's plan."""
+    settings = mes.call("GET", "/planning/settings")
+    mes.call("PUT", "/planning/settings", {"day_start": settings["day_start"], "nesting_flow": "PLANNED"})
+    with SessionLocal() as db:
+        ready = planning_status_id(db, OrderPlanningStatusEnum.READY_FOR_PLANNING)
+        urgent = db.scalars(
+            select(ProductionOrder).where(ProductionOrder.planning_status_id == ready, ProductionOrder.priority == "HIGH")
+        ).one()
+        oid = str(urgent.id)
+    t0 = time.time()
+    pid = mes.call("POST", "/planning/proposals", {"order_ids": [oid]})["id"]
+    p, waited = wait_for(
+        lambda: (p := mes.call("GET", f"/planning/proposals/{pid}"))["status"] in ("READY", "FAILED") and p,
+        600,
+        "the proposal",
+    )
+    keys = {s["key"] for s in (p["schedule"] or {}).get("steps", [])}
+    mine = {k for k in keys if k.startswith(f"order:{oid}:")}
+    check("10 proposal solved in the background", p["status"] == "READY", f"{waited:.0f} s, {p['message'] or ''}")
+    check("10 the proposal plans the selected order", f"order:{oid}:DATA_PREP_SECONDARY" in mine, f"{len(mine)} steps")
+    current = mes.plan("BOUND")
+    served = [s for s in current["steps"] if oid in s["order_ids"] and s["source"] == "SCHEDULER"]
+    check("10 not applied yet: the served plan does not have it", not served, f"{len(served)} steps")
+    since = time.time()
+    mes.call("POST", f"/planning/proposals/{pid}/apply", {})
+    with SessionLocal() as db:
+        order = db.get(ProductionOrder, urgent.id)
+        planned = order.planning_status.planning_status == "PLANNED" and order.estimated_done_date is not None
+        done = order.estimated_done_date
+    check("10 applied: the order is planned with the proposal's done date", planned, str(done))
+    log = HERE / "scenario_bridge.log"
+    _, waited = wait_for(lambda: "applied, continuing from its plan" in log.read_text(errors="replace"), 60, "take-over")
+    wait_woke(bridge_state, since)
+    b10 = mes.plan("BOUND")
+    steps = {s["key"]: s for s in b10["steps"] if oid in s["order_ids"]}
+    sources = {s["source"] for s in steps.values()}
+    check("10 the bridge took the proposal over, the order is the scheduler's", sources == {"SCHEDULER"},
+          f"{waited:.0f} s, {len(steps)} steps, sources {sources}")  # fmt: skip
+    finish = max((ts(s["end"]) for s in p["schedule"]["steps"] if s["key"] in mine), default=None)
+    now_finish = max((ts(s["end"]) for s in steps.values()), default=None)
+    late = (now_finish - finish).total_seconds() / 60 if finish and now_finish else None
+    # the take-over repairs only: a step whose planned start passed meanwhile moves to now, nothing is replanned
+    check("10 its finish is the proposal's (later by at most the minutes the solve took)", late is not None and
+          0 <= late <= (time.time() - t0) / 60 + 1, f"{late} min later")  # fmt: skip
+    decisions = (bridge_state / "BOUND" / "decisions.jsonl").read_text(encoding="utf-8").splitlines()
+    after = [json.loads(x) for x in decisions if ts(json.loads(x)["at"]).timestamp() >= since]
+    replans = [d["triggers"] for d in after if d["type"] == "REPLAN"]
+    check("10 no complete rescheduling replaced it", not replans, str(replans))
+    return b10
 
 
 def _free(port):
