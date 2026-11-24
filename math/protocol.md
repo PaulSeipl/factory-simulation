@@ -8,6 +8,24 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-24 (91) — CP-SAT stop hook — (this commit)
+
+**Decided.** User (2026-11-24, `mes_bridge/PLAN.md` task 7.5a): a thorough solve in the MES may take up to 30 min, and
+one whose proposal the planner discards must end at once instead of running to its limit and holding up the next
+request. Own: an engineering hook in the planner interface, no change to the model, its constraints or objectives.
+
+**Done.** `simulation.planners.cpsat.solve(stop=)` and `cpsat_planner(stop=)` take a `threading.Event`. A watcher
+thread (bounded by `time_limit` x levels + 1 s) calls OR-Tools' `CpSolver.stop_search` when it is set; before and
+after each level of a lexicographic objective the solve checks it and returns status `STOPPED` with an empty schedule;
+`cpsat_planner` raises `Stopped` (a `RuntimeError`). Without `stop`, nothing changes. Test
+`tests/test_cpsat.py::test_a_stop_from_another_thread_ends_the_solve_early` (MK10 cold at 60 s stopped after 0.5 s;
+set before the call: no level solved; unset: OPTIMAL as before). Docs: [12](12_cp-sat.md) change log.
+
+**Found.** OR-Tools 9.15 offers `stop_search` on `CpSolver`, safe from another thread; a solution callback would only
+fire on solutions.
+
+**Open.** The GA has no stop hook (its limits are short in the bridge). The thesis experiments never pass `stop`.
+
 ## 2026-11-23 (90) — Factory interface for the planning tool — uncommitted
 
 **Decided.** User (2026-11-22, scheduler integration design, `mes_bridge/PLAN.md` task 2.1): the planning tool must

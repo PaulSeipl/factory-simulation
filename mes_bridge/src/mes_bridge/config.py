@@ -21,6 +21,7 @@ frozen horizon follows in 5.2.
 """
 
 import logging
+import threading
 import math
 from pathlib import Path
 from typing import Literal
@@ -37,7 +38,7 @@ from simulation.objectives import (
     lexicographic,
     worker_objective_with_slack,
 )
-from simulation.planners.cpsat import cpsat_planner
+from simulation.planners.cpsat import Stopped, cpsat_planner
 from simulation.planners.dispatching import ASSIGNMENT_RULES, SEQUENCING_RULES, dispatch_planner
 from simulation.planners.ga import GaParams, ga_planner
 
@@ -105,12 +106,13 @@ class SolverConfig(_Model):
     def rule_planner(self) -> Planner:
         return dispatch_planner(SEQUENCING_RULES[self.sequencing], ASSIGNMENT_RULES.get(self.assignment or ""))
 
-    def planner(self) -> Planner:
+    def planner(self, stop: threading.Event | None = None) -> Planner:
         """The configured planner. CP-SAT and the GA fall back to the rule (`sequencing`, `assignment`) when they
         return no plan for the operations (no solution within the time limit, an infeasible model); `planner.last`
         then says why (`fallback`), and is the solver's own report otherwise. Both plan from the snapshot with the
         frozen horizon (decision 19, `state.with_frozen_horizon`): what the current plan starts within the solve's
-        time limit is kept, since it may have started by the time the plan is published."""
+        time limit is kept, since it may have started by the time the plan is published. `stop` (CP-SAT only; shortcut: the
+        GA runs to its limit): set from another thread, the solve ends at once with `Stopped`, no fallback."""
         if self.kind == "rule":
             return self.rule_planner()
 
@@ -120,13 +122,16 @@ class SolverConfig(_Model):
             if self.kind == "cpsat":
                 # one solver thread, so a seed reproduces a plan (as the thesis experiments)
                 inner = cpsat_planner(
-                    self.time_limit, 1, self.seed, objective=objective, deterministic_time=self.deterministic_time
+                    self.time_limit, 1, self.seed, objective=objective, deterministic_time=self.deterministic_time,
+                    stop=stop,
                 )
             else:
                 inner = ga_planner(objective, GaParams(time_limit=self.time_limit, seed=self.seed))
             try:
                 plan = inner(ci, snapshot, current)
                 reason = None if len(plan.assignments) == ci.n_ops else f"{len(plan.assignments)} of {ci.n_ops} planned"
+            except Stopped:
+                raise  # nobody wants the plan: no fallback either
             except (RuntimeError, ValueError) as e:  # cpsat_planner raises without a solution
                 plan, reason = None, str(e)
             planner.last = getattr(inner, "last", None)  # the solver's report of this call (status, limits)
@@ -174,9 +179,9 @@ class SchedulerConfig(_Model):
         """The automatic path: always the fast profile (`solver`), never `thorough`."""
         return ReschedulingPolicy(planner=self.solver.planner(), **self.policy.model_dump())
 
-    def thorough_planner(self) -> Planner:
-        """The planner for a requested proposal: `thorough`, else `solver`."""
-        return (self.thorough or self.solver).planner()
+    def thorough_planner(self, stop: threading.Event | None = None) -> Planner:
+        """The planner for a requested proposal: `thorough`, else `solver`; `stop` ends a running solve."""
+        return (self.thorough or self.solver).planner(stop)
 
     @classmethod
     def load(cls, path: str | Path | None) -> "SchedulerConfig":

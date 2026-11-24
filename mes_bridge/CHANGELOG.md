@@ -4,13 +4,17 @@
 
 ## Unreleased
 
+- A discarded proposal stops its solve (user 2026-11-24): the BOUND runner's `ProposalWorker` and the thorough
+  planner share a `threading.Event`, the thesis CP-SAT stop hook (`cpsat_planner(stop=)`, protocol (91)). While a
+  solve runs, each step asks the MES about its proposal; once it is no longer SOLVING (discarded, or replaced by a new
+  request) the event is set, CP-SAT ends at once, and nothing is reported (`Stopped`; no rule fallback in
+  `SolverConfig.planner`). The GA runs to its limit (shortcut). Tests: `test_proposals.py`, `test_config.py`.
 - The long solve, watched (slice 7, task 7.5a): `ProposalWorker` sends `expected_by` with SOLVING (now + the
   thorough profile's `SolverConfig.max_solve_seconds` + 1 min: CP-SAT's limit times the worker objective's five
   levels, the GA's once, 0 for a rule), so the MES shows "ready by". On its first step it fails every SOLVING
   proposal it does not run ("the scheduler restarted"): a solve lost with the old process would otherwise show as
   solving forever. A thorough solve may take up to 30 min (user): `time_limit: 360` for CP-SAT with the worker
-  objective. Not done: stopping a running CP-SAT solve when its proposal is discarded (the thesis planner has no stop
-  hook; a new request waits for the old solve's limit). Tests in `test_proposals.py` (3).
+  objective. Tests in `test_proposals.py` (3).
 - A proposal the fast rule planned says so (user 2026-11-24): when the thorough planner found no plan and fell back
   (`planner.last['fallback']`, e.g. CP-SAT infeasible on real data, finding uu), `ProposalWorker` publishes the
   schedule with a note (`PUT .../schedule?note=`, the MES stores it in the proposal's `message`); the proposal is

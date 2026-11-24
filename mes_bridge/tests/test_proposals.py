@@ -70,6 +70,32 @@ def test_one_solve_at_a_time_and_the_automatic_steps_go_on():
     assert str(w.start_next()) == second
 
 
+def test_discarding_a_running_proposal_stops_its_solve():
+    """A thorough solve may take 30 min: a discarded one is stopped (the CP-SAT stop hook), so the next request does
+    not wait for it, and nothing is reported for it."""
+    from simulation.planners.cpsat import Stopped
+
+    fake, r, _now, lines = _runner()
+    stop, entered = threading.Event(), threading.Event()
+
+    def long_solve(ci, snap, plan):  # as CP-SAT with the hook: runs until stopped
+        entered.set()
+        assert stop.wait(5), "never stopped"
+        raise Stopped("the solve was stopped")
+
+    w = _worker(r, long_solve, stop=stop)
+    first = fake.request()
+    assert str(w.start_next()) == first and entered.wait(5)
+    assert w.start_next() is None and not stop.is_set()  # still wanted: runs on
+    fake.discard(first)
+    assert w.start_next() is None and stop.is_set()  # the next step sees the discard
+    w._thread.join(5)
+    assert not w.busy and fake.proposals[first]["status"] == "DISCARDED"
+    assert any("solve stopped" in line for line in lines)
+    second = fake.request()
+    assert str(w.start_next()) == second and not stop.is_set()  # cleared for the next solve
+
+
 def test_a_failing_solve_reports_failed_with_why():
     fake, r, _now, _ = _runner()
 

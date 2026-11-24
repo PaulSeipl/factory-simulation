@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from simulation.control.rescheduling import Planner
+from simulation.planners.cpsat import Stopped
 from simulation.model.schedule import Plan
 
 from mes_bridge.client import MesClient, MesError
@@ -47,10 +48,13 @@ class ProposalWorker:
         log: Callable[[str], None] = print,
         background: bool = True,  # tests: solve in the caller's thread
         max_seconds: float = 0.0,  # the thorough profile's longest solve, for the planners' "ready by"
+        stop: threading.Event | None = None,  # the planner's stop hook: set when the running proposal is dropped
     ):
         self.client, self.planner, self.epoch, self._clock, self.log = client, planner, epoch, clock, log
         self.background, self.max_seconds = background, max_seconds
         self._recovered = False
+        self.stop = stop
+        self._running: UUID | None = None  # the proposal being solved
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
         self._solved: dict[UUID, Solved] = {}  # published, waiting for the planner
@@ -60,8 +64,10 @@ class ProposalWorker:
         return self._thread is not None and self._thread.is_alive()
 
     def start_next(self) -> UUID | None:
-        """Take the oldest REQUESTED proposal unless a solve is running; its id, or None."""
+        """Take the oldest REQUESTED proposal unless a solve is running; its id, or None. A running solve whose
+        proposal was discarded meanwhile (or replaced by a new request) is stopped, so the next need not wait."""
         if self.busy:
+            self._stop_if_dropped()
             return None
         if not self._recovered:  # a solve this process does not run any more: nobody would ever finish it
             for left in self.client.proposals(status=SOLVING):
@@ -79,12 +85,22 @@ class ProposalWorker:
                 return None
             raise
         self.log(f"proposal {proposal.id}: solving ({len(proposal.order_ids)} orders)")
+        self._running = proposal.id
+        if self.stop is not None:
+            self.stop.clear()
         if self.background:
             self._thread = threading.Thread(target=self._solve, args=(proposal.id,), daemon=True)
             self._thread.start()
         else:
             self._solve(proposal.id)
         return proposal.id
+
+    def _stop_if_dropped(self) -> None:
+        if self.stop is None or self._running is None or self.stop.is_set():
+            return
+        if self.client.proposal(self._running).status != SOLVING:  # discarded: nobody wants this plan any more
+            self.log(f"proposal {self._running}: dropped during the solve, stopping it")
+            self.stop.set()
 
     def take_applied(self) -> Solved | None:
         """A solved proposal the planner applied since the last call (dropped: discarded ones)."""
@@ -116,6 +132,8 @@ class ProposalWorker:
                 with self._lock:
                     self._solved[proposal_id] = Solved(proposal_id, outcome.plan)
             self.log(f"proposal {proposal_id}: ready ({len(schedule.steps)} steps)")
+        except Stopped:
+            self.log(f"proposal {proposal_id}: solve stopped")
         except MesError as e:
             if e.status == 409:
                 self.log(f"proposal {proposal_id}: dropped ({e})")

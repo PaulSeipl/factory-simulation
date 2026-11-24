@@ -169,6 +169,32 @@ def test_cpsat_without_a_plan_falls_back_to_the_rule():
     assert "INFEASIBLE" in planner.last["fallback"]
 
 
+def test_a_stopped_cpsat_solve_has_no_rule_fallback():
+    """The stop hook (task 7.5a): nobody wants the plan, so the rule does not plan instead either."""
+    import threading
+    from pathlib import Path
+    from zoneinfo import ZoneInfo
+
+    from simulation.model.compiled import compile_instance
+    from simulation.planners.cpsat import Stopped
+
+    from mes_bridge.api import ProblemOut
+    from mes_bridge.instance import build_instance, epoch_of
+    from mes_bridge.state import build_snapshot, id_map
+
+    p = ProblemOut.model_validate_json(
+        (Path(__file__).parent / "data" / "problem_printing.json").read_text(encoding="utf-8")
+    )
+    epoch = epoch_of(p.as_of, ZoneInfo("Europe/Berlin"))
+    ci = compile_instance(build_instance(p, epoch=epoch))
+    snap = build_snapshot(p, ci, id_map(p, ci), epoch=epoch)
+    stop = threading.Event()
+    stop.set()
+    c = SchedulerConfig.model_validate({"thorough": {"kind": "cpsat", "time_limit": 60}})
+    with pytest.raises(Stopped):
+        c.thorough_planner(stop)(ci, snap, [])
+
+
 def test_the_policy_runs_the_configured_solver():
     c = SchedulerConfig.model_validate({"solver": {"kind": "cpsat", "time_limit": 2}})
     assert c.rescheduling_policy().planner.__qualname__ == "cpsat_planner"

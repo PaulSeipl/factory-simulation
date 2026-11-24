@@ -299,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     tz = ZoneInfo(client.problem().instance.calendar.time_zone)
     config = SchedulerConfig.load(args.config)
     epoch = epoch_of(datetime.now(UTC), tz)
+    stop = threading.Event()  # ends a running proposal solve whose proposal was dropped
     runner = Runners(
         [
             Runner(
@@ -306,9 +307,10 @@ def main(argv: list[str] | None = None) -> int:
                 config.rescheduling_policy(),
                 proposals=ProposalWorker(
                     client,
-                    config.thorough_planner(),
+                    config.thorough_planner(stop),
                     epoch=epoch,
                     max_seconds=(config.thorough or config.solver).max_solve_seconds,
+                    stop=stop,
                 )
                 if variant == BOUND
                 else None,

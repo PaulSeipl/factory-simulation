@@ -24,6 +24,7 @@ forced end of C7^o, with a worker free of the frozen part then.
 """
 
 import dataclasses
+import threading
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -43,7 +44,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class CpSatResult:
-    status: str  # CP-SAT status name: OPTIMAL, FEASIBLE, INFEASIBLE, UNKNOWN, MODEL_INVALID
+    status: str  # CP-SAT status name: OPTIMAL, FEASIBLE, INFEASIBLE, UNKNOWN, MODEL_INVALID; STOPPED (`stop` was set)
     schedule: list[Assignment]  # empty unless a solution was found
     objective: int | None  # objective value of the schedule
     bound: int | None  # best proven lower bound on the objective
@@ -67,13 +68,14 @@ def solve(
     change_budget: int | None = None,
     deterministic_time: float | None = None,  # work-based limit: same result under any machine load (1 worker)
     horizon_cap: int | None = None,  # upper bound of all times; default: the hint's end for makespan (math/12)
+    stop: threading.Event | None = None,  # set from another thread: the solve ends early with status STOPPED
 ) -> CpSatResult:
     if horizon_cap is None and objective is MAKESPAN and hint:
         # the optimal makespan is at most the hint's: a tighter horizon (fewer calendar days, smaller domains). If the
         # hint is not feasible the capped model may be infeasible: then the full horizon
         args = {"objective": objective, "time_limit": time_limit, "workers": workers, "seed": seed, "hint": hint,
                 "snapshot": snapshot, "reference": reference, "change_budget": change_budget,
-                "deterministic_time": deterministic_time}
+                "deterministic_time": deterministic_time, "stop": stop}
         capped = solve(ci, **args, horizon_cap=max(a.end for a in hint))
         if capped.status in ("OPTIMAL", "FEASIBLE"):
             return capped
@@ -309,11 +311,20 @@ def solve(
     if not objective.levels and objective.spread(ci) >= 2**53:  # solver values are doubles: exact only below 2^53
         raise ValueError(f"objective {objective.name}: spread {objective.spread(ci)} too large for exact values")
     values, bounds, statuses, wall, wall_limited = [], [], [], 0.0, False
+    if stop is not None:  # an engineering hook, not part of the model: the caller no longer wants the plan
+        def watch():  # bounded by the longest solve, so the thread never outlives it by much
+            if stop.wait(time_limit * len(levels) + 1):
+                solver.stop_search()
+        threading.Thread(target=watch, daemon=True).start()
     for i, level in enumerate(levels):
+        if stop is not None and stop.is_set():
+            return CpSatResult("STOPPED", [], None, None, wall, wall_limited=True)
         expr = level.cpsat(model, ci, starts, ends, horizon, calendar_vars)
         model.minimize(expr)
         status = solver.solve(model)
         wall += solver.wall_time
+        if stop is not None and stop.is_set():
+            return CpSatResult("STOPPED", [], None, None, wall, wall_limited=True)
         if status == cp_model.INFEASIBLE and i > 0:
             # the previous level's solution satisfies this model, so INFEASIBLE is wrong: OR-Tools 9.15 presolve
             # can reject a bound at exactly the optimum (protocol 2026-11-11 (40)); retry this level without presolve
@@ -515,9 +526,14 @@ def _s_batch_slots(model, ci: CompiledInstance, s_ops: set[int], starts, ends, c
     return out
 
 
+class Stopped(RuntimeError):
+    """The planner's `stop` event was set: its caller no longer wants the plan."""
+
+
 def cpsat_planner(
     time_limit: float = 1.0, workers: int = 1, seed: int = 0, change_budget: int | None = None,
     objective: Objective = MAKESPAN, deterministic_time: float | None = None,
+    stop: threading.Event | None = None,
 ):
     """Planner for the complete rescheduling: planner(ci, snapshot, current_plan) -> new complete plan.
 
@@ -527,7 +543,10 @@ def cpsat_planner(
 
     def planner(ci: CompiledInstance, snapshot: Snapshot, current: Sequence[Assignment]) -> Plan:
         result = solve(ci, objective, time_limit, workers, seed, hint=current, snapshot=snapshot,
-                       reference=current, change_budget=change_budget, deterministic_time=deterministic_time)
+                       reference=current, change_budget=change_budget, deterministic_time=deterministic_time,
+                       stop=stop)
+        if result.status == "STOPPED":
+            raise Stopped("the solve was stopped")
         if not result.schedule and ci.calendar is not None and ci.worker_ids:
             # the planner interface has no current breaks to fall back on
             raise RuntimeError(f"CP-SAT found no plan within {time_limit} s ({result.status}); raise the time limit")
