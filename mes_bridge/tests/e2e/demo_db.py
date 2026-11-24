@@ -8,7 +8,7 @@ Runs in the MES backend's environment, from `backend/`:
 `setup` (re)creates the database `name` (it must start with `mes_demo`), migrates it (`alembic upgrade head`), runs
 `app/initial_data.py` (admin / admin and five workers, password `fidentis_<user_name>`), creates the `scheduler`
 service account with a generated password, and seeds the showcase orders (`mes_driver.py demo`). The generated
-secrets (scheduler password, events token) go to `<temp>/mes_demo_secrets.ps1`, to dot-source in the MES and
+secrets (scheduler password, events token) go to `<temp>/<database>_secrets.ps1` (the demo: `mes_demo_secrets.ps1`), to dot-source in the MES and
 bridge terminals; they are never printed in full.
 """
 
@@ -24,7 +24,10 @@ import psycopg
 from app.core.config import settings
 
 HERE = Path(__file__).resolve().parent
-SECRETS = Path(tempfile.gettempdir()) / "mes_demo_secrets.ps1"
+def secrets_of(name: str) -> Path:
+    """Per database, so the scenario (`mes_demo_scenario`) never overwrites the demo's file (`demo.ps1` reads
+    `mes_demo_secrets.ps1`): a demo pointed elsewhere would rebuild `mes_demo`."""
+    return Path(tempfile.gettempdir()) / f"{name}_secrets.ps1"
 
 
 def _admin():
@@ -57,7 +60,8 @@ def setup(name: str) -> None:
         env=env, check=True,
     )  # fmt: skip
     _run(sys.executable, str(HERE / "mes_driver.py"), "demo", env=env)
-    SECRETS.write_text(
+    path = secrets_of(name)
+    path.write_text(
         f'$env:POSTGRESQL_DB_NAME = "{name}"\n'
         f'$env:MES_SCHEDULER_PASSWORD = "{password}"\n'
         f'$env:MES_EVENTS_TOKEN = "{token}"\n'
@@ -65,12 +69,12 @@ def setup(name: str) -> None:
         '$env:SCHEDULER_URL = "http://127.0.0.1:8766"\n',
         encoding="utf-8",
     )
-    print(f"database {name} ready; secrets in {SECRETS} (dot-source it: . '{SECRETS}')")
+    print(f"database {name} ready; secrets in {path} (dot-source it: . '{path}')")
 
 
 def drop(name: str) -> None:
     _sql(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")
-    SECRETS.unlink(missing_ok=True)
+    secrets_of(name).unlink(missing_ok=True)
     print(f"dropped {name}")
 
 

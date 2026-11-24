@@ -194,10 +194,10 @@ def _up(m):
 
 
 def secrets_env():
-    from demo_db import SECRETS  # noqa: PLC0415
+    from demo_db import secrets_of  # noqa: PLC0415
 
     env = dict(os.environ)
-    for line in SECRETS.read_text(encoding="utf-8").splitlines():
+    for line in secrets_of(DB).read_text(encoding="utf-8").splitlines():
         k, v = line.removeprefix("$env:").split(" = ", 1)
         env[k] = v.strip('"')
     return env
