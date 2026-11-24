@@ -8,6 +8,49 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-24 (90) — Endless loop in the calendar repair for long shares (found by the drift trigger) — uncommitted
+
+**Decided.** User: run notebook 09 §8 (rescheduling on drift, `max_objective_change=1`) on the home PC; after it was
+killed, find the memory growth first, at most 3.5 GHz, a 500 MB limit per probe; then a guard in the repair, and
+for the bug: the break behind the share plus overtime for a long share (2026-11-24). Own: probe each episode in its
+own process with a memory limit and a stack dump instead of the notebook's process pool.
+
+**Done.** Probes (scripts in the session scratchpad, not in the repository): 21 of the 24 drift episodes one per
+process with peak memory, every CP-SAT model exported before its solve, the Python stack dumped twice at the
+limit. Fix in `planners/repair.py` (`_calendar.fit`): the pending break moves behind a share that would leave the
+day behind it (within the window, clear of the frozen part); a share longer than every part without overtime gets
+overtime up to the window; the inner loop over days stops after two weeks with `ValueError`. Four tests in
+`tests/test_repair_calendar.py` (break behind the share, overtime for 330 minutes, a 200-minute share keeps its
+break, the guard on a calendar outside the validation); the 300-minute case hung before the fix. Docs:
+[05](05_rescheduling-frozen-part.md) §2 "Long shares", change log.
+
+**Found.**
+- The 9.3 GB that the kernel's OOM killer stopped (home PC, 2026-11-22 20:27) was no leak and not CP-SAT: in
+  CP-SAT, seed 4, bind all, the repair after a rescheduling looped over days without end, `break_at` adding a break
+  per new day (≈ 8 MB/s at a standing DES clock). Both stack dumps: `repair_plan` → `shift_repair` → `fit` →
+  `break_at`. The trapped CP-SAT model (20,799 variables, 5th lexicographic level) solves alone in 48 s at 266 MB.
+- Cause: the validation admits shares up to 390 minutes (longest share, [04](04_workers.md)), the repair's `fit`
+  only 270 (break at 12:00, no overtime on a day without planned overtime). The guard of two weeks sat only in the
+  outer loop.
+- Every other probed episode peaks at 105–281 MB. The episode is not reproducible across runs and machines: CP-SAT,
+  seed 1, bind all had 14 reschedulings on the home PC (Linux) and 49 on the laptop (Windows), no wall limit hit;
+  seed 4 blew up at the 36th, 41st and 15th rescheduling in three runs, even on one machine. Source not found:
+  CP-SAT's search, or an iteration order that depends on Python's hash seed **[uncertain]**.
+
+**Open.** §8 of notebook 09 must be rerun with the fix (all episodes, including the 21 probed ones, since the
+repair changed); the diagnostic run with the guard named the real share: `O4/grind`, 280 minutes, worker B, from
+t = 36105 (within 271–300, so rule "break behind the share"); the episode's run with the fix (module override from `/tmp`) was stopped
+for a shutdown at 33 reschedulings, t = 25047, 246 MB, no error (logs: home `~/probe-2026-11-24/diag2.log`); a
+second run with the fix finished: 43 reschedulings, 32 tardy days, last decision at t = 36232, peak 314 MB, no
+error (home `/tmp/probe/diag3.log`); since episodes are not reproducible, this does not show that the run met the
+O4/grind share again; the probes `CP-SAT_3_4` (stopped unfinished), `GA_3_1`–`GA_3_4` and `GA_all_4`
+(done, 155–210 MB, old repair) are in the same folder; the dispatching rule's
+`next_start` rejects the same shares ("longer than both parts") instead of planning them; reproducibility of the
+CP-SAT episodes across machines; `scripts/home-run.sh` asks `systemd-inhibit` for `sleep:idle`, which polkit refuses
+over SSH (only `idle` works); math/14 §5f and the §8 findings.
+
+---
+
 ## 2026-11-22 (89) — The plan over time: animation and metric history (notebook 09 §7) — uncommitted
 
 **Decided.** User: use the plan history for visualizations first, an animation of the evolving plan including the

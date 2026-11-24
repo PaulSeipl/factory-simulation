@@ -289,6 +289,9 @@ def _calendar(ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignmen
             brk[z, d] = None if d < snap_day else clear(z, max(day_start(cal, d) + cal.break_earliest, t))
         return brk[z, d]
 
+    # longest share a day holds without overtime: before a break at its latest start, or after one at its earliest
+    plain = max(cal.break_latest - cal.shift_start, cal.shift_end - cal.break_earliest - cal.break_length)
+
     def fit(o: int, s: int) -> int:
         limit = s + 2 * WEEK
         while True:
@@ -297,14 +300,27 @@ def _calendar(ci: CompiledInstance, snapshot: Snapshot, plan: Sequence[Assignmen
                 lo, hi = share_interval(ci.shares[o][i], s, s + p[o])
                 a, n = lo, hi - lo
                 while True:
+                    if a - (lo - s) > limit:  # the share fits no day (e.g. a break placed at 12:00, no overtime)
+                        raise ValueError(f"{ci.op_keys[o]}: share {i} of {n} minutes of worker {ci.worker_ids[z]} "
+                                         f"fits in no shift from t={lo} on (break, overtime limits of the repair)")
                     d = day_index(cal, a)
-                    last = cal.shift_end + cal.max_overtime if overtime else latest_end.get((z, d), cal.shift_end)
+                    # a share longer than every part without overtime gets overtime up to the window (user
+                    # 2026-11-24), as the DES would start it; it fits no day otherwise
+                    last = (cal.shift_end + cal.max_overtime if overtime or n > plain
+                            else latest_end.get((z, d), cal.shift_end))
                     if (moved := shift_window(cal, a, n, last)) != a:
                         a = moved  # possibly another day: check it against that day's limit
                         continue
                     b = brk.get((z, d)) if a >= latest_break(d) else break_at(z, d)  # owed if before the latest
                     if b is not None and a < b + cal.break_length and b < a + n:
-                        a = b + cal.break_length
+                        after = b + cal.break_length
+                        # behind the break the share would leave the day: the pending break moves behind the share
+                        # instead, within its window and clear of the frozen part (C14; user 2026-11-24)
+                        if (a < b <= a + n <= latest_break(d) and b >= t and (ci.worker_ids[z], b) not in taken
+                                and shift_window(cal, after, n, last) != after and clear(z, a + n) == a + n):
+                            brk[z, d] = a + n
+                            break
+                        a = after
                         continue
                     break
                 need = max(need, a - (lo - s))

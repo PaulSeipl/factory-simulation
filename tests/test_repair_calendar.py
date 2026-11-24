@@ -217,6 +217,55 @@ def test_execute_with_the_repair_overtime_option(overtime, o1_start):
     assert {v.constraint for v in check_schedule(ci, result.schedule, breaks=result.breaks)} <= {"C2"}
 
 
+def _long_share(n, t=310):
+    """One worker W1, o0 of n minutes planned Monday 13:00 (overtime when it ends after 17:30), not started at t
+    (13:10); W1 took the break at 12:00. Shares up to 390 minutes are valid (longest share: until the latest break
+    start 13:00, or from 13:00 into overtime until 19:30); without overtime the repair had only 08:00-12:00 (240)
+    and 13:00-17:30 (270) with the break at 12:00, so its loop over days ran forever (protocol (90))."""
+    from test_worker_objective import chain
+
+    ci = chain(0, (n,), 1680)
+    plan = [Assignment(order_id="K", op_id="o0", machine=None, start=300, end=300 + n, workers=("W1",))]
+    taken = (Break(worker="W1", start=240),)
+    snap = Snapshot(instance=ci.name, t=t, frozen=(), breaks=taken)
+    new = repair_plan(ci, snap, plan, taken)
+    assert check_schedule(ci, new.assignments, snap, new.breaks) == []
+    return (new.assignments[0].start, new.assignments[0].end), new.breaks
+
+
+def test_a_share_that_fits_before_the_latest_break_moves_the_break_behind_it():
+    # 300 minutes: 13:10-18:10 passes the plan's overtime (18:00); Tuesday after the break 13:00-18:00 would pass
+    # 17:30, so the owed break moves from 12:00 to 13:00 behind the share: 08:00-13:00 (the break window allows it)
+    times, breaks = _long_share(300)
+    assert times == (1440, 1740) and Break(worker="W1", start=1740) in breaks
+
+
+def test_a_share_longer_than_every_part_without_overtime_gets_overtime():
+    # 330 minutes fit no part without overtime (at most 300): overtime up to the window, here Monday 13:10-18:40
+    times, _ = _long_share(330)
+    assert times == (310, 640)
+
+
+def test_a_share_that_fits_after_the_break_keeps_the_break():
+    # 200 minutes pushed into the afternoon fit 13:10-16:30: no break moves, no overtime
+    times, breaks = _long_share(200)
+    assert times == (310, 510) and breaks == (Break(worker="W1", start=240),)
+
+
+def test_a_share_that_fits_no_day_raises_instead_of_hanging():
+    # the guard for a share no day can hold (an instance outside the validation): an error, not an endless loop
+    from dataclasses import replace
+
+    from test_worker_objective import chain
+
+    ci = chain(0, (300,), 1680)  # the compiled calendar changed behind the validation: no part holds 300 minutes
+    ci = replace(ci, calendar=replace(ci.calendar, max_overtime=0, break_latest=720))
+    plan = [Assignment(order_id="K", op_id="o0", machine=None, start=300, end=600, workers=("W1",))]
+    snap = Snapshot(instance=ci.name, t=310, frozen=(), breaks=(Break(worker="W1", start=240),))
+    with pytest.raises(ValueError, match=r"o0.*300 minutes.*W1"):
+        repair_plan(ci, snap, plan, snap.breaks)
+
+
 def test_a_share_behind_the_break_comes_back_when_its_blocker_ends_early():
     # one worker: o0 [10:00, 11:50), o1 (50) would end after 12:00, so the rule plans it behind the break at 13:00:
     # tight through the calendar (user 2026-11-11). o0 takes half as long and ends at 10:55: the repair moves o1 to
