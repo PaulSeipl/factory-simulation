@@ -610,7 +610,7 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-11-24 | uncommitted | Stagnation stop `GaParams.patience` ($N^{\mathrm{pat}}$), `PolicyConfig.patience`; measurement of the improvement generations in rescheduling (§3). |
+| 2026-11-24 | 30a01c2 | Stagnation stop `GaParams.patience` ($N^{\mathrm{pat}}$), `PolicyConfig.patience`; measurement of the improvement generations in rescheduling (§3). |
 | 2026-11-19 | uncommitted | Step 1: delay window in `dispatch_plan`, `planners/ga.py` (BRKGA with priority, machine and delay keys), `tests/test_ga.py`. |
 | 2026-11-19 | uncommitted | Step 2: overtime key (allowance per operation) in `dispatch_plan` and the chromosome ($4\lvert O \rvert$ keys); hand example 2; s-batches with overtime tested. |
 | 2026-11-19 | uncommitted | Step 3: `solve_ga` from a snapshot with warm start, change budget (rank by excess) and a time check after every decode; `ga_planner`; tests in the DES, budget mutation-checked, zero disturbance. |

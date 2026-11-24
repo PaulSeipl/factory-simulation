@@ -8,7 +8,7 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-24 (108) — GA stagnation stop — uncommitted
+## 2026-11-24 (108) — GA stagnation stop — 30a01c2
 
 **Decided.** User: an early stop for the GA, unsure how to choose the number of generations. Own: measure first
 when the GA still improves during rescheduling, then choose; keep the stop off by default.
