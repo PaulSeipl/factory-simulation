@@ -196,6 +196,22 @@ only).
 - **In the experiments** ([07](07_order-arrivals.md) §6): planner `"ga"`, a generation limit decides the result and
   the wall clock is a safety net; `planner.last["wall_limited"]` is true if the wall clock ended the search before the
   generation limit (as for CP-SAT).
+- **Population size** (2026-11-24, script `scripts/ga_population.py`): the first 10 rescheduling calls of one
+  episode (dental workers, $\sigma = 0.45$, seed 1), each solved again with $(N^{\mathrm{pop}}, \text{generations})$
+  and one GA seed. The GA scores all five levels in one search (the combined value of `lexicographic`); CP-SAT solves
+  them one after another. Level 1 (total tardiness) is not 0 here and decides:
+
+  | $N^{\mathrm{pop}}$, generations | 100, 30 | 30, 100 | 50, 30 | 30, 30 | 20, 50 | 100, 10 |
+  |---|---|---|---|---|---|---|
+  | evaluations per call | 2815 | 2745 | 1415 | 855 | 935 | 1015 |
+  | seconds per call | 127 | 116 | 71 | 42 | 43 | 48 |
+  | mean total tardiness | 20.7 | 21.5 | 21.5 | 22.5 | 22.6 | 23.0 |
+  | calls worse / better than 100, 30 | – | 5 / 5 | 7 / 3 | 9 / 1 | 9 / 1 | 10 / 0 |
+
+  The time follows the evaluations (about 45 ms per decode and evaluation); at equal evaluations a smaller
+  population is no better (30, 100 against 100, 30: 5 calls each way), and fewer evaluations lose tardiness. So a
+  smaller population does not buy speed without loss; the levers are the cost of one evaluation and the number of GA
+  calls. Limits: one GA seed per variant (differences of one unit may be noise), one episode, one instance.
 - **Evaluation cost** (2026-11-22): a lexicographic objective now computes its level weights once per instance
   (`objectives._over`, one cached entry by identity). Before, every `evaluate` recomputed `horizon_bound`
   (`serial_end` per weekday), about 0.35 s per evaluation on the dental workers instance, two thirds of a 10 s GA
@@ -610,6 +626,7 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 
 | Date | Commit | Change |
 |---|---|---|
+| 2026-11-24 | uncommitted | Population size measured in rescheduling (§3b); script `scripts/ga_population.py`. |
 | 2026-11-24 | 30a01c2 | Stagnation stop `GaParams.patience` ($N^{\mathrm{pat}}$), `PolicyConfig.patience`; measurement of the improvement generations in rescheduling (§3). |
 | 2026-11-19 | uncommitted | Step 1: delay window in `dispatch_plan`, `planners/ga.py` (BRKGA with priority, machine and delay keys), `tests/test_ga.py`. |
 | 2026-11-19 | uncommitted | Step 2: overtime key (allowance per operation) in `dispatch_plan` and the chromosome ($4\lvert O \rvert$ keys); hand example 2; s-batches with overtime tested. |

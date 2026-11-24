@@ -8,6 +8,22 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-24 (109) — GA population size in rescheduling — uncommitted
+
+**Decided.** User: try a smaller population for the rescheduling GA. Own: compare on the same rescheduling calls
+(recorded snapshots), at equal generations and at equal evaluations, level by level.
+
+**Done.** Script `scripts/ga_population.py` (10 calls of one episode, six variants). Docs:
+[14](14_genetic-algorithm.md) §3b and change log.
+
+**Found.** Time per call follows the evaluations (about 45 ms each). At equal evaluations, population 30 with 100
+generations is as good as 100 with 30 (mean total tardiness 21.5 against 20.7, 5 calls better and 5 worse); every
+variant with fewer evaluations loses tardiness (22.5 to 23.0). Correction to the answer given in this pass: total
+tardiness is not 0 on this instance (19 to 24); it was 0 in the `robust-start` episodes (arrivals, other due dates).
+
+**Open.** The cost of one evaluation (decode plus the five levels) as the lever for the GA's run time; more GA
+seeds per variant.
+
 ## 2026-11-24 (108) — GA stagnation stop — 30a01c2
 
 **Decided.** User: an early stop for the GA, unsure how to choose the number of generations. Own: measure first
