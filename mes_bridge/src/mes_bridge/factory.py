@@ -27,6 +27,7 @@ from simulation.sim.des import PlanNotExecutable
 from simulation.sim.snapshot import Snapshot
 
 from mes_bridge.api import ProblemOut, ScheduleIn
+from mes_bridge.assumed import Aliases, assume_plates
 from mes_bridge.client import MesClient
 from mes_bridge.instance import build_instance
 from mes_bridge.once import BOUND, FREE, schedule_breaks, steps
@@ -40,7 +41,8 @@ class MesFactory:
         self.client, self.epoch, self._clock, self.variant = client, epoch, clock, variant
         self.pins: Pins | None = None  # BOUND: the pins of the current instance
         self._pin_values: dict = {}  # BOUND: machine options and qualified workers per pinned operation
-        self.problem: ProblemOut | None = None
+        self.problem: ProblemOut | None = None  # with assumed plates (`assume_plates`)
+        self.aliases: Aliases = {}  # assumed key -> the MES keys it is published under
         self.ci: CompiledInstance | None = None
         self.ids: IdMap | None = None
         self._plan: list[Assignment] = []
@@ -54,8 +56,9 @@ class MesFactory:
         self._calendar = None  # the last instance's calendar (break window, shift)
 
     def refresh(self) -> bool:
-        """Fetch the problem and rebuild the instance; True if its set of operations changed (or it is the first)."""
-        problem = self.client.problem()
+        """Fetch the problem and rebuild the instance; True if its set of operations changed (or it is the first).
+        Orders not nested yet (planned nesting flow) get assumed plates and prints (`assumed.assume_plates`)."""
+        problem, self.aliases = assume_plates(self.client.problem())
         before = self._known
         self.problem = problem
         if not problem.instance.operations:
@@ -140,7 +143,9 @@ class MesFactory:
                 variant=self.variant,
                 snapshot_as_of=self.problem.as_of,
                 solved_at=max(self._clock(), self.problem.as_of),  # the MES clock may run ahead of ours
-                steps=steps(self.problem, self.ci, self.ids, Plan(list(plan), new_breaks), self.epoch),
+                steps=steps(
+                    self.problem, self.ci, self.ids, Plan(list(plan), new_breaks), self.epoch, aliases=self.aliases
+                ),
                 breaks=schedule_breaks(self.problem, Plan(list(plan), new_breaks), self.epoch),
             )
         )

@@ -23,8 +23,6 @@ from simulation.sim.snapshot import FrozenOperation, Snapshot
 from mes_bridge.api import ProblemOperationOut, ProblemOut, ProblemTaskOut
 from mes_bridge.instance import (
     BLANK_TASKS,
-    LEFT_OUT,
-    MAPPED,
     MILL,
     MILL_BLANK,
     MILL_FLIPPED,
@@ -35,6 +33,7 @@ from mes_bridge.instance import (
     blank_run,
     carrier_id,
     flip_run,
+    is_mapped,
     mill_run,
     print_run,
     rework_run,
@@ -53,7 +52,7 @@ class IdMap:
 
 def _candidates(o: ProblemOperationOut) -> list[OpKey] | None:
     tt = o.task_type
-    if tt in LEFT_OUT or tt not in MAPPED:
+    if not is_mapped(o):
         return None
     kind, _, rest = o.key.partition(":")
     if tt in BLANK_TASKS:  # on the order's assumed blank before DATA_PREP_PRIMARY, the mill job's after

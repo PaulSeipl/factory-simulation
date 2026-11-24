@@ -18,6 +18,7 @@ from simulation.model.compiled import CompiledInstance, compile_instance
 from simulation.model.schedule import Assignment, Plan
 
 from mes_bridge.api import ProblemOut, ScheduleBreakIn, ScheduleIn, ScheduleStepIn
+from mes_bridge.assumed import Aliases, assume_plates, publish_keys
 from mes_bridge.client import MesClient, http
 from mes_bridge.config import SchedulerConfig
 from mes_bridge.instance import build_instance, epoch_of
@@ -44,6 +45,7 @@ def solve(
     """The configured planner's plan for the problem as the variant's schedule, or the checker's violations."""
     if not problem.instance.operations:  # nothing has arrived: an empty schedule says so
         return Outcome(_schedule(problem, solved_at, [], variant=variant), [])
+    problem, aliases = assume_plates(problem)  # orders not nested yet (planned nesting flow)
     ci = compile_instance(build_instance(problem, epoch=epoch))
     ids = id_map(problem, ci)
     snap = build_snapshot(problem, ci, ids, epoch=epoch)
@@ -58,7 +60,7 @@ def solve(
         _schedule(
             problem,
             solved_at,
-            steps(problem, ci, ids, plan, epoch),
+            steps(problem, ci, ids, plan, epoch, aliases=aliases),
             schedule_breaks(problem, plan, epoch),
             variant=variant,
         ),
@@ -88,9 +90,18 @@ def schedule_breaks(problem: ProblemOut, plan: Plan, epoch: datetime) -> list[Sc
     ]
 
 
-def steps(problem: ProblemOut, ci: CompiledInstance, ids: IdMap, plan: Plan, epoch: datetime) -> list[ScheduleStepIn]:
+def steps(
+    problem: ProblemOut,
+    ci: CompiledInstance,
+    ids: IdMap,
+    plan: Plan,
+    epoch: datetime,
+    *,
+    aliases: Aliases | None = None,
+) -> list[ScheduleStepIn]:
     """One schedule step per MES step that is not finished: from its first operation's start to its last one's end;
-    attended until the handoff (setup + run) or the end of the worker's share."""
+    attended until the handoff (setup + run) or the end of the worker's share. A step on an assumed plate or print
+    (`assumed`) is published under each MES key it stands for (the order's own step), with the same times."""
     by_op = {(a.order_id, a.op_id): a for a in plan.assignments}
     done = {o.key for o in problem.instance.operations if o.done}
     out = []
@@ -100,16 +111,17 @@ def steps(problem: ProblemOut, ci: CompiledInstance, ids: IdMap, plan: Plan, epo
         asg = [by_op[k] for k in ops]
         first, last = asg[0], asg[-1]
         attended = first.end if len(asg) > 1 else _attended_end(ci, first)
-        out.append(
-            ScheduleStepIn(
-                key=key,
-                worker_id=next((w for a in asg for w in a.workers if w), None),
-                equipment_id=next((a.machine for a in asg if a.machine), None),
-                start=_dt(epoch, first.start),
-                attended_end=_dt(epoch, attended),
-                end=_dt(epoch, last.end),
+        for mes_key in publish_keys(key, aliases or {}):
+            out.append(
+                ScheduleStepIn(
+                    key=mes_key,
+                    worker_id=next((w for a in asg for w in a.workers if w), None),
+                    equipment_id=next((a.machine for a in asg if a.machine), None),
+                    start=_dt(epoch, first.start),
+                    attended_end=_dt(epoch, attended),
+                    end=_dt(epoch, last.end),
+                )
             )
-        )
     return out
 
 

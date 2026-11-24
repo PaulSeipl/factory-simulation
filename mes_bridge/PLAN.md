@@ -210,8 +210,21 @@ Flow, mode "planned":
 Mode "classic" (today, kept): arrival when `DATA_PREP_SECONDARY` is done, estimated dates typed by hand, the bridge
 re-solves on arrival. Switch: planning setting *Nesting flow: classic / planned*.
 
-- [ ] 7.1 MES + bridge: setting `nesting_flow`; in "planned" an order arrives when planned (`plan_order`), its
+- [x] 7.1 MES + bridge: setting `nesting_flow`; in "planned" an order arrives when planned (`plan_order`), its
   nesting tasks are in scope, placeholder carriers in the export (keys per order until the print job exists).
+  - [x] 7.1a MES (2026-11-24): `planning_setting.nesting_flow` (CLASSIC default | PLANNED, migration `a4d8e2f61b37`),
+    settings API and page (own Save, checked in the browser); `problem.export_nodes`: PLANNED arrives every planned
+    order (`_planned_arrivals`) and scopes DATA_PREP_SECONDARY (`not_scoped(flow)`, also for the scope setting and
+    the params). The export keeps per-order keys until the print job exists, so the placeholders live in the bridge
+    (as B2's blanks), not in the export.
+  - [x] 7.1b Bridge (2026-11-24): `assumed.assume_plates` (one plate per order, next fit by due date into prints of
+    up to 4 plates, keys renamed, published back under the MES keys); DATA_PREP_SECONDARY mapped, a finished one left
+    out. Checked live on a scratch database: both un-nested orders planned by the scheduler incl. the nesting.
+  - Found on the way (2026-11-24): the order's planning tab read the MES fill, not the served plan, so it showed
+    "Unassigned" and the fill's times on steps the scheduler had planned; fixed (MES `f68e5f3`).
+  - Open: `PLATES_PER_PRINT` is a constant (the export does not carry the printers' plate slots); an order with a
+    started nesting is still un-nested (its plates appear only when the nesting is done); the switch CLASSIC ->
+    PLANNED changes the op set, so the bridge replans completely (expected).
 - [ ] 7.2 Bridge: two solver profiles (fast for events, thorough for proposals); the thorough one never runs
   automatically in "planned".
 - [ ] 7.3 MES + bridge: proposal variant (`PROPOSED`): request, background solve, status (requested, solving,

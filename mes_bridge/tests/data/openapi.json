@@ -17145,6 +17145,15 @@
         "type": "object",
         "title": "MountUpdate"
       },
+      "NestingFlowEnum": {
+        "type": "string",
+        "enum": [
+          "CLASSIC",
+          "PLANNED"
+        ],
+        "title": "NestingFlowEnum",
+        "description": "When an order reaches the external scheduler (scheduler integration, slice 7).\nCLASSIC: once DATA_PREP_SECONDARY nested it (or, without secondary parts, once planned).\nPLANNED: once planned; its nesting tasks are planned steps, with assumed plates until the nesting."
+      },
       "NozzleCreate": {
         "properties": {
           "component_type": {
@@ -18945,6 +18954,10 @@
             "type": "integer",
             "title": "Max Overtime Minutes",
             "default": 0
+          },
+          "nesting_flow": {
+            "$ref": "#/components/schemas/NestingFlowEnum",
+            "default": "CLASSIC"
           }
         },
         "type": "object",
@@ -19036,6 +19049,16 @@
               }
             ],
             "title": "Max Overtime Minutes"
+          },
+          "nesting_flow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NestingFlowEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

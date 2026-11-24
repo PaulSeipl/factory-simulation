@@ -4,6 +4,17 @@
 
 ## Unreleased
 
+- Planned nesting flow (slice 7, task 7.1): in the MES setting `nesting_flow = PLANNED` an order reaches the scheduler
+  once planned, before DATA_PREP_SECONDARY nested it, so its secondary parts have no plate and its print and plate
+  steps are keyed per order. New `assumed.assume_plates` (called in `MesFactory.refresh` and `once.solve`) gives each
+  such order an assumed plate and fills the plates in due-date order into assumed prints of up to
+  `PLATES_PER_PRINT = 4` (user, 2026-11-24; stable `uuid5` ids per grouping), renaming the per-order keys to job and
+  carrier keys; `once.steps(aliases=)` publishes each step under the MES's own keys again. DATA_PREP_SECONDARY is
+  mapped (an order operation); a finished one is left out (`instance.is_mapped`): it decides nothing, and nestings
+  clicked through within one minute clashed as frozen facts (C12, found with the recording). Recording
+  `tests/data/problem_planned_flow.json` (scratch MES, 2026-11-24), tests `tests/test_assumed.py` (8). Checked live:
+  both un-nested orders fully planned by the scheduler, nesting with a worker, one assumed print, order tab and Team
+  plan show it.
 - Overtime: `api.ProblemCalendarOut.max_overtime_minutes` (default 0, so older recordings still load) is the MES
   planning setting of the same name (spec decision 20: global, default 0); `instance._calendar` passes it as
   `Calendar.max_overtime` instead of the hard-coded 0. `tests/data/openapi.json` refreshed from the MES. Test

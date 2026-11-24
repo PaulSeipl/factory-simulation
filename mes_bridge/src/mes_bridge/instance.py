@@ -70,6 +70,7 @@ PLATE_STEPS = ("PART_CLEANING", "HEAT_TREATMENT", "SAND_BLASTING")  # carrier st
 PER_CARRIER_STEPS = ("REWORK_CHECKOUT", "SAWING", "GEGENBETTEN", "PART_REMOVAL_FROM_BLANK")
 CARRIER_TASKS = {*OP_OF, *PLATE_STEPS, *PER_CARRIER_STEPS}
 MAPPED = {  # every route step after the arrival (slice 3)
+    "DATA_PREP_SECONDARY",  # the nesting: planned in the planned nesting flow (slice 7), a fact otherwise
     "DATA_PREP_SEC_MILL",
     "AM_PREP",
     "PART_POWDER_REMOVAL",
@@ -94,6 +95,16 @@ MAPPED = {  # every route step after the arrival (slice 3)
     "REWORK",
 }
 LEFT_OUT: set[str] = set()
+NESTING = "DATA_PREP_SECONDARY"
+
+
+def is_mapped(o: ProblemOperationOut) -> bool:
+    """An operation the instance holds. A finished nesting is left out: it decides nothing any more (the plates are
+    known), and nestings a worker clicked through within one minute would clash as frozen facts (C12); in the classic
+    flow the export never has it."""
+    return o.task_type in MAPPED and o.task_type not in LEFT_OUT and not (o.task_type == NESTING and o.done)
+
+
 # A rework round (decision 8: it comes with the QM verdict, an instance change): while a plate's rework request is
 # open the MES has REWORK open and its QM done (suppressed); the re-check reopens the same QM key afterwards. The bridge
 # plans the thesis route rework -> recheck (math/21 §4): QM (done) -> REWORK (a mill run) -> RECHECK -> sawing; RECHECK
@@ -168,7 +179,7 @@ class _Params:
 
 def build_instance(problem: ProblemOut, *, epoch: datetime, name: str = "mes") -> Instance:
     inst = problem.instance
-    ops = [o for o in inst.operations if o.task_type in MAPPED and o.task_type not in LEFT_OUT]
+    ops = [o for o in inst.operations if is_mapped(o)]
     for o in ops:
         if (
             o.task_type in CARRIER_TASKS - BLANK_TASKS
