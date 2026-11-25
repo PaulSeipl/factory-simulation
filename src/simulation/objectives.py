@@ -101,7 +101,17 @@ def serial_end(ci: CompiledInstance, base: int, ops: Sequence[int]) -> int:
     return s
 
 
+_last_bound: list = [None, 0]  # (instance, H) of the last call: a lexicographic evaluate asks it ~25 times per plan
+
+
 def horizon_bound(ci: CompiledInstance) -> int:
+    """H for `ci`, computed once per instance object (`_horizon_bound`)."""
+    if _last_bound[0] is not ci:  # identity, not equality: hashing a CompiledInstance costs as much as the bound
+        _last_bound[:] = ci, _horizon_bound(ci)
+    return _last_bound[1]
+
+
+def _horizon_bound(ci: CompiledInstance) -> int:
     """H: bound on (horizon - t) of every CP-SAT model of the instance. H_0 without workers or calendar. With both,
     H^cal: the model's horizon is the serial plan of its free operations from the next working morning after its
     fixed part (`serial_end`). The fixed part ends at most r_max + the longest operation + 4 days after t (a removal

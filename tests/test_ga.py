@@ -357,3 +357,31 @@ def test_without_patience_the_generation_limit_holds():
 def test_patience_below_one_rejected():
     with pytest.raises(ValueError, match="patience"):
         GaParams(generations=5, patience=0)
+
+
+# --- rescheduling with arrivals: release during the run (math/33), the GA as planner ---------------------------------
+
+
+def test_ga_reschedules_arrivals_with_nesting():
+    # dental example (not Fidentis), orders accepted over two days and bound at the nesting times; the GA with the
+    # worker objective places every arrived order; the DES checks every plan, run_metrics reads its planner info
+    from test_nesting import params, scenario_for
+
+    from simulation.control.nesting import Nesting
+    from simulation.metrics import run_metrics
+    from simulation.objectives import worker_objective_with_slack
+
+    nesting = Nesting(params(seed=2, window_days=2, rates=dict.fromkeys(range(5), 1.0)))  # arrivals at 240, 1680, 3120
+    inst0 = nesting.instance()
+    ci0, objective = compile_instance(inst0), worker_objective_with_slack(60)
+    start = dispatch_plan(ci0, spt, ect)
+    planner = ga_planner(objective, GaParams(population=6, generations=1, time_limit=None))
+    result = execute(ci0, start.assignments, scenario_for(2)(inst0), ReschedulingPolicy(planner=planner),
+                     start.breaks, nesting=nesting, scenario_for=scenario_for(2))
+    replans = of_type(result, "REPLAN")
+    assert nesting.done and any(d["inserted"] > 0 and d["accepted"] for d in replans)
+    final = compile_instance(nesting.instance())
+    assert final.n_ops > ci0.n_ops and len(result.schedule) == final.n_ops
+    assert all(d["planner"]["wall_limited"] is False for d in replans)
+    m = run_metrics(final, start.assignments, result)
+    assert m["reschedulings"] == len(replans) and m["wall_limited_reschedulings"] == 0

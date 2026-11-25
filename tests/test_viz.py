@@ -123,3 +123,36 @@ def test_an_s_batch_is_one_worker_bar_and_shows_on_every_order():
     _, bars = shift_bars(S_CI, s_plan(), rows="orders")
     assert {(b.row, b.start, b.end) for b in bars if b.op == "polish"} == {("O1", 6, 61), ("O2", 6, 61)}
     plot_gantt(S_CI, s_plan())  # worker-only operations have no machine row: skipped, no error
+
+
+def test_plan_at_applies_the_change_sets_up_to_t():
+    from simulation.viz import plan_at
+
+    history = [{"t": 0, "changed": [{"order_id": "O1", "op_id": "a", "start": 0, "end": 10},
+                                    {"order_id": "O1", "op_id": "b", "start": 10, "end": 20}]},
+               {"t": 5, "changed": [{"order_id": "O1", "op_id": "b", "start": 12, "end": 22}]},
+               {"t": 9, "changed": [{"order_id": "O2", "op_id": "a", "start": 30, "end": 40}]}]
+    assert plan_at(history, 4) == {("O1", "a"): (0, 10), ("O1", "b"): (10, 20)}
+    assert plan_at(history, 5) == {("O1", "a"): (0, 10), ("O1", "b"): (12, 22)}
+    assert len(plan_at(history, 100)) == 3
+
+
+def test_plan_state_splits_at_the_due_date_and_greys_the_finished():
+    from simulation.viz import DONE, DONE_LATE, LATE, PLANNED, plot_plan_state
+
+    inst = Instance.model_validate({"schema_version": "0.8", "name": "p", "machines": ["M"], "orders": [
+        {"id": "O1", "due_date": 2880, "operations": [{"id": "a", "step": "a", "options": {"M": 1440}},
+                                                       {"id": "b", "step": "b", "options": {"M": 2880}, "predecessors": ["a"]}]}]})
+    _, ax = plt.subplots()
+    # a finished (realized 0..1500), b planned 1500..4380: blue to the due date 2880, orange after it
+    plot_plan_state(compile_instance(inst), {("O1", "a"): (0, 1440), ("O1", "b"): (1500, 4380)}, {("O1", "a"): (0, 1500)}, 2000, ax,
+                    5000)
+    bars = sorted((round(p.get_x() * 1440), round((p.get_x() + p.get_width()) * 1440), p.get_facecolor()[:3])
+                  for p in ax.patches if isinstance(p, Rectangle))
+    assert bars == [(0, 1500, to_rgb(DONE)), (1500, 2880, to_rgb(PLANNED)), (2880, 4380, to_rgb(LATE))]
+    ax.clear()  # at 5000 b has finished (realized 1500..4500): grey to the due date, light orange after it
+    plot_plan_state(compile_instance(inst), {("O1", "b"): (1500, 4380)}, {("O1", "b"): (1500, 4500)}, 5000, ax, 5000)
+    bars = sorted((round(p.get_x() * 1440), round((p.get_x() + p.get_width()) * 1440), p.get_facecolor()[:3])
+                  for p in ax.patches if isinstance(p, Rectangle))
+    assert bars == [(1500, 2880, to_rgb(DONE)), (2880, 4500, to_rgb(DONE_LATE))]
+    plt.close(ax.figure)

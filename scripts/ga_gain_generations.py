@@ -1,5 +1,5 @@
 """When does the GA still improve during rescheduling? Per call: the generations at which the incumbent improved
-(dental workers, GA rescheduling with 30 generations, the first 60 calls per seed; math/14 section 3, protocol (108)).
+(dental workers, GA rescheduling with 30 generations, the first 60 calls per seed; math/14 section 3, protocol (111)).
 Run: uv run python -u scripts/ga_gain_generations.py > gains.jsonl"""
 import json
 import simulation.planners.ga as G

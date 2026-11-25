@@ -4,15 +4,22 @@ module level so a process pool can run them (math/14)."""
 import os
 from pathlib import Path
 
+from simulation.arrival_generator import ArrivalParams
 from simulation.carrier_generator import CarrierGeneratorParams, generate_carrier_instance
+from simulation.control.nesting import Nesting, average_daily_capacity, default_order_load
+from simulation.control.rescheduling import ReschedulingPolicy, execute
+from simulation.metrics import run_metrics
 from simulation.check.feasibility import check_schedule, worker_intervals
 from simulation.io.json_loader import read_model
 from simulation.model.compiled import CompiledInstance, compile_instance
 from simulation.model.schedule import Schedule
-from simulation.objectives import MAKESPAN, OVERTIME, overtime, start_deviation
-from simulation.planners.cpsat import solve
-from simulation.planners.ga import GaParams, rule_plans, solve_ga
+from simulation.objectives import (MAKESPAN, OVERTIME, TOTAL_TARDINESS, overtime, start_deviation,
+                                   worker_objective_with_slack)
+from simulation.planners.cpsat import cpsat_planner, solve
+from simulation.planners.dispatching import dispatch_planner, ect, spt
+from simulation.planners.ga import GaParams, ga_planner, rule_plans, solve_ga
 from simulation.planners.nsga2 import NsgaParams, nsga2
+from simulation.sim.scenario import sample_scenario
 
 ROOT = Path(__file__).parents[1]
 FIDENTIS = read_model(ROOT / "data/generator/fidentis.json", CarrierGeneratorParams)
@@ -99,3 +106,61 @@ def front_run(case: str, kind: str) -> dict:
     return {"case": case, "kind": kind, "front": [list(v) for v, _ in result.front],
             "generations": result.generations, "evaluations": result.evaluations,
             "feasible": all(check_schedule(ci, p.assignments, breaks=p.breaks) == [] for _, p in result.front)}
+
+
+# --- rescheduling with arrivals (math/14 §5d): release during the run as in notebook 08 (math/33) -------------------
+
+BASE = FIDENTIS.model_copy(update={"release_range": (0, 0)})
+MILL = ("mill1",)
+ORDER_LOAD, LONGEST = default_order_load(BASE, MILL)
+CAPACITY = average_daily_capacity(BASE.calendar, LONGEST, len(MILL))  # minutes of mill work per working day
+RATES = (0.6, 1.0)  # orders accepted per working day: below and above the mill's capacity (notebook 08)
+WINDOWS = (None, 3)  # release: bind all at the next nesting time, or the norm with a 3-day window and forecast
+RESCHED_PLANNERS = ("rule", "CP-SAT", "GA")
+RESCHED_SEEDS = range(1, 5)
+GA_GENERATIONS = 30  # per rescheduling; a generation limit, so a run is reproducible (time limit only a safety net)
+BUFFER = 60  # cutoff slack of the worker objective (math/04 (O7)), as in the experiments
+DET_TIME = 5.0  # CP-SAT deterministic seconds per call, as in the experiments
+
+
+def release_norm(window: int, rate: float) -> dict:
+    """The norm of notebook 08: forecast = arrival rate (expected orders per nesting day)."""
+    return {"machines": MILL, "capacity_per_day": CAPACITY, "window_days": window, "default_load": ORDER_LOAD,
+            "forecast": dict.fromkeys(range(5), rate)}
+
+
+def resched_run(rate: float, window: int | None, planner: str, seed: int, generations: int,
+                history: bool = False, trigger: int | None = None) -> dict:
+    """One episode: orders accepted over 10 days, bound at the nesting times (all, or under the norm with `window`
+    days), keyed disturbances (sigma 0.2); start plan by CP-SAT for every planner of a seed; complete rescheduling by
+    `planner` at every nesting time, repair in between. `history`: also the plan history (change sets and plan
+    metrics per time point), the realized schedule and the final instance, for the plots of the plan over time.
+    `trigger`: also reschedule when the repaired plan's total tardiness (with the calendar: tardy days, missed
+    cutoffs) deviates from the last rescheduled plan's by more than this many days (math/05 §3)."""
+    p = ArrivalParams(seed=seed, base=BASE, rates=dict.fromkeys(range(5), rate), window_days=10, backlog=2,
+                      due_working_days=10, norm=release_norm(window, rate) if window else None)
+    nesting = Nesting(p)
+    inst0 = nesting.instance()
+    ci0, objective = compile_instance(inst0), worker_objective_with_slack(BUFFER)
+    start = solve(ci0, objective, 120.0, 1, seed, deterministic_time=DET_TIME)
+    if not start.schedule:
+        raise RuntimeError(f"no start plan ({start.status})")
+    tool = {"rule": lambda: dispatch_planner(spt, ect),
+            "CP-SAT": lambda: cpsat_planner(120.0, 1, seed, objective=objective, deterministic_time=DET_TIME),
+            "GA": lambda: ga_planner(objective, GaParams(generations=generations, time_limit=120.0, seed=seed))}[planner]()
+
+    def scenario(inst):
+        return sample_scenario(inst, seed=seed, keyed=True, sigma=0.2, q=0.5, max_early=5, max_late=5)
+
+    policy = ReschedulingPolicy(planner=tool, **({"objective": TOTAL_TARDINESS, "max_objective_change": trigger}
+                                                 if trigger is not None else {}))
+    result = execute(ci0, start.schedule, scenario(inst0), policy, start.breaks,
+                     nesting=nesting, scenario_for=scenario, keep_history=history)
+    final = nesting.instance()
+    ci = compile_instance(final)
+    return {"rate": rate, "release": f"norm {window} d" if window else "bind all", "planner": planner, "seed": seed,
+            "trigger": trigger,
+            "orders": len(final.orders), "objective": objective.evaluate(ci, result.schedule, result.breaks)
+            } | run_metrics(ci, start.schedule, result) | ({
+                "history": result.history, "instance": final.model_dump(mode="json"),
+                "realized": [[a.order_id, a.op_id, a.start, a.end] for a in result.schedule]} if history else {})

@@ -569,6 +569,68 @@ is no evidence that the join key hurts; it shows that NSGA-II at 120 s mostly mi
 key in $5\lvert O \rvert$, so it explores less than the BRKGA's 20 % random mutants. Seeding NSGA-II with the
 BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 
+## 5d. Rescheduling with arrivals in the DES (2026-11-22)
+
+Notebook 09 §6 (`resched_run` in `notebooks/ga_runs.py`, results in `notebooks/results/09/rescheduling.json`).
+Fidentis case with arrivals: orders accepted over 10 working days (0.6 or 1.0 a working day; the mill manages about
+0.77), 2 known at 0, due 10 working days after acceptance; nesting binds all at the next nesting time or under the
+norm with a 3-day window and the arrival rate as forecast ([33](33_order-release-interface.md)); keyed disturbances
+(sigma 0.2). Start plan by CP-SAT for every planner of a seed; repair between nesting times, complete rescheduling
+at every nesting time with new orders. CP-SAT and the GA minimize the worker objective with a 60-minute buffer;
+CP-SAT one thread, 5 deterministic seconds per level (as in the experiments); the GA 30 generations per
+rescheduling (reproducible); the rule SPT/ECT. 4 seeds.
+
+
+| rate | release | SPT/ECT | CP-SAT | GA |
+|---|---|---|---|---|
+| 0.6 | bind all | 12.8 | 5.5 | 1.8 |
+| 0.6 | norm 3 d | 9.0 | 8.8 | 4.0 |
+| 1.0 | bind all | 41.5 | 50.0 | 17.8 |
+| 1.0 | norm 3 d | 36.2 | 38.2 | 28.8 |
+
+- **The GA has the fewest tardy days in every setting** and on 13 of 16 seed and setting pairs at most as many as
+  CP-SAT; above capacity with bind all it cuts them to less than half of both others (17.8 against 41.5 and 50.0).
+  Its makespan is also shortest in every setting (16.1 to 26.5 days against 18.9 to 28.9).
+- **CP-SAT is not better than the rule above capacity.** With 5 deterministic seconds per level (as in the
+  experiments) it never hit the 120 s wall clock, so the budget, not a failure, stopped it; per call it used 27 to 176
+  s of wall time, the GA 35 to 57 s (30 generations). At 0.6 bind all it beats the rule (5.5 against 12.8).
+- **The norm helps the rule, not the optimizers.** It lowers the rule's tardy days (12.8 to 9.0, 41.5 to 36.2) but
+  raises the GA's (1.8 to 4.0, 17.8 to 28.8): a planner that sequences well gains more from seeing the orders early
+  than from a short queue.
+- **Overtime** stays small for all (means 20 to 90 minutes over a run); no planner is consistently higher (the GA
+  more with bind all, less under the norm).
+
+Limits: 4 seeds, 4 to 11 orders per episode (seed 3 at rate 1.0 only 4), one CP-SAT budget, the rule optimizes no
+objective; disturbances are only repaired. Own reading of the numbers.
+
+To make the GA usable here, `horizon_bound` (the spread of the lexicographic weights, [06](06_due-dates.md) §4) is
+computed once per instance object: a lexicographic `evaluate` asked it about 25 times per plan and took 98 % of the
+time (69 ms per plan on 216 operations, now about 6 ms). `ga_planner.last` reports `wall_limited` like CP-SAT.
+Test `test_ga_reschedules_arrivals_with_nesting` (dental example, three arrivals, every rescheduling accepted).
+
+## 5e. The plan over time (2026-11-22)
+
+Notebook 09 §7: the plan history of the DES (`execute(..., keep_history=True)`, plan metrics (M10) of
+[23](23_metrics.md)) for rate 1.0, seeds 1 and 4, both releases and all three planners (results in
+`notebooks/results/09/history.json`). An animation shows the plan in force once a day (GA and CP-SAT, seed 1, bind
+all; `viz.plan_at` rebuilds the plan at t from the change sets, `viz.plot_plan_state` draws it per order with finished
+operations as realized), and step plots show the planned tardy days and makespan over the run.
+
+**What the plan history shows** (rate 1.0, seeds 1 and 4):
+
+- **Seed 1, bind all:** the GA's plan reaches 1 planned tardy day at day 2 and keeps it to the end. The rule's
+  climbs with every binding to 22 by day 10.4. CP-SAT's reschedulings lower it (to 3 at days 9.2 and 10.2), but the
+  repairs right after push it up again (9 at day 10.2, 14 at day 15.4, 18 at day 17.4): disturbances trigger no
+  rescheduling here (§6), so a tight plan drifts and nothing re-sequences it. The GA's plan absorbs the same
+  disturbances.
+- **Under the norm the planners stay close until the late bindings** (planned tardy days at most 3 up to day 14 to
+  15), when the held-back orders arrive together; from then on the GA's plan has the fewest (seed 1 day 16.2: rule 15,
+  CP-SAT 11, GA 9; seed 4 at the end: 58, 55, 36).
+- **Animation (seed 1, bind all):** at the end only O2 finished late with the GA (realized tardy days 1); with
+  CP-SAT seven of eight orders did.
+
+Own reading of 4 episodes per planner; the history is the plan in force, not the realized schedule (M10).
+
 ## 6. Assumptions and open points
 
 - **Budget scaled to the free part** (todo, user 2026-11-25): the GA's generations and population are fixed per
@@ -661,3 +723,5 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 | 2026-11-22 | uncommitted | §4a from a snapshot: `with_snapshot`, `replay_from`, `planner_scenarios`; `expected` takes the scenarios per instance. |
 | 2026-11-22 | uncommitted | §4b time-buffer baseline, `planners/buffer.py`; first comparison. |
 | 2026-11-22 | uncommitted | §4a expected objective over the planner's own scenarios, `objectives.expected`. |
+| 2026-11-22 | uncommitted | §5d: GA, CP-SAT and rule rescheduling with arrivals in the DES; `horizon_bound` cached per instance; `ga_planner.last["wall_limited"]`. |
+| 2026-11-22 | uncommitted | §5e: plan history of the rescheduling runs, animation and metrics over time (`viz.plan_at`, `viz.plot_plan_state`). |

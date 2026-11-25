@@ -401,3 +401,49 @@ def plot_carriers(inst: Instance, size: Callable[[str, str], int] | None = None,
     if title:
         ax.set_title(title, loc="left")
     return ax
+
+
+# --- the plan over time (plan history of the DES, math/23 (M10)) ---------------------------------------------------
+# finished (realized), finished past the due date, planned, planned past the due date
+DONE, DONE_LATE, PLANNED, LATE = "#8a8984", "#f5b89c", "#2a78d6", "#eb6834"
+
+
+def plan_at(history: Sequence[dict], t: int) -> dict[tuple[str, str], tuple[int, int]]:
+    """(order, operation) -> (start, end) of the plan the factory executed at t: the change sets of the plan history
+    (`execute(..., keep_history=True)`) recorded up to t, applied in order."""
+    plan: dict[tuple[str, str], tuple[int, int]] = {}
+    for record in history:
+        if record["t"] > t:
+            break
+        plan.update({(c["order_id"], c["op_id"]): (c["start"], c["end"]) for c in record["changed"]})
+    return plan
+
+
+def plot_plan_state(ci: CompiledInstance, plan: dict[tuple[str, str], tuple[int, int]],
+                    realized: dict[tuple[str, str], tuple[int, int]], t: int, ax: Axes, t_max: int) -> None:
+    """The plan at t, one row per order; an operation of a carrier or run shows in the row of every order it serves.
+    Finished operations as realized (grey), the others as planned (blue); the part after the order's due date light
+    orange or orange; due dates as red ticks, t as a line. Orders not arrived by t keep an empty row."""
+    for key, (s, e) in plan.items():
+        done = key in realized and realized[key][1] <= t
+        if done:
+            s, e = realized[key]
+        for k in ci.op_orders[ci.op_index[key]]:
+            d, (on_time, late) = ci.due_date[k], (DONE, DONE_LATE) if done else (PLANNED, LATE)
+            parts = [(s, e, on_time)] if d is None else [(s, min(e, d), on_time), (max(s, d), e, late)]
+            for a, b, color in parts:
+                if a < b:
+                    ax.barh(k, (b - a) / DAY, left=a / DAY, height=0.6, color=color, linewidth=0)
+    for k, d in enumerate(ci.due_date):
+        if d is not None:
+            ax.plot([d / DAY] * 2, [k - 0.4, k + 0.4], color="#d03b3b", linewidth=2)
+    ax.axvline(t / DAY, color="0.2", linewidth=1.2)
+    handles = [Patch(color=c, label=n) for c, n in ((DONE, "finished"), (DONE_LATE, "finished late"),
+                                                      (PLANNED, "planned"), (LATE, "planned late"))]
+    ax.legend(handles=[*handles, Line2D([], [], color="#d03b3b", linewidth=2, label="due date")], loc="upper center",
+              bbox_to_anchor=(0.5, -0.16), ncol=5, fontsize=8, frameon=False)
+    ax.set_yticks(range(len(ci.order_ids)), ci.order_ids, fontsize=8)
+    ax.set_ylim(len(ci.order_ids) - 0.5, -0.5)
+    ax.set_xlim(0, t_max / DAY)
+    ax.set_xlabel("day")
+    ax.grid(axis="x", alpha=0.3)
