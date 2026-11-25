@@ -21,7 +21,9 @@ or 120 s (20.7), against CP-SAT 475 s (20.0, the experiments' setting) or 600 s 
 time 1 finds no plan at all. GA 100×30 beats CP-SAT (5) in 3 of 10 calls. In `robust-start` (small free part) it was
 the other way round (§4c): which planner is faster depends on the free part.
 
-**Open.** The cost of one GA evaluation; the free-part size at which CP-SAT overtakes the GA; more seeds.
+**Open.** Todo (user): scale the GA's generations and population with the size of the free part
+([14](14_genetic-algorithm.md) §6). The cost of one GA evaluation; the free-part size at which CP-SAT overtakes
+the GA; more seeds.
 
 ## 2026-11-24 (109) — GA population size in rescheduling — 0cf636e
 

@@ -571,6 +571,8 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 
 ## 6. Assumptions and open points
 
+- **Budget scaled to the free part** (todo, user 2026-11-25): the GA's generations and population are fixed per
+  call, so a small free part costs as much as a large one (§3b); they should grow with the size of the free part.
 - **Delay scale.** Now logarithmic up to $D^{\max} = 100$ minutes (§3), chosen by judgement (user: median about
   10, maximum about 100), not tuned. A scale per step or per machine remains an alternative.
 - **Waiting reaches only ready operations.** A lead can wait for partners that are already ready (all predecessors
