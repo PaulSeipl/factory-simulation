@@ -59,6 +59,20 @@ def test_a_restart_resumes_when_the_mes_still_serves_the_publication(tmp_path):
     assert all(d["type"] != "REPLAN" for d in again.decisions)
 
 
+def test_a_restart_with_an_assignment_resumes_too(tmp_path):
+    # review 2026-11-25: the pins after a restore were compared with none, so every assignment read as new: a REPLAN
+    from test_variants import _assign, _key, _raw  # noqa: PLC0415
+
+    raw = _raw()
+    _assign(raw, _key(raw, "AM_PREP"))
+    fake, first, now, _ = _runner(tmp_path, raw=raw)
+    first.tick(now, "start")
+    _, again, _, _ = _runner(tmp_path, fake=fake, raw=fake.problem)
+    assert again.resume()
+    again.tick(now, "start")
+    assert all(d["type"] != "REPLAN" for d in again.decisions)
+
+
 def test_a_restart_after_someone_else_published_reschedules_completely(tmp_path):
     fake, first, now, _ = _runner(tmp_path)
     first.tick(now, "start")

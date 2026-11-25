@@ -25,6 +25,7 @@ forced end of C7^o, with a worker free of the frozen part then.
 
 import dataclasses
 import threading
+import time
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -41,6 +42,8 @@ from simulation.planners.repair import forced_removals
 if TYPE_CHECKING:
     from simulation.sim.snapshot import Snapshot
 
+
+STOP_REPEATS = 100  # 10 s of stop_search after a stop: covers building the next level's objective
 
 @dataclass(frozen=True, slots=True)
 class CpSatResult:
@@ -77,7 +80,7 @@ def solve(
                 "snapshot": snapshot, "reference": reference, "change_budget": change_budget,
                 "deterministic_time": deterministic_time, "stop": stop}
         capped = solve(ci, **args, horizon_cap=max(a.end for a in hint))
-        if capped.status in ("OPTIMAL", "FEASIBLE"):
+        if capped.status in ("OPTIMAL", "FEASIBLE", "STOPPED"):
             return capped
         return solve(ci, **args, horizon_cap=0)
     cal = ci.calendar if ci.worker_ids else None  # shifts and breaks bind workers only (machines run at any time)
@@ -312,9 +315,13 @@ def solve(
         raise ValueError(f"objective {objective.name}: spread {objective.spread(ci)} too large for exact values")
     values, bounds, statuses, wall, wall_limited = [], [], [], 0.0, False
     if stop is not None:  # an engineering hook, not part of the model: the caller no longer wants the plan
-        def watch():  # bounded by the longest solve, so the thread never outlives it by much
-            if stop.wait(time_limit * len(levels) + 1):
-                solver.stop_search()
+        def watch():  # bounded by the longest solve (each level and its presolve-off retry)
+            if stop.wait(2 * time_limit * len(levels) + 1):
+                # stop_search is lost while no level is solving (between two levels): repeat it until the next
+                # level's solve has seen it; the loop checks `stop` before each level, so one more level at most
+                for _ in range(STOP_REPEATS):
+                    solver.stop_search()
+                    time.sleep(0.1)
         threading.Thread(target=watch, daemon=True).start()
     for i, level in enumerate(levels):
         if stop is not None and stop.is_set():

@@ -8,7 +8,25 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-24 (91) — CP-SAT stop hook — (this commit)
+## 2026-11-25 (92) — CP-SAT stop hook: a stop between two levels — (next commit)
+
+**Decided.** User (2026-11-25): fix the findings of the PR review. Own: the fix below, still an engineering hook, no
+change to the model, its constraints or objectives.
+
+**Done.** `simulation.planners.cpsat.solve`: once `stop` is set, the watcher repeats `stop_search` every 0.1 s for
+10 s (`STOP_REPEATS`) instead of calling it once, and its wait counts each level twice (the presolve-off retry). A
+capped first solve (makespan with a hint) that comes back `STOPPED` is returned at once instead of building the
+full-horizon model. Test `tests/test_cpsat.py::test_a_stop_between_two_levels_still_ends_the_next_level` (MK10,
+`lexicographic(MAKESPAN, MAKESPAN)` at 5 s per level, stop set while the second level is built): fails without the
+fix (the level runs its 5 s), passes with it. Docs: [12](12_cp-sat.md) change log.
+
+**Found.** Correction to (91): in OR-Tools 9.15 `CpSolver.stop_search` acts only while `solve()` runs (it forwards
+to the active `SolveWrapper`, `None` outside a solve); a stop that arrives while the next level's objective is built
+was lost, and that level ran to its `time_limit`.
+
+**Open.** As in (91): the GA has no stop hook; the thesis experiments never pass `stop`.
+
+## 2026-11-24 (91) — CP-SAT stop hook — `c7c7b02`
 
 **Decided.** User (2026-11-24, `mes_bridge/PLAN.md` task 7.5a): a thorough solve in the MES may take up to 30 min, and
 one whose proposal the planner discards must end at once instead of running to its limit and holding up the next
@@ -26,7 +44,7 @@ fire on solutions.
 
 **Open.** The GA has no stop hook (its limits are short in the bridge). The thesis experiments never pass `stop`.
 
-## 2026-11-23 (90) — Factory interface for the planning tool — uncommitted
+## 2026-11-23 (90) — Factory interface for the planning tool — `538e3c1`
 
 **Decided.** User (2026-11-22, scheduler integration design, `mes_bridge/PLAN.md` task 2.1): the planning tool must
 drive a factory other than the DES (the MES, through `mes_bridge/`, which `src/simulation` never imports). Own: a

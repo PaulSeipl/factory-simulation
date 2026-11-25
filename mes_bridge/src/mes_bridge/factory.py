@@ -84,7 +84,10 @@ class MesFactory:
             values = {
                 k: (self.ci.options[self.ci.op_index[k]], self.ci.shares[self.ci.op_index[k]]) for k in self.pins.pinned
             }
-            changed_pins = before is not None and _differ(values, self._pin_values, common)
+            # after a resume (no last instance) the saved plan was published under these pins: they are the baseline.
+            # shortcut: a pin changed while the bridge was down is seen only with the next change, save the pin
+            # values with the state if that matters
+            changed_pins = self._machines is not None and _differ(values, self._pin_values, common)
             self._pin_values = values
         self._known = set(self.ci.op_keys)
         # a machine going down (or coming back) changes the options of the operations that have not started: the plan

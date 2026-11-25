@@ -216,7 +216,7 @@ With the OVERDUE event the means are unchanged on mk01 (overruns are seen throug
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-11-23 | uncommitted | Factory interface: `Factory` protocol, `adapt_plan` typed against it; `arrived` read as "the instance changed" (§5). No change to the repair rule or the triggers. |
+| 2026-11-23 | `538e3c1` | Factory interface: `Factory` protocol, `adapt_plan` typed against it; `arrived` read as "the instance changed" (§5). No change to the repair rule or the triggers. |
 | 2026-11-19 | uncommitted | Change budget implemented for the GA (rank by changes beyond the budget, warm start keeps every machine; [14](14_genetic-algorithm.md) §3b). |
 | 2026-10-29 | 17d05a8–28ac70f | Shift repair (left and right shift, gaps kept) at every time point of the DES; C6, C7; trigger metrics logged; open points thresholds, drift, stability, QM rework. |
 | 2026-10-29 | 17d05a8–28ac70f | Thresholds trigger a complete rescheduling with a planner on the snapshot; acceptance with change budget and improvement condition; checker C6/C7; examples. |

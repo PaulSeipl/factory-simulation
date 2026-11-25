@@ -116,7 +116,14 @@ class Runner:
     _logged: int = 0  # decisions already written to the store
 
     def tick(self, now: datetime, reason: str) -> None:
-        """One step for everything that happened since the last one."""
+        """One step for everything that happened since the last one; a requested proposal starts even when the
+        step fails (its problem is the MES's what-if one, not the live one)."""
+        try:
+            self._step(now, reason)
+        finally:
+            self._start_proposal()
+
+    def _step(self, now: datetime, reason: str) -> None:
         merged = []
         while True:
             try:
@@ -139,7 +146,6 @@ class Runner:
             f"{now.isoformat()} {reason}: {len(merged)} events, {published} published, {rejected} not published"
             + (f", {kept} kept alive" if kept else "")
         )
-        self._start_proposal()
 
     def _take_applied(self, now: datetime) -> None:
         """An applied proposal is the current plan: continue from it (the step after it repairs, it does not replan
@@ -272,7 +278,11 @@ def _loop(target, events: "queue.Queue[dict]", stop: threading.Event, clock: Cal
             target.tick(now, reason)
         except Exception as e:  # the MES may be down: keep serving, try again at the next wake
             target.log(f"{now.isoformat()} {reason}: step failed: {e}")
-        wake, reason = target.next_wake(clock())
+        try:
+            wake, reason = target.next_wake(clock())
+        except Exception as e:  # the timers read the snapshot, which the same bad fact can break: retry, do not exit
+            target.log(f"{now.isoformat()} next wake failed: {e}")
+            wake, reason = clock() + RETRY, "retry"
         try:  # an event wakes the loop at once; it stays in the queue for the next tick
             events.put(events.get(timeout=max(0.0, (wake - clock()).total_seconds())))
             reason = "event"

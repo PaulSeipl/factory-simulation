@@ -171,3 +171,31 @@ def test_a_stop_from_another_thread_ends_the_solve_early():
         cpsat_planner(time_limit=60, stop=stop)(ci, None, [])
     stop.clear()
     assert solve(compiled(TOYS[0]), time_limit=5, workers=1, stop=stop).status == "OPTIMAL"  # unset: as before
+
+
+def test_a_stop_between_two_levels_still_ends_the_next_level(monkeypatch):
+    """Review 2026-11-25: a stop set while the next level is built (no solve running) was lost, and that level ran
+    its whole time limit. Set here by the second level's `minimize`, after the loop's check, which then takes a
+    moment more (a big objective to build), so the stop arrives while no solve is running."""
+    import threading
+    import time
+
+    from ortools.sat.python import cp_model
+
+    from simulation.objectives import MAKESPAN, lexicographic
+
+    ci = compiled(DATA / "benchmarks" / "brandimarte" / "BrandimarteMk10.fjs")
+    stop, calls, stopped_at = threading.Event(), [], []
+    minimize = cp_model.CpModel.minimize
+
+    def minimize_then_stop(self, expr):
+        calls.append(1)
+        if len(calls) == 2:
+            stop.set()
+            stopped_at.append(time.monotonic())
+            time.sleep(0.3)
+        return minimize(self, expr)
+
+    monkeypatch.setattr(cp_model.CpModel, "minimize", minimize_then_stop)
+    result = solve(ci, objective=lexicographic(MAKESPAN, MAKESPAN), time_limit=5, workers=1, stop=stop)
+    assert result.status == "STOPPED" and time.monotonic() - stopped_at[0] < 2  # not the level's 5 s

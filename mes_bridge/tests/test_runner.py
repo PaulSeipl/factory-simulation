@@ -141,6 +141,32 @@ def test_an_event_wakes_the_loop_and_a_failing_step_does_not_stop_it():
     assert "start" in calls[0] and "event: step failed" in calls[1]
 
 
+def test_a_failing_next_wake_retries_and_does_not_stop_the_loop():
+    # review 2026-11-25: a fact the bridge cannot map broke the snapshot in next_wake too, which ended the process
+    _, r, now, _ = _runner(poll=timedelta(days=1))
+    stop, lines = threading.Event(), []
+
+    def broken(_now):
+        if any("next wake failed" in x for x in lines):
+            stop.set()
+        r.events.put({"type": "COMPLETE"})  # wake the loop now, not after RETRY
+        raise RuntimeError("unmappable fact")
+
+    r.next_wake, r.log = broken, lines.append
+    r.run(stop, clock=lambda: now)
+    assert sum("next wake failed" in x for x in lines) == 2  # the loop went on after the first
+
+
+def test_a_requested_proposal_starts_even_when_the_step_fails():
+    fake, r, now, _ = _runner()
+    started = []
+    r.proposals = type("P", (), {"start_next": lambda self: started.append(1), "take_applied": lambda self: None})()
+    fake.problem_status = 500
+    with pytest.raises(Exception):
+        r.tick(now, "event")
+    assert started == [1]
+
+
 def test_an_expired_token_is_renewed_once():
     fake, r, _, _ = _runner()
     fake.token = "rotated"  # the MES no longer accepts the old token
