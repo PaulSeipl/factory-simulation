@@ -644,7 +644,7 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-11-25 | uncommitted | GA against CP-SAT on the same rescheduling calls (§3b); script `scripts/ga_vs_cpsat.py`. |
+| 2026-11-25 | 6bc0434 | GA against CP-SAT on the same rescheduling calls (§3b); script `scripts/ga_vs_cpsat.py`. |
 | 2026-11-24 | 0cf636e | Population size measured in rescheduling (§3b); script `scripts/ga_population.py`. |
 | 2026-11-24 | 30a01c2 | Stagnation stop `GaParams.patience` ($N^{\mathrm{pat}}$), `PolicyConfig.patience`; measurement of the improvement generations in rescheduling (§3). |
 | 2026-11-19 | uncommitted | Step 1: delay window in `dispatch_plan`, `planners/ga.py` (BRKGA with priority, machine and delay keys), `tests/test_ga.py`. |

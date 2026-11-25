@@ -8,7 +8,7 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-25 (110) — GA against CP-SAT in rescheduling — uncommitted
+## 2026-11-25 (110) — GA against CP-SAT in rescheduling — 6bc0434
 
 **Decided.** User: the GA is meant mainly for rescheduling and must be fast there; does it give better plans than
 CP-SAT in less time? Own: compare both on the same recorded rescheduling calls, value per level and time.
