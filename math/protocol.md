@@ -45,9 +45,22 @@ second run with the fix finished: 43 reschedulings, 32 tardy days, last decision
 error (home `/tmp/probe/diag3.log`); since episodes are not reproducible, this does not show that the run met the
 O4/grind share again; the probes `CP-SAT_3_4` (stopped unfinished), `GA_3_1`–`GA_3_4` and `GA_all_4`
 (done, 155–210 MB, old repair) are in the same folder; the dispatching rule's
-`next_start` rejects the same shares ("longer than both parts") instead of planning them; reproducibility of the
-CP-SAT episodes across machines; `scripts/home-run.sh` asks `systemd-inhibit` for `sleep:idle`, which polkit refuses
-over SSH (only `idle` works); math/14 §5f and the §8 findings.
+`next_start` rejects the same shares ("longer than both parts") instead of planning them; `scripts/home-run.sh`
+asks `systemd-inhibit` for `sleep:idle`, which polkit refuses over SSH without sudo (only `idle` works; with sudo it
+worked, user); math/14 §5f and the §8 findings. Reproducibility across machines: not pursued, all experiments run
+on the home PC (user, 2026-11-24). Rerun (own choice): §6 `rescheduling.json` and §7 `history.json` are recomputed
+together with §8, since both go through the repair and §8 compares with §6; the old caches are kept in home
+`~/probe-2026-11-24/old09/` (and in Git at `4c1f3cd`). Rebuild done on the home PC (2026-11-24, §6 20 min, §7 12
+min, §8 4 h): §6 differs from the old cache in 26 of 48 episodes (e.g. rate 0.6, bind all, CP-SAT, seed 4: 15 → 55
+tardy days). Not the fix: four of these episodes rerun on the PC in one process with the old `repair.py`
+(`a21aa76`) give exactly the new values, objective included, and the same four rerun with the fix reproduce the
+new cache; the old cache came from another machine (same OR-Tools 9.15.6755 and NumPy 2.5.4, Python 3.14.3 vs
+3.14.10, Windows vs Linux), and even a rule episode differs, so the start plan or the DES already differs across
+machines (cause not pursued, see above). Pitfall: a module override does not reach `ProcessPoolExecutor` workers
+under Python 3.14 (`forkserver`), so such checks must run in one process. §8, rate 1.0, mean tardy days over 4
+seeds without / with the trigger: bind all CP-SAT 35.0 / 25.8, GA 16.8 / 4.8, rule 40.5 / 39.5; norm 3 d CP-SAT
+32.8 / 19.0, GA 27.5 / 19.8, rule 36.2 / 32.8; reschedulings up to 187 instead of 5 and planner time about 10–30
+times as high for CP-SAT and the GA.
 
 ---
 
