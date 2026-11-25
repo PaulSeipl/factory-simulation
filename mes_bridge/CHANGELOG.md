@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- Demo (slice 7, task 7.7): `demo_config.json`'s thorough profile at 30 s per level (was 60), so a proposal takes at
+  most 2.5 min (measured 125-148 s); `DEMO.md` step 8 walks the planned nesting flow, and the scenario count is now
+  32 checks.
 - A discarded proposal stops its solve (user 2026-11-24): the BOUND runner's `ProposalWorker` and the thorough
   planner share a `threading.Event`, the thesis CP-SAT stop hook (`cpsat_planner(stop=)`, protocol (91)). While a
   solve runs, each step asks the MES about its proposal; once it is no longer SOLVING (discarded, or replaced by a new

@@ -59,7 +59,7 @@ On the first run (or with `-Reset`) it creates the demo database `mes_demo` (`te
   The scheduler weighs the due dates (tardiness), not the priority field.
 
   With these orders CP-SAT (worker objective) needs minutes, so it is not on the automatic path any more (task 7.2):
-  events are planned by the EDD rule; the thorough solve comes as a proposal (task 7.3).
+  events are planned by the EDD rule; the thorough solve runs only when a planner asks for a proposal (step 8).
 
 The generated secrets go to `%TEMP%\mes_demo_secrets.ps1`.
 
@@ -83,8 +83,8 @@ cd $SIM\mes_bridge
 ```
 It may start before the MES; it waits for it. Within about 20 s it prints `BOUND start ...: 1 published` and the
 same line for FREE. `demo_config.json` plans every automatic step with the EDD rule (earliest due date first,
-instant) and keeps CP-SAT (worker objective) as the thorough profile, which runs only on a request (slice 7.3, not
-built yet); its policy reschedules completely when a repair shifts a step by more than 60 min. Leave out `--config`
+instant) and keeps CP-SAT (worker objective) as the thorough profile, which runs only for a proposal (step 8): 30 s per
+objective level, so at most 2.5 min (about 2.5 min measured with the demo orders); its policy reschedules completely when a repair shifts a step by more than 60 min. Leave out `--config`
 to see the SPT rule instead. The
 bridge writes every decision to `$env:TEMP\mes_demo\state\<variant>\decisions.jsonl`: REPAIR or REPLAN, why, how
 many steps moved, the solver's status. That file is handy to show next to the UI.
@@ -132,12 +132,29 @@ Use two browser windows: one as **admin** (planner view) and one as a worker, e.
    (Ctrl+C). After a minute, My plan, the dashboard and Team plan say *Scheduler offline · last schedule from
    hh:mm*, and the plan comes from the MES's own rules. Restart it (arrow up, Enter): the notice disappears and the plan is the scheduler's
    again. Set the threshold back to 30 afterwards.
-8. **Solver choice (optional).** Stop the bridge, restart it without `--config` (SPT rule) or with a copy of
+8. **The planned nesting flow.** As admin, *Planning → Settings*, set *Nesting flow* to *Planned* and press its
+   *Save*. From now on the scheduler plans orders from planning on, and the queue shows a **Nesting** row with the
+   two nesting tasks, which no longer open the route columns.
+   - *Planning → Ready for planning*: select *Pipeline, urgent* and press *Plan selected*. The CP-SAT solve runs in the
+     background (about 2.5 min here). Meanwhile the header shows "Solving proposal since hh:mm, ready by about hh:mm",
+     for every planner, and the plan does not change.
+   - When it is done, a message with *Review* appears (also in the second admin window). The proposal page lists the
+     selected order with its teeth, the proposed finish and an editable done date, then the planned orders it moves
+     and the steps it changes. *Apply* plans the order with that done date and makes the proposal the plan, and the
+     bridge continues from it (`decisions.jsonl`: no REPLAN). *Discard* drops the proposal and stops a running solve.
+   - Nest the order as usual (queue → *Nesting* → *Prepare Data for secondary part*, form its print). The bridge
+     fits the real print into the plan without re-optimizing it (`decisions.jsonl`: MAP). *Planning* now says *Plan
+     update pending: 1 order(s) nested*, and the header says *Plan update pending (1)*. *Update plan* asks for a new
+     proposal for the whole plan, which you review like the first one.
+
+   Set the flow back to *Classic* afterwards to repeat steps 1–7 as before.
+9. **Solver choice (optional).** Stop the bridge, restart it without `--config` (SPT rule) or with a copy of
    `demo_config.json` whose `solver` is e.g. `{"kind": "ga", "time_limit": 10}`, and compare the plans in Team plan.
 
 ## 4. The same, checked automatically
 
-`tests/e2e/demo_scenario.py` runs steps 1–7 over the MES's HTTP API with 22 checks. It creates its own database
+`tests/e2e/demo_scenario.py` runs steps 1–8 over the MES's HTTP API with 32 checks (the nesting
+by the MES's own services, not the queue). It creates its own database
 (`mes_demo_scenario`), starts the MES (8091) and the bridge (8766), and cleans everything up. Stop the demo servers
 first (the ports must be free).
 
@@ -146,7 +163,7 @@ cd $MES\backend
 uv run python $SIM\mes_bridge\tests\e2e\demo_scenario.py
 ```
 
-Expected: `22 / 22 checks passed` in about 4 minutes. `--keep` leaves the MES and the database running afterwards.
+Expected: `32 / 32 checks passed` in about 4.5 minutes. `--keep` leaves the MES and the database running afterwards.
 
 ## 5. Known limitations (worth saying in a demo)
 

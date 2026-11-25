@@ -324,8 +324,14 @@ re-solves on arrival. Switch: planning setting *Nesting flow: classic / planned*
   modal) already fit, so "Nesting" is one more of them, placed between the *Planning* card and the route columns, in
   flow order (primary first, as the columns). In the planned flow only: the columns then start after the nesting
   steps; the classic flow keeps the queue as it was (user: the classic flow stays as today).
-- [ ] 7.7 Demo (low priority, user 2026-11-24): seed, `DEMO.md`, scenario. Open: solver and time limit for the
+- [x] 7.7 Demo (low priority, user 2026-11-24): seed, `DEMO.md`, scenario. Open: solver and time limit for the
   thorough profile.
+  Done 2026-11-25: the seed and the scenario needed nothing new (the pipeline orders were seeded in 7.1, checks 10-11
+  came with 7.3/7.4). Thorough profile of the demo: CP-SAT worker objective, `time_limit` 30 (was 60), so a proposal
+  takes at most 2.5 min instead of 5; measured 148 s (scenario) and 125 s (browser), READY without a fallback note.
+  The factory keeps the recommended 360. `DEMO.md`: step 8 *The planned nesting flow* (settings, Plan selected,
+  the header while solving, Review, Apply, nesting from the queue's Nesting row, Plan update pending), the
+  scenario's count 32 checks / 4.5 min.
 
 ## Known unknowns (facts to look up, not decisions)
 
@@ -527,3 +533,4 @@ PR comments read until: 2026-11-24T16:30Z (none from the user since slice 6)
 | 2026-11-24 | 7.5b | MES 1468dc7 | See 7.5b above. Checked in the browser on `mes_demo_75b` (dropped after): READY after 271 s, the page opened from the header (1 order with its teeth, 3 planned orders moving, 49 reassigned, 5 moving today), Apply planned the order and the proposal is APPLIED, a second proposal discarded from its page while solving (DISCARDED, solve stopped), no page errors. The follow-up (step tables cut to 10 rows with *Show all*, the short-id breadcrumb) was checked on 2026-11-25 on `mes_demo_75c` after a first run was stopped by Claude Code for low system memory: breadcrumb `d352d853`, 10 of 45 rows with *Show all 45*, all 58 after it. Gates: vitest 128, svelte-check 0 errors, eslint / prettier clean on the changed files. |
 | 2026-11-25 | 7.5c | MES 165767c | See 7.5c above. Checked in the browser on the scratch DB `mes_demo_75c` (dropped after): a proposal applied, its order nested through the e2e driver (bridge: MAP), then the header said "Plan update pending (1)" on the dashboard and led to Planning; the banner named the order and the nesting time; *Update plan* requested a proposal (toast, header "requested"), the banner then offered *Open the proposal*, which opened it ("Update of the current plan"); phone width checked; no page errors. Gates: vitest 128, svelte-check 0 errors, eslint / prettier clean on the changed files. |
 | 2026-11-25 | 7.6 | MES 4bd7288 | See 7.6 above. Checked in the browser on the scratch DB `mes_demo_76` (dropped after), as admin: planned flow, a "Nesting" row with *Prepare CAD/CAM data for primary part* (13 available) and *Prepare Data for secondary part* (none pending in the demo data), the primary column starting with *Prep mill for the primary parts*, the secondary with *Prepare mill data for secondary*, a nesting card opening *Start task*; classic flow: no row, the columns start with the nesting steps as before; phone width checked; no page errors. Gates: vitest 128, svelte-check 0 errors, eslint / prettier clean on the changed files. |
+| 2026-11-25 | 7.7 | bridge (next commit) | See 7.7 above. Scenario `demo_scenario.py` with the 30 s limit: 32 / 32 in 4.5 min, proposal READY after 148 s. Browser on the scratch DB `mes_demo_77` (dropped after), as admin, DEMO.md step 8 as written: Plan selected for *Pipeline, urgent*, toast *Proposal ready … Review* after 125 s, the proposal page, Apply (*Proposal applied: 1 order(s) planned*), then the queue's Nesting row: *Prepare Data for secondary part* went from *No work pending* to *Available work 1* and opens *Start task* for that order; no page errors. Not walked: forming the print in the nesting dialog (the MES's existing flow; the scenario nests through its services). |
