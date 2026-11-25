@@ -8,7 +8,7 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-25 (92) — CP-SAT stop hook: a stop between two levels — (next commit)
+## 2026-11-25 (92) — CP-SAT stop hook: a stop between two levels — `d5427f0`
 
 **Decided.** User (2026-11-25): fix the findings of the PR review. Own: the fix below, still an engineering hook, no
 change to the model, its constraints or objectives.

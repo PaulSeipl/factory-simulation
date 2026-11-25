@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- Review fixes (2026-11-25): a fact the bridge cannot map no longer ends the process (`_loop` retries a failing
+  `next_wake` after `RETRY`); a requested proposal starts even when the automatic step fails (`Runner.tick`); a
+  restart with assignments resumes instead of replanning completely (`MesFactory.refresh` takes the pins after a
+  restore as the baseline; shortcut: a pin changed while the bridge was down counts only with the next change); a
+  discarded proposal's CP-SAT solve also stops between two objective levels (thesis, protocol (92)).
 - Demo (slice 7, task 7.7): `demo_config.json`'s thorough profile at 30 s per level (was 60), so a proposal takes at
   most 2.5 min (measured 125-148 s); `DEMO.md` step 8 walks the planned nesting flow, and the scenario count is now
   32 checks.
