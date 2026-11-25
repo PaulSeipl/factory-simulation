@@ -87,14 +87,16 @@ npm run dev
 }.GetEnumerator() | ForEach-Object { Set-Content -Path (Join-Path $Work $_.Key) -Value $_.Value -Encoding utf8 }
 
 # 3. one window, three panes: MES left, bridge top right, frontend bottom right
-$pane = { param($name) "pwsh -NoExit -NoLogo -File `"$(Join-Path $Work $name)`"" }
+# the shell running this script, by its full path: a terminal whose PATH lacks pwsh (IDE, elevated) made wt fail
+$Shell = (Get-Process -Id $PID).Path
+$pane = { param($name) "`"$Shell`" -NoExit -NoLogo -File `"$(Join-Path $Work $name)`"" }
 if (Get-Command wt -ErrorAction SilentlyContinue) {
     $args_ = "-w new --title `"scheduler demo`" $(& $pane 'mes.ps1') ; split-pane -V $(& $pane 'bridge.ps1') ; " +
         "split-pane -H $(& $pane 'frontend.ps1')"
     Start-Process wt -ArgumentList $args_
 } else {
     foreach ($n in 'mes.ps1', 'bridge.ps1', 'frontend.ps1') {
-        Start-Process pwsh -ArgumentList '-NoExit', '-NoLogo', '-File', (Join-Path $Work $n)
+        Start-Process $Shell -ArgumentList '-NoExit', '-NoLogo', '-File', (Join-Path $Work $n)
     }
 }
 
