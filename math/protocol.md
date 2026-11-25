@@ -8,6 +8,21 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-25 (110) — GA against CP-SAT in rescheduling — uncommitted
+
+**Decided.** User: the GA is meant mainly for rescheduling and must be fast there; does it give better plans than
+CP-SAT in less time? Own: compare both on the same recorded rescheduling calls, value per level and time.
+
+**Done.** Script `scripts/ga_vs_cpsat.py` (10 calls, GA 100×10 and 100×30, CP-SAT with deterministic time 1, 5, 20
+per level; CP-SAT failures recorded instead of raised). Docs: [14](14_genetic-algorithm.md) §3b and change log.
+
+**Found.** On dental workers (255 to 279 free operations) the GA is the fast planner: 45 s per call (tardiness 23.0)
+or 120 s (20.7), against CP-SAT 475 s (20.0, the experiments' setting) or 600 s (18.6); CP-SAT with deterministic
+time 1 finds no plan at all. GA 100×30 beats CP-SAT (5) in 3 of 10 calls. In `robust-start` (small free part) it was
+the other way round (§4c): which planner is faster depends on the free part.
+
+**Open.** The cost of one GA evaluation; the free-part size at which CP-SAT overtakes the GA; more seeds.
+
 ## 2026-11-24 (109) — GA population size in rescheduling — 0cf636e
 
 **Decided.** User: try a smaller population for the rescheduling GA. Own: compare on the same rescheduling calls

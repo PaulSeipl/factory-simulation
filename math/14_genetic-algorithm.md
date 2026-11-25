@@ -212,6 +212,24 @@ only).
   population is no better (30, 100 against 100, 30: 5 calls each way), and fewer evaluations lose tardiness. So a
   smaller population does not buy speed without loss; the levers are the cost of one evaluation and the number of GA
   calls. Limits: one GA seed per variant (differences of one unit may be noise), one episode, one instance.
+- **GA against CP-SAT in rescheduling** (2026-11-25, script `scripts/ga_vs_cpsat.py`): the same 10 calls
+  (255 to 279 free operations), CP-SAT with a deterministic time per level (wall clock 120 s per level as the
+  safety net), one seed each:
+
+  | planner | seconds per call | mean total tardiness | plans |
+  |---|---|---|---|
+  | GA 100, 10 | 45 | 23.0 | 10 |
+  | GA 100, 30 | 120 | 20.7 | 10 |
+  | CP-SAT, deterministic time 1 | 80 to 250 | – | 0 (a level without a solution) |
+  | CP-SAT, deterministic time 5 (experiments) | 475 | 20.0 | 10 (feasible, none optimal) |
+  | CP-SAT, deterministic time 20 | 600 (wall clock limit on every level) | 18.6 | 10 |
+
+  Against CP-SAT with deterministic time 5, GA 100, 30 is better in 3 of 10 calls (lexicographic order) at a
+  quarter of the time; CP-SAT keeps break penalty 0 to 357 where every GA plan has 0. On this instance the GA is the
+  fast planner: within about a minute it is the only one with a plan. In the `robust-start` episodes (arrivals, a
+  small free part) CP-SAT was ten times faster than the GA (§4c): the GA's cost per call is fixed by its evaluations,
+  CP-SAT's depends on how hard the free part is. Limits: one episode, one seed, one laptop (one CP-SAT call with
+  deterministic time 1 ran across a suspend and is left out).
 - **Evaluation cost** (2026-11-22): a lexicographic objective now computes its level weights once per instance
   (`objectives._over`, one cached entry by identity). Before, every `evaluate` recomputed `horizon_bound`
   (`serial_end` per weekday), about 0.35 s per evaluation on the dental workers instance, two thirds of a 10 s GA
@@ -626,6 +644,7 @@ BRKGA's best plan would be a cheap fix if the fronts are used in the thesis.
 
 | Date | Commit | Change |
 |---|---|---|
+| 2026-11-25 | uncommitted | GA against CP-SAT on the same rescheduling calls (§3b); script `scripts/ga_vs_cpsat.py`. |
 | 2026-11-24 | 0cf636e | Population size measured in rescheduling (§3b); script `scripts/ga_population.py`. |
 | 2026-11-24 | 30a01c2 | Stagnation stop `GaParams.patience` ($N^{\mathrm{pat}}$), `PolicyConfig.patience`; measurement of the improvement generations in rescheduling (§3). |
 | 2026-11-19 | uncommitted | Step 1: delay window in `dispatch_plan`, `planners/ga.py` (BRKGA with priority, machine and delay keys), `tests/test_ga.py`. |
