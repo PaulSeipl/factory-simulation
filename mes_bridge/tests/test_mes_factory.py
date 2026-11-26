@@ -102,9 +102,9 @@ def test_nothing_arrived_is_nothing_to_plan():
     assert step(factory, POLICY, None, []) is None and fake.published == []
 
 
-def test_a_longer_print_that_moves_nothing_publishes_nothing():
-    """A print running longer within its slack before the removal moves nothing: nothing is republished (the plan as
-    executed already holds the fact; the MES shows started steps by their facts)."""
+def test_a_longer_print_within_its_slack_moves_nothing_else():
+    """A print running longer within its slack before the removal moves nothing else. It is republished once with its
+    new end: since main's repair skip (`_unaffected`) the plan as executed keeps planned lengths, as in the DES."""
     raw, fake, factory = _setup()
     anchor = step(factory, POLICY, None, [])
     steps = {s.key: s for s in fake.published[-1].steps}
@@ -114,7 +114,9 @@ def test_a_longer_print_that_moves_nothing_publishes_nothing():
     task = next(t for t in raw["snapshot"]["tasks"] if t["key"] == key)
     task["expected_end"] = (datetime.fromisoformat(task["expected_end"]) + slack).isoformat()
     step(factory, POLICY, anchor, [])
-    assert len(fake.published) == 1, slack
+    assert len(fake.published) == 2, slack
+    after = {s.key: s for s in fake.published[-1].steps}
+    assert [k for k in steps if (after[k].start, after[k].end) != (steps[k].start, steps[k].end)] == [key]
 
 
 def test_a_step_started_by_another_worker_is_planned_with_that_worker():

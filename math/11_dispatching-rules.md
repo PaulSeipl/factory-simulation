@@ -92,7 +92,65 @@ Rules do not optimize an objective directly; the schedule is evaluated afterward
 
 ## 5. Implementation in code
 
-Module `simulation.planners.dispatching`: `dispatch(ci, sequencing, assignment=None) -> list[Assignment]`; sequencing rules `spt`, `fifo`, `mwkr`, `lrp`, `edd` (registry `SEQUENCING_RULES`); assignment rules `least_load`, `ect` (registry `ASSIGNMENT_RULES`); `assignment=None` is the joint mode. Rules read the dispatcher state `DispatchState` ($\underline{S}$ `ready_at`, $\phi$ `machine_free`, $V$ `load`, $V^{\mathrm{q}}$ `backlog`, $\mathrm{wr}$ `work_left`, $\ell$ `remaining_path`).
+Module `simulation.planners.dispatching`: `dispatch(ci, sequencing, assignment=None) -> list[Assignment]`; sequencing rules `spt`, `fifo`, `mwkr`, `lrp`, `edd` (registry `SEQUENCING_RULES`); assignment rules `least_load`, `ect` (registry `ASSIGNMENT_RULES`); `assignment=None` is the joint mode. Rules read the dispatcher state `DispatchState` ($\underline{S}$ `ready_at`, $\phi$ `machine_free`, $V$ `load`, $V^{\mathrm{q}}$ `backlog`, $\mathrm{wr}$ `work_left`, $\ell$ `remaining_path`, and since 2026-11-23 $V_z$ `worker_load`, the booked share minutes per worker, for the RL features of [16](16_rl.md)).
+
+
+**Candidate hook** (2026-11-22, for the tree search and a later learned policy). `dispatch_plan(..., choose=)`:
+`choose(eligible, state) -> index` replaces the sequencing rule's pick in iteration $\zeta$. `eligible` are the candidates
+$(t, o, m, p)$ that can start by the reach, already checked for machines, workers, calendar, runs, loads and
+s-batches. So every index gives a feasible plan, and a search needs no feasibility check of its own. Load and s-batch
+partners are still ranked by the sequencing rule. `choose=None` keeps every plan unchanged. Tests
+(`tests/test_dispatch_choose.py`):
+- a chooser ranking like the rule reproduces all 15 rule plans on three toy instances and on dental workers;
+- random choices give feasible plans, statically and from a snapshot;
+- a random choice changes the plan, which guards against a hook that is called but ignored.
+
+Decision depth with SPT (iterations with more than one candidate):
+
+| Instance | Operations | Iterations | Decisions | Mean / max candidates |
+|---|---|---|---|---|
+| dental-carriers-example | 293 | 211 | 133 | 3.9 / 12 |
+| dental-carriers-workers | 287 | 208 | 174 | 8.8 / 39 |
+
+**Pause and resume** (2026-11-22, for the tree search, [15](15_mcts.md)):
+- `dispatch_until(..., choose, decisions, resume)` runs until `choose` has taken `decisions` decisions. It then
+  returns a `Checkpoint`, the dispatcher's mutable state before the next decision, or the plan if none is left.
+- `dispatch_plan(..., resume=checkpoint)` continues from a copy of it, without the setup (frozen part, started breaks,
+  pending removals, started runs).
+- The state in the checkpoint:
+  - `DispatchState`;
+  - remaining predecessors, ready operations;
+  - worker bookings with the longest interval, worker loads, the latest booked end;
+  - the booking log with the cache of earliest starts;
+  - the plan so far, the iteration $\zeta$.
+
+  The frozen bookings and the frozen shares do not change after the setup and are shared. `break_at` is recomputed on
+  demand from them.
+- A resume must pass the same arguments (identity check, else `ValueError`).
+- The pause lies before the iteration's choice. That iteration runs again on resume: its earliest starts come from
+  the copied cache, and $\zeta$ is counted then.
+
+Checks:
+- `notebooks/dispatch_speed.py` against the version before: all 1710 plans equal (rule combinations, 20 random GA
+  chromosomes per instance, DES snapshots), decode time unchanged.
+- `tests/test_dispatch_choose.py`:
+  - resuming at every decision (toys) or at a spread of them (dental workers) gives the uninterrupted plan, twice
+    from one checkpoint;
+  - a chain of checkpoints every 25 decisions from a DES snapshot with GA delay, overtime and join keys gives the
+    uninterrupted plan;
+  - a resume with other arguments is rejected.
+
+**Overtime candidates** (2026-11-22, for the tree search, [15](15_mcts.md) M4): `dispatch_plan(..., overtime_option=L)`
+with $0 < L \le \overline{\mathrm{ot}}$, not together with `overtime`.
+- A candidate $(t, o, m, p)$ whose earliest start lies after its base (it waits for a worker or the shift) also comes
+  as $(t', o, m, p, L)$, if $t'$ is earlier than $t$ and lies within the reach. Here $t'$ is its earliest start when
+  $o$'s shares may run $L$ minutes past shift end.
+- The reach stays the one without overtime, so the choice is "now in overtime" or "later without".
+- Choosing the variant gives $o$ the allowance $\mathrm{ot}^{\mathrm{al}}_o = L$, and for a run all its parts. The
+  overtime allowances are part of the checkpoint.
+- Without a chooser the rules take the variant without overtime on ties, so the rule plans are unchanged.
+- Hand case (`late_pack` of [14](14_genetic-algorithm.md)): the pack comes as (Tuesday 08:00) and as (Monday 16:30,
+  $L$). Choosing the second gives the plan of the GA's allowance 30.
 
 Hand-computed examples (test `test_spt_on_toy_dag_matches_hand_computation`), SPT on `toy-dag-3x4`, one per assignment variant.
 
@@ -237,3 +295,7 @@ Measured one change at a time: the bisection alone gives dental workers 2.2× an
 | 2026-11-09 | uncommitted | Shift-window search moved to `calendar.shift_window` (shared with the repair, [05](05_rescheduling-frozen-part.md)); behaviour unchanged. |
 | 2026-11-20 | uncommitted | Speed-up (§5 "Speed"): worker gap search by bisection, cached candidate starts; every plan unchanged (equality check `notebooks/dispatch_speed.py`), dental workers 4.1×, Fidentis 2.0× faster per decode. |
 | 2026-11-20 | uncommitted | `part_fits` cached, `calendar.shift_window` with its helpers inlined (same results, 200,000 random calls compared); with both, dental workers 4.9× and Fidentis 2.4× faster than before the speed-up. |
+| 2026-11-22 | uncommitted | Candidate hook `choose(eligible, state)` in `dispatch_plan` (§5); rule plans unchanged without it; decision depth measured. |
+| 2026-11-22 | uncommitted | Pause and resume (§5): `dispatch_until`, `Checkpoint`, `dispatch_plan(..., resume=)`; all 1710 plans of `notebooks/dispatch_speed.py` unchanged. |
+| 2026-11-22 | uncommitted | Overtime candidates (`overtime_option`, §5) for the tree search; rule and GA plans unchanged (`dispatch_speed.py`: all equal). |
+| 2026-11-23 | uncommitted | `DispatchState.worker_load` ($V_z$), the dispatcher's own list; plans unchanged. |

@@ -125,7 +125,8 @@ class MesFactory:
     def current_plan(self) -> Sequence[Assignment]:
         """The plan as executed: a started operation with its real machine, workers and times (in the DES the factory
         follows its plan; in the MES a worker may start a step another way than proposed, found by the end-to-end
-        run, 2.4)."""
+        run, 2.4). The end keeps the planned length from the real start, as in the DES: a running step expected to end
+        later then differs from the plan, so `adapt_plan` does not skip the repair (`_unaffected`)."""
         if not self._plan or self.ci is None or self.problem is None:
             return list(self._plan)
         frozen = {(f.order_id, f.op_id): f for f in self.snapshot().frozen}
@@ -140,7 +141,7 @@ class MesFactory:
                     update={
                         "machine": f.machine,
                         "start": f.start,
-                        "end": f.end,
+                        "end": f.start + a.end - a.start,
                         "workers": workers if all(workers) else a.workers,
                         "share_lengths": f.share_lengths,
                     }

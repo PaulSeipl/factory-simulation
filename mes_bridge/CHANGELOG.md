@@ -4,16 +4,21 @@
 
 ## Unreleased
 
+- Merge of the thesis `main` (2026-11-26): `adapt_plan` now skips the repair when the factory ran as planned
+  (`_unaffected`). `MesFactory.current_plan()` copied a running step's expected end into the plan, so an overrun
+  looked as planned and its successors were not moved. The plan as executed now keeps the planned length from the
+  real start (as in the DES). A step running longer within its slack is therefore republished once with its new end
+  (before: not republished); nothing else moves.
 - Review fixes (2026-11-25): a fact the bridge cannot map no longer ends the process (`_loop` retries a failing
   `next_wake` after `RETRY`); a requested proposal starts even when the automatic step fails (`Runner.tick`); a
   restart with assignments resumes instead of replanning completely (`MesFactory.refresh` takes the pins after a
   restore as the baseline; shortcut: a pin changed while the bridge was down counts only with the next change); a
-  discarded proposal's CP-SAT solve also stops between two objective levels (thesis, protocol (92)).
+  discarded proposal's CP-SAT solve also stops between two objective levels (thesis, protocol (117)).
 - Demo (slice 7, task 7.7): `demo_config.json`'s thorough profile at 30 s per level (was 60), so a proposal takes at
   most 2.5 min (measured 125-148 s); `DEMO.md` step 8 walks the planned nesting flow, and the scenario count is now
   32 checks.
 - A discarded proposal stops its solve (user 2026-11-24): the BOUND runner's `ProposalWorker` and the thorough
-  planner share a `threading.Event`, the thesis CP-SAT stop hook (`cpsat_planner(stop=)`, protocol (91)). While a
+  planner share a `threading.Event`, the thesis CP-SAT stop hook (`cpsat_planner(stop=)`, protocol (116)). While a
   solve runs, each step asks the MES about its proposal; once it is no longer SOLVING (discarded, or replaced by a new
   request) the event is set, CP-SAT ends at once, and nothing is reported (`Stopped`; no rule fallback in
   `SolverConfig.planner`). The GA runs to its limit (shortcut). Tests: `test_proposals.py`, `test_config.py`.

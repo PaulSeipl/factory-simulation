@@ -61,7 +61,7 @@ Per time point $t$ the DES
 
 1. processes **all** events at $t$,
 2. gives the planning tool the chance to send a new plan (`update_plan`): it is checked against the frozen part (C1–C7) and the PLANNED_START events of operations not yet released are moved,
-3. makes one start step: every released operation that is ready starts at $t$ (a late one: schedules LATE_START at $t + \Delta_o$ the first time it is ready, and starts when that time is reached); a COMPLETE event is scheduled at $t + \hat p_o$.
+3. makes the start step, repeated at $t$ until a pass starts nothing (a start can enable a swap, §8): every released operation that is ready starts at $t$ (a late one: schedules LATE_START at $t + \Delta_o$ the first time it is ready, and starts when that time is reached); a COMPLETE event is scheduled at $t + \hat p_o$.
 
 4. **every start is an event** (2026-11-11, user): if the start step started anything (an operation, a removal, a
    break; a takeover by the swap rule happens at such a start), the planning tool is called again at $t$, now with
@@ -198,6 +198,25 @@ Snapshots are Pydantic models (`Snapshot`, `FrozenOperation`) and can be stored 
 - Right-shift without overtaking: a machine may stay idle although a later planned operation could run; resolving this is the planner's job (replanning).
 - A shorter operation does not pull successors forward (planned start is binding).
 - Rounding of realized durations to integers ([22](22_scenarios.md)).
+- **Order release as a time point (fixed 2026-11-22):** an operation released to the floor early ($\Delta_o < 0$)
+  before its order's release $r_{k(o)}$ waited for the next unrelated event instead of starting at $r_{k(o)}$ as in
+  $R_o$ (§3); toy-dag, spt plan, $\Delta_{b1} = -4$: b1 started at 3 (end of a1), now at 2. A WAKE at $r_{k(o)}$ is
+  pushed when the operation is released before it (`_on_planned_start`); regression test
+  `test_early_release_waits_for_the_order_release_not_for_the_next_event` (fails without the fix). Disturbed runs
+  with early offsets before an order release change; earlier numbers with $q < 1$ are slightly off.
+- **Repeated start step (fixed 2026-11-22, user):** the start step assumed "a start cannot enable another one",
+  but with workers it can: a start makes the planned worker of another due share busy, which enables the swap rule
+  for that share at the same $t$, after it was already checked in that pass. It then swapped at the next time
+  point, whichever event that was (dental workers, spt plan, seed 2: design of O37 swapped to C at 613 because an
+  OVERDUE event of another operation fell at 613; without that event at 625 to B). Now the start step repeats at
+  $t$ until a pass starts nothing (`start_operations` over `_start_pass`); O37's design starts at 612 with C (test
+  `test_a_start_enables_a_swap_in_the_same_minute`, fails with a single pass). Effect on dental workers (spt plan,
+  $\sigma = 0.45$, offsets, 10 seeds, scratch run): makespan unchanged on every seed, 0 to 10 of 287 operations start
+  up to 11 min earlier in 4 seeds, 3 operations get another worker; zero disturbance identical.
+- **Replay without OVERDUE (2026-11-22):** `replay` builds the simulation with `overdue=False`, since OVERDUE only
+  gives a planning tool time points; with the repeated start step and the WAKE at the order release the result is
+  equal to the full run (test `tests/test_replay_overdue.py`: schedule, breaks and log on five small instances, two
+  plans, four seeds with offsets). `execute` keeps them.
 
 ## 9. Sources
 
@@ -230,6 +249,10 @@ Snapshots are Pydantic models (`Snapshot`, `FrozenOperation`) and can be stored 
 | 2026-11-09 | 7274636 | `update_plan(plan, breaks)`, `current_breaks()`: taken breaks kept, pending ones replaced. |
 | 2026-11-09 | 7274636 | `FrozenOperation.share_lengths`; swap-rule worker written $z' \in W_o$; $\overline{\mathrm{ot}}$. |
 | 2026-11-11 | uncommitted | Every start is an event: the planning tool is called again after the start step (`start_operations` returns the number of starts; user). |
+| 2026-11-23 | uncommitted | Snapshot reuses the entries of finished operations (`Simulation._finished`, by key; a finished operation's entry never changes, C7); test `tests/test_snapshot_cache.py` (equal to a fresh snapshot at every time point, with plan updates). |
+| 2026-11-23 | uncommitted | `current_plan` cached (cleared by `_apply` and swaps); `replay_from` moved to `objectives` (the planner's lookahead is not part of the DES); `Simulation(..., validate_from=)` checks a plan against a snapshot. |
+| 2026-11-22 | uncommitted | Start step repeated at $t$ until nothing starts (user); `replay` without OVERDUE events (`Simulation(..., overdue=False)`), equality test. |
+| 2026-11-22 | uncommitted | WAKE at the order release for an early-released operation (§8); unfinished-predecessor counter per operation (`Simulation.open_preds`, decremented on COMPLETE, recomputed in `grow`): same results, replay 1.3 to 2 times faster. |
 | 2026-11-18 | uncommitted | `Simulation.grow`: continue on a larger instance, state moved by key; tests `tests/test_des_grow.py` (equivalence with the full run for two toy packages at 10 and at 3, during a running operation, and for the Fidentis route with workers and calendar, seeds 2–5; rejected: other machines, lost operations). |
 | 2026-11-18 | uncommitted | s-batches ([08](08_serial-batches.md) step 4): joint start by batch id, realized batch length, planned batch length for expected end and shift fit, batch id in plan, realized schedule and snapshot. |
 | 2026-11-12 | uncommitted | Order arrivals: ARRIVAL event, unplanned operations inert ($O^{\mathrm{pl}}$), plan checked against the visible instance (`Simulation(..., visible=)`); tests in `tests/test_arrivals.py`. |

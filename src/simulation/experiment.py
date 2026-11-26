@@ -26,28 +26,75 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    NonNegativeFloat,
+    NonNegativeInt,
+    PositiveFloat,
+    PositiveInt,
+    model_validator,
+)
 
 from simulation.arrival_generator import ArrivalParams, generate_arrival_instance
 from simulation.control.nesting import Nesting
 from simulation.control.rescheduling import ReschedulingPolicy, execute
 from simulation.io.json_loader import read_model, write_csv, write_jsonl
 from simulation.metrics import run_metrics
-from simulation.model.compiled import compile_instance, compile_visible
-from simulation.objectives import worker_objective_with_slack
+from simulation.model.compiled import CompiledInstance, compile_instance, compile_visible
+from simulation.objectives import expected, planner_scenarios, worker_objective_with_slack
+from simulation.planners.buffer import inflate, quantile_factor, shorten
 from simulation.planners.cpsat import CpSatResult, cpsat_planner, solve
 from simulation.planners.dispatching import dispatch_planner, ect, spt
+from simulation.planners.ga import GaParams, ga_planner, solve_ga
+from simulation.planners.mcts import MctsParams, mcts_planner
 from simulation.sim.scenario import sample_scenario
 
 
 class PolicyConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    planner: Literal["cpsat", "rule"]  # complete rescheduling: CP-SAT with the worker objective, or SPT + ECT
+    # complete rescheduling with the worker objective: CP-SAT, SPT + ECT, the GA (math/14) or MCTS (math/15)
+    planner: Literal["cpsat", "rule", "ga", "mcts"]
     # hindsight: start from a plan of the full instance (every arrival known) and never see arrivals as events
     hindsight: bool = False
     max_makespan_change: NonNegativeInt | None = None  # thresholds of math/05 §3
     max_shift: NonNegativeInt | None = None
     period: NonNegativeInt | None = None
+    # GA only, and required there: generations per complete rescheduling (decide the result, as CP-SAT's
+    # deterministic time does; the configuration's time_limit is the wall-clock safety net)
+    generations: PositiveInt | None = None
+    # MCTS only, and required there: iterations per decision N^it (decide the result, as generations do)
+    iterations: PositiveInt | None = None
+    # the start plan: CP-SAT (default) or the GA (with `generations`); math/14 section 4c
+    start: Literal["cpsat", "ga"] = "cpsat"
+    # GA only: stop after this many generations without a better incumbent (`GaParams.patience`); None: all generations
+    patience: PositiveInt | None = None
+    # robust GA (math/14 sections 4a, 4b): "expected" scores plans by the expected objective over `n_scenarios` of
+    # the planner's own scenarios (start plan and rescheduling); "buffer" plans the start plan with durations
+    # inflated to their `alpha` quantile. None: the planned objective
+    robust: Literal["expected", "buffer"] | None = None
+    n_scenarios: PositiveInt | None = None
+    alpha: float | None = Field(default=None, gt=0, lt=1)
+
+    @model_validator(mode="after")
+    def check_search_limits(self):
+        ga = "ga" in (self.planner, self.start)
+        if ga != (self.generations is not None):
+            raise ValueError("generations is required for the GA (planner or start 'ga') and only allowed there")
+        if (self.planner == "mcts") != (self.iterations is not None):
+            raise ValueError("iterations is required for planner 'mcts' and only allowed there")
+        if self.patience is not None and not ga:
+            raise ValueError("patience needs the GA (planner or start 'ga')")
+        if self.robust is not None and not ga:
+            raise ValueError(f"robust '{self.robust}' needs the GA (planner or start 'ga')")
+        if self.robust == "buffer" and self.start != "ga":
+            raise ValueError("robust 'buffer' shapes the start plan: needs start 'ga'")
+        if (self.robust == "expected") != (self.n_scenarios is not None):
+            raise ValueError("n_scenarios is required for robust 'expected' and only allowed there")
+        if (self.robust == "buffer") != (self.alpha is not None):
+            raise ValueError("alpha is required for robust 'buffer' and only allowed there")
+        return self
 
 
 class ExperimentConfig(BaseModel):
@@ -74,7 +121,28 @@ class ExperimentConfig(BaseModel):
         return self
 
     def digest(self) -> str:
-        return hashlib.sha256(self.model_dump_json().encode()).hexdigest()[:12]
+        # generations, iterations (added 2026-11-22) only where set: older configurations keep their hash and so their
+        # result rows
+        unset = {"policies": {k: {f for f in ("generations", "iterations", "robust", "n_scenarios", "alpha", "patience")
+                                  if getattr(p, f) is None} | ({"start"} if p.start == "cpsat" else set())
+                              for k, p in self.policies.items()}}  # start, robust, ... added 2026-11-23
+        return hashlib.sha256(self.model_dump_json(exclude=unset).encode()).hexdigest()[:12]
+
+
+PLANNER_SEEDS = 1_000_000  # the robust GA's scenario seeds start at PLANNER_SEEDS * (seed + 1): never an episode seed
+
+
+def _ga_start(ci: CompiledInstance, pc: PolicyConfig, objective, config: ExperimentConfig, seed: int) -> CpSatResult:
+    """The GA's start plan (math/14 section 4c), as a CpSatResult so the run row stays the same; with robust
+    'buffer' planned on inflated durations and shortened back (section 4b)."""
+    rho = quantile_factor(config.sigma, pc.alpha) if pc.robust == "buffer" else 1.0
+    limit = config.hindsight_time_limit if pc.hindsight else config.time_limit
+    t0 = time.perf_counter()
+    r = solve_ga(inflate(ci, rho), objective, GaParams(generations=pc.generations, time_limit=limit, seed=seed, patience=pc.patience))
+    plan = shorten(ci, r.plan.assignments, r.plan.breaks) if rho > 1 else r.plan.assignments
+    return CpSatResult(status="GA", schedule=plan, objective=r.value, bound=None,
+                       wall_time=time.perf_counter() - t0, breaks=r.plan.breaks,
+                       wall_limited=r.generations < pc.generations)
 
 
 def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) -> dict:
@@ -86,18 +154,29 @@ def run_one(config: ExperimentConfig, policy_name: str, seed: int, out: Path) ->
     inst = nesting.instance() if nesting else generate_arrival_instance(arrivals)
     ci, at = compile_instance(inst), compile_visible(inst)
     objective = worker_objective_with_slack(config.buffer)
+    # the robust GA's objective: its own scenarios, seeds disjoint from the episode's (the DES uses `seed` itself)
+    planner_objective = objective if pc.robust != "expected" else expected(objective, planner_scenarios(
+        config.sigma, range(PLANNER_SEEDS * (seed + 1), PLANNER_SEEDS * (seed + 1) + pc.n_scenarios), config.q,
+        config.max_early, config.max_late))
     if not at(0).n_ops:  # nothing known at 0 (no backlog): the first plan comes with the first arrival
         start = CpSatResult(status="EMPTY", schedule=[], objective=None, bound=None, wall_time=0.0)
     elif pc.hindsight:
         start = solve(ci, objective, config.hindsight_time_limit, 1, seed,
                       deterministic_time=config.hindsight_deterministic_time)
+    elif pc.start == "ga":
+        start = _ga_start(ci if pc.hindsight else at(0), pc, planner_objective, config, seed)
     else:
         start = solve(at(0), objective, config.time_limit, 1, seed, deterministic_time=config.deterministic_time)
     if not start.schedule and start.status != "EMPTY":
         raise RuntimeError(f"{config.name}/{policy_name}/{seed}: no start plan ({start.status})")
-    planner = (cpsat_planner(config.time_limit, 1, seed, objective=objective,
-                             deterministic_time=config.deterministic_time)
-               if pc.planner == "cpsat" else dispatch_planner(spt, ect))
+    planner = {
+        "cpsat": lambda: cpsat_planner(config.time_limit, 1, seed, objective=objective,
+                                       deterministic_time=config.deterministic_time),
+        "rule": lambda: dispatch_planner(spt, ect),
+        "ga": lambda: ga_planner(planner_objective, GaParams(generations=pc.generations, time_limit=config.time_limit,
+                                                     seed=seed, patience=pc.patience)),
+        "mcts": lambda: mcts_planner(objective, MctsParams(iterations=pc.iterations, time_limit=config.time_limit)),
+    }[pc.planner]()
     policy = ReschedulingPolicy(planner=planner, max_makespan_change=pc.max_makespan_change,
                                 max_shift=pc.max_shift, period=pc.period)
     def scenario_for(instance):  # keyed with nesting: an operation's draws do not depend on the packages (math/22)

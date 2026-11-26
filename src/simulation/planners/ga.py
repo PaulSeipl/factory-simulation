@@ -47,10 +47,15 @@ class GaParams:
     generations: int | None = None  # stop after this many generations; None: only the time limit
     time_limit: float | None = 10.0  # seconds, checked after every decode; None: only the generation limit
     seed: int = 0
+    # stop after this many completed generations without a better incumbent (stagnation rule, math/14 section 3);
+    # None: only the generation and time limits
+    patience: int | None = None
 
     def __post_init__(self):
         if self.generations is None and self.time_limit is None:
             raise ValueError("give a generation limit, a time limit or both")
+        if self.patience is not None and self.patience < 1:
+            raise ValueError(f"patience {self.patience}: at least one generation")
         n_el, n_mut = self.n_elite, self.n_mutants
         if n_el < 1 or n_el + n_mut >= self.population:
             raise ValueError(f"population {self.population}: needs at least one elite and one child "
@@ -117,6 +122,15 @@ def encode(ci: CompiledInstance, plan: Sequence[Assignment]) -> Chromosome:
     return [(rank[o] + 0.5) / n for o in range(n)] + mach + [0.0] * (3 * n)
 
 
+def budget_excess(plan: Sequence[Assignment], before: dict, frozen: set, change_budget: int | None) -> int:
+    """Machine changes of `plan` beyond the change budget against `before` ((order, op) -> machine of the current
+    plan); operations not in it (arrived since) and frozen ones do not count (math/05, math/14 §3b)."""
+    if change_budget is None or not before:
+        return 0
+    changed = sum(a.machine != before[k] for a in plan if (k := (a.order_id, a.op_id)) in before and k not in frozen)
+    return max(0, changed - change_budget)
+
+
 def rule_plans(ci: CompiledInstance, snapshot: Snapshot | None = None) -> Iterator[Plan]:
     """All sequencing x (assignment + joint) rule plans, as in best_dispatch; lazily, so a time limit can stop them."""
     return (dispatch_plan(ci, SEQUENCING_RULES[s], ASSIGNMENT_RULES[a] if a else None, snapshot)
@@ -130,6 +144,8 @@ def solve_ga(
     """The best plan the BRKGA finds within the limits (module docstring). `current`: the plan to start from (warm
     start) and the reference of `change_budget` (machine changes of operations it plans that are not frozen)."""
     start, params = time.perf_counter(), params or GaParams()
+    if snapshot is not None and objective.with_snapshot is not None:  # e.g. `expected`: replay from the snapshot
+        objective = objective.with_snapshot(snapshot)
     rng = random.Random(params.seed)
     unit, n_keys = params.delay_max, N_KEYS * ci.n_ops
     frozen = {(f.order_id, f.op_id) for f in snapshot.frozen} if snapshot else set()
@@ -142,12 +158,8 @@ def solve_ga(
     def rank(plan: Plan) -> Rank:
         nonlocal evaluations
         evaluations += 1
-        over = 0
-        if change_budget is not None and current is not None:
-            changed = sum(a.machine != before[k] for a in plan.assignments
-                          if (k := (a.order_id, a.op_id)) in before and k not in frozen)
-            over = max(0, changed - change_budget)
-        return over, objective.evaluate(ci, plan.assignments, plan.breaks)
+        return (budget_excess(plan.assignments, before, frozen, change_budget),
+                objective.evaluate(ci, plan.assignments, plan.breaks))
 
     def scored(genes: Chromosome) -> tuple[Rank, Chromosome, Plan]:
         plan = decode(ci, genes, unit, snapshot, params.join)
@@ -174,10 +186,12 @@ def solve_ga(
     population.sort(key=lambda s: s[0])  # stable: ties keep their order, so a seed gives one result
     history, generation = [], 0
 
+    last_gain = 0  # generation of the last better incumbent (0: the seeding)
+
     def improve() -> None:
-        nonlocal best_rank, best_plan
+        nonlocal best_rank, best_plan, last_gain
         if population and population[0][0] < best_rank:
-            best_rank, best_plan = population[0][0], population[0][2]
+            best_rank, best_plan, last_gain = population[0][0], population[0][2], generation
         history.append(best_rank[1])
 
     improve()
@@ -185,7 +199,7 @@ def solve_ga(
 
     def stop() -> bool:
         return (len(population) <= n_el or (params.generations is not None and generation >= params.generations)
-                or out_of_time())
+                or (params.patience is not None and generation - last_gain >= params.patience) or out_of_time())
 
     while not stop():
         elite, rest = population[:n_el], population[n_el:]

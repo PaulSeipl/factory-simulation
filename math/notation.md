@@ -116,11 +116,23 @@ calendar ([04](04_workers.md)).
 | $m(o)$ | machine assigned to $o$ by the assignment rule | [11](11_dispatching-rules.md) |
 | $\upsilon = (\upsilon^{\mathrm{seq}}, \upsilon^{\mathrm{mach}}, \upsilon^{\mathrm{del}}, \upsilon^{\mathrm{ot}}, \upsilon^{\mathrm{join}})$ | GA chromosome in $[0,1)^{5\lvert O \rvert}$: priority, machine, delay, overtime and join key per operation (not $g$: the slot machine $g_{j,m}$; not $\gamma$: a nesting time in [07](07_order-arrivals.md)) | [14](14_genetic-algorithm.md) |
 | $\zeta$ | scheduling iteration of the decoder (not $\ell$: the remaining path $\ell_o$) | [14](14_genetic-algorithm.md) |
+| $f^{\mathrm{exp}}$, $\mathcal{S}^{\mathrm{pl}}$, $N^{\mathrm{sc}}$ | expected objective: sample mean of $f$ over the realized schedules of a plan; the planner's own scenarios (seeds disjoint from the evaluation's); their number | [14](14_genetic-algorithm.md) |
+| $\varrho$, $\alpha^{\mathrm{buf}}$, $z_\alpha$, $\Phi$ | time-buffer factor (processing times inflated for planning, $\ge 1$; not $f$: the objective); its quantile level (not $q$: the start offsets); standard normal $\alpha$-quantile and distribution function $\Phi$ | [14](14_genetic-algorithm.md) |
 | $D_\zeta$ | delay of iteration $\zeta$ in minutes, $\operatorname{round}((D^{\max} + 1)^{\upsilon^{\mathrm{del}}_\zeta} - 1)$ (not $\Delta$: the shifts $\Delta_o$) | [14](14_genetic-algorithm.md) |
 | $D^{\max}$ | GA: longest delay in minutes, the delay of key 1 (not $D_S$: the start deviation) | [14](14_genetic-algorithm.md) |
 | $\mathrm{ot}^{\mathrm{al}}_o$ | overtime allowance of $o$ in the GA's decoder, $\operatorname{round}(\upsilon^{\mathrm{ot}}_o \overline{\mathrm{ot}})$ (not $\mathrm{ot}_{z,\nu}$: CP-SAT's overtime per worker and day) | [14](14_genetic-algorithm.md) |
 | $\alpha^{\mathrm{in}}$ | GA: probability of a key from the elite parent | [14](14_genetic-algorithm.md) |
 | $N^{\mathrm{pop}}$, $N^{\mathrm{el}}$, $N^{\mathrm{mut}}$ | GA population size, elite chromosomes, mutants per generation | [14](14_genetic-algorithm.md) |
+| $N^{\mathrm{pat}}$ | GA stagnation stop: generations without a better incumbent before the GA stops (`GaParams.patience`) | [14](14_genetic-algorithm.md) §3 |
+| $\mathcal{U}$, $\vartheta$ | MCTS search tree; a node (the state after a prefix of decisions) (not $\omega$: the calendar origin) | [15](15_mcts.md) |
+| $N^{\mathrm{it}}$, $N^{\mathrm{wid}}$, $N^{\mathrm{vis}}_\vartheta$ | MCTS iterations per decision, children per node, visits of node $\vartheta$ | [15](15_mcts.md) |
+| $\bar f_\vartheta$, $f^{\min}$, $f^{\max}$ | mean rollout value through $\vartheta$; best and worst rollout value of the search (variants of the objective $f$) | [15](15_mcts.md) |
+| $\beta$ | MCTS exploration weight of the UCB term (not $c$: the batch capacity $c_s$) | [15](15_mcts.md) |
+| $\mathcal{C}_\zeta$ | eligible candidates of decision $\zeta$ (RL features, also MCTS's children) | [16](16_rl.md) |
+| $\bar p$ | mean shortest processing time $\frac{1}{\lvert O \rvert}\sum_o \underline{p}_o$, time unit of the RL features | [16](16_rl.md) |
+| $\mathrm{ft}(c)$ | RL feature vector of candidate $c$ (not $\phi$: machine free time; not $x$: CP-SAT assignment) | [16](16_rl.md) |
+| $\mathrm{sc}(c)$, $\Pr(c \mid \mathcal{C}_\zeta)$ | RL score of candidate $c$ and the policy, the softmax of the scores over $\mathcal{C}_\zeta$ (not $\pi$: a plan; not $P$: the precedence pairs) | [16](16_rl.md) |
+| $N^{\mathrm{upd}}$, $N^{\mathrm{smp}}$, $\mathrm{adv}_j$ | RL gradient steps, sampled plans per instance, advantage $(\bar f - f_j)/\mathrm{sd}_f$ of plan $j$ with $\mathrm{sd}_f$ the standard deviation of the samples' values (not $A$: the arrival $A_k$; not $s$: a step) | [16](16_rl.md) |
 
 ## Correspondence to the sources
 

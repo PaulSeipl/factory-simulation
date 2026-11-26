@@ -153,6 +153,19 @@ def test_lexicographic_value_orders_schedules_like_tuples():
             assert lex == (as_tuple(a) < as_tuple(b))
 
 
+def test_lexicographic_weight_follows_the_instance():
+    # the weight is cached per instance (one entry): alternating instances must give each one its own weight
+    objective = lexicographic(TOTAL_TARDINESS, MAKESPAN)
+    mk1 = compile_instance(assign_due_dates(load_fjs(DATA / "benchmarks" / "brandimarte" / "BrandimarteMk1.fjs"),
+                                            (1.0,), 0))
+    plans = {id(TOY_DUE_05): PLAN, id(mk1): dispatch(mk1, spt, ect)}
+    assert MAKESPAN.spread(TOY_DUE_05) != MAKESPAN.spread(mk1)
+    for ci in (TOY_DUE_05, mk1, TOY_DUE_05, mk1):
+        s = plans[id(ci)]
+        expected = (MAKESPAN.spread(ci) + 1) * TOTAL_TARDINESS.evaluate(ci, s) + MAKESPAN.evaluate(ci, s)
+        assert objective.evaluate(ci, s) == expected
+
+
 def test_tardiness_first_then_makespan_on_mk01():
     # loose due dates: tardiness alone stops at a makespan of 52 (math/06); with the makespan as second level both
     # are optimal at once

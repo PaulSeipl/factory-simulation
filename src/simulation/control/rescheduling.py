@@ -183,7 +183,10 @@ def adapt_plan(
         sim.update_plan(new_plan, new_breaks)
         return Anchor(new_plan, snap.t, new_breaks)
     # with workers and a calendar the repair also moves overdue breaks and adds owed ones; otherwise it keeps them
-    repaired, repaired_breaks = repair_plan(ci, snap, current, current_breaks, overtime=policy.repair_overtime)
+    if _unaffected(ci, snap, current, current_breaks):  # the factory ran as planned: the repair would keep the plan
+        repaired, repaired_breaks = current, current_breaks
+    else:
+        repaired, repaired_breaks = repair_plan(ci, snap, current, current_breaks, overtime=policy.repair_overtime)
     if ci.calendar is None or not ci.worker_ids:
         repaired_breaks = current_breaks
     periodic = (policy.period is not None and len(snap.frozen) < ci.n_ops  # something left to plan
@@ -220,6 +223,29 @@ def adapt_plan(
     if not _same(new_plan, current) or not _same_breaks(new_breaks, current_breaks):
         sim.update_plan(new_plan, new_breaks)
     return anchor
+
+
+def _unaffected(ci: CompiledInstance, snap: Snapshot, current: Sequence[Assignment], breaks: Sequence[Break]) -> bool:
+    """The factory has run exactly as planned up to snap.t, so the shift repair returns the plan unchanged (checked
+    against the repair in tests/test_repair_skip.py): every started operation has its planned times, share lengths
+    and workers (a running one's expected end included), nothing that has not started was planned before t, and every
+    break planned before t was taken at its planned start (math/05 section 5)."""
+    t, plan = snap.t, {(a.order_id, a.op_id): a for a in current}
+    frozen = {(f.order_id, f.op_id) for f in snap.frozen}
+    for f in snap.frozen:
+        a = plan[f.order_id, f.op_id]
+        if (f.start, f.end, f.machine) != (a.start, a.end, a.machine):
+            return False
+        o = ci.op_index[f.order_id, f.op_id]
+        planned = [a.end - a.start if sh.kind == "whole" else sh.length for sh in ci.shares[o]]
+        if f.share_lengths and list(f.share_lengths) != planned:
+            return False
+        if any(w is not None and w != v for w, v in zip(f.workers, a.workers)):
+            return False
+    if any(a.start < t for k, a in plan.items() if k not in frozen):
+        return False
+    taken = {(b.worker, b.start) for b in snap.breaks}
+    return all(b.start >= t or (b.worker, b.start) in taken for b in breaks)
 
 
 def _earliness(snap: Snapshot, current: Sequence[Assignment]) -> int:

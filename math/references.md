@@ -63,6 +63,9 @@
 - Liu, M., Lv, J., Du, S., Deng, Y., Shen, X., & Zhou, Y. (2024). Multi-resource constrained flexible job shop scheduling problem with fixture-pallet combinatorial optimisation. *Computers & Industrial Engineering*, 188, 109903. https://doi.org/10.1016/j.cie.2024.109903 (Zotero `5YDNRDES`)
   Used for: fixture set $F$, index $f$, eligible fixtures $F_{i,j}$ (PDF p. 4, notation table) ([notation.md](notation.md)).
 
+- Lv, L., Zhang, C., Fan, J., & Shen, W. (2025). Deep reinforcement learning for job shop scheduling problems: A comprehensive literature review. *Knowledge-Based Systems*, 321, 113633. https://doi.org/10.1016/j.knosys.2025.113633 (Zotero `QACURDAW`)
+  Used for: JSP and FJSP as a Markov decision process, p. 1, p. 3 ([15](15_mcts.md), [16](16_rl.md)); instance-by-instance, instance-class and size-agnostic training, p. 2, p. 13 ([16](16_rl.md)).
+
 - Lunardi, W. T., Birgin, E. G., Laborie, P., Ronconi, D. P., & Voos, H. (2020). Mixed integer linear programming and constraint programming models for the online printing shop scheduling problem. *Computers and Operations Research*, 123, 105020. https://doi.org/10.1016/j.cor.2020.105020
   Used for: DAG precedence per job and release times per operation, MILP (1)–(9) (§2, pp. 4–5), CP model (33)–(40) (§3, p. 8), example job DAGs (Fig. 1, p. 2). Cited in [01](01_basic-fjsp.md) and [notation.md](notation.md).
 
@@ -79,7 +82,7 @@
   Used for: semantics of solution hints (not a hard constraint; partial and infeasible hints allowed). Cited in [12](12_cp-sat.md).
 
 - Li, K., Deng, Q., Zhang, L., Fan, Q., Gong, G., & Ding, S. (2021). An effective MCTS-based algorithm for minimizing makespan in dynamic flexible job shop scheduling problem. *Computers & Industrial Engineering*, 155, 107211. https://doi.org/10.1016/j.cie.2021.107211 (Zotero `7VCTD9GM`)
-  Used for: completely reactive / predictive-reactive / robust pro-active scheduling, continuous (event-driven) vs. periodic rescheduling (PDF p. 5), response time (PDF p. 2). Cited in [05](05_rescheduling-frozen-part.md).
+  Used for: completely reactive / predictive-reactive / robust pro-active scheduling, continuous (event-driven) vs. periodic rescheduling (PDF p. 5), response time (PDF p. 2). Cited in [05](05_rescheduling-frozen-part.md). Root commitment with reuse of the subtree in MCTS, p. 4 ([15](15_mcts.md)).
 
 - Li, K., Zheng, B., Xu, L., Xie, F., & Wang, Z. (2026). Multi-objective dynamic flexible job shop scheduling using multi-head network-based deep reinforcement learning. *Expert Systems with Applications*, 298, 129542. https://doi.org/10.1016/j.eswa.2025.129542 (Zotero `6GGUPZNL`)
 - Song, J., Shen, Y., Wang, L., Liu, C., Tang, D., & Nie, Q. (2025). An efficient job insertion algorithm for hybrid human–machine collaborative flexible job shop scheduling with random job arrivals. *Electronics*, 14(17), 3397. https://doi.org/10.3390/electronics14173397 (Zotero `999TFMAJ`)
@@ -124,3 +127,12 @@
 
 - Zhou, Y., Tan, H., & Li, J. (2026). Adaptive Lagrangian penalty-enhanced proximal policy optimization for flexible job shop rescheduling with worker workload constraints under concurrent dynamic disturbances. *Processes*, 14(15), 2519. https://doi.org/10.3390/pr14152519 (Zotero `EA8QC55F`)
   Used for: workload balance and fatigue as explicit constraints in dynamic FJSP; event trigger between right shift and full rescheduling (p. 1) ([32](32_target-data-model.md)).
+
+- Huang, Z., Huang, L., & Li, D. (2024). Co-evolutionary algorithm for two-stage hybrid flow shop scheduling problem with suspension shifts. *Mathematics*, 12(16), 2575. https://doi.org/10.3390/math12162575 (Zotero `LD25WQL3`)
+  Used for: BRKGA with co-evolving solution and scenario populations (PDF pp. 3, 9); average and pessimistic fitness (abstract, PDF p. 1) ([14](14_genetic-algorithm.md) §4a, §7).
+
+- Leon, V. J., Wu, S. D., & Storer, R. H. (1994). Robustness measures and robust scheduling for job shops. *IIE Transactions*, 26(5), 32–43. https://doi.org/10.1080/07408179408966626 (Zotero `7T6HU5N6`)
+  Used for: robust schedules for a right-shift control policy, a surrogate robustness measure in a GA (PDF p. 1) ([14](14_genetic-algorithm.md) §7).
+
+- Sankary, N., & Ostfeld, A. (2018). Stochastic scenario evaluation in evolutionary algorithms used for robust scenario-based optimization. *Water Resources Research*, 54(4), 2813–2833. https://doi.org/10.1002/2017WR022068 (Zotero `8M4VZ6UA`)
+  Used for: resampling a small scenario suite in each generation (PDF p. 4) ([14](14_genetic-algorithm.md) §6).

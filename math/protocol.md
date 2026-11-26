@@ -8,7 +8,20 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-25 (92) — CP-SAT stop hook: a stop between two levels — `d5427f0`
+## 2026-11-25 (118) — Merge of main into the planner API branch
+
+**Decided.** User: resolve the conflicts with main.
+
+**Done.** Merged `main` at `7a3b540` into the branch. Conflicts only where both sides added: protocol entries (this
+branch's (90)–(92) renumbered to (115)–(117), main's (90)–(114) kept; references in [12](12_cp-sat.md) §change log,
+`mes_bridge/CHANGELOG.md` and `mes_bridge/PLAN.md` follow) and the change log of
+[05](05_rescheduling-frozen-part.md) (both rows kept). 2011 tests pass, bridge 224.
+
+**Found.** Main's repair skip (`_unaffected`, protocol (108)) assumes the factory's current plan keeps planned times
+for started operations, as the DES does. The MES bridge copied a running step's expected end into its plan, so an
+overrun was skipped; fixed in the bridge (`mes_bridge/CHANGELOG.md`), no thesis code changed.
+
+## 2026-11-25 (117) — CP-SAT stop hook: a stop between two levels — `d5427f0`
 
 **Decided.** User (2026-11-25): fix the findings of the PR review. Own: the fix below, still an engineering hook, no
 change to the model, its constraints or objectives.
@@ -20,13 +33,13 @@ full-horizon model. Test `tests/test_cpsat.py::test_a_stop_between_two_levels_st
 `lexicographic(MAKESPAN, MAKESPAN)` at 5 s per level, stop set while the second level is built): fails without the
 fix (the level runs its 5 s), passes with it. Docs: [12](12_cp-sat.md) change log.
 
-**Found.** Correction to (91): in OR-Tools 9.15 `CpSolver.stop_search` acts only while `solve()` runs (it forwards
+**Found.** Correction to (116): in OR-Tools 9.15 `CpSolver.stop_search` acts only while `solve()` runs (it forwards
 to the active `SolveWrapper`, `None` outside a solve); a stop that arrives while the next level's objective is built
 was lost, and that level ran to its `time_limit`.
 
-**Open.** As in (91): the GA has no stop hook; the thesis experiments never pass `stop`.
+**Open.** As in (116): the GA has no stop hook; the thesis experiments never pass `stop`.
 
-## 2026-11-24 (91) — CP-SAT stop hook — `c7c7b02`
+## 2026-11-24 (116) — CP-SAT stop hook — `c7c7b02`
 
 **Decided.** User (2026-11-24, `mes_bridge/PLAN.md` task 7.5a): a thorough solve in the MES may take up to 30 min, and
 one whose proposal the planner discards must end at once instead of running to its limit and holding up the next
@@ -44,7 +57,7 @@ fire on solutions.
 
 **Open.** The GA has no stop hook (its limits are short in the bridge). The thesis experiments never pass `stop`.
 
-## 2026-11-23 (90) — Factory interface for the planning tool — `538e3c1`
+## 2026-11-23 (115) — Factory interface for the planning tool — `538e3c1`
 
 **Decided.** User (2026-11-22, scheduler integration design, `mes_bridge/PLAN.md` task 2.1): the planning tool must
 drive a factory other than the DES (the MES, through `mes_bridge/`, which `src/simulation` never imports). Own: a
@@ -62,6 +75,647 @@ body.
 
 **Open.** Whether `repair_plan` fails on a current plan holding operations missing from the instance (the bridge
 assumes so and reschedules completely on any instance change; `mes_bridge/PLAN.md`, known unknowns).
+## 2026-11-25 (114) — Merge of main into the stochastic branch
+
+**Decided.** User: merge this branch into main, others are waiting.
+
+**Done.** Merged `main` at `9b6151d` into the branch. Conflicts only where both sides added: protocol entries
+(this branch's (88)–(110) renumbered to (91)–(113), main's (88)–(90) kept; references in
+[22](22_scenarios.md) §5 and `scripts/ga_gain_generations.py` follow), the change log of
+[14](14_genetic-algorithm.md), tests in `tests/test_ga.py` (both kept), and `ga_planner.last["wall_limited"]`
+(main's: true without a generation limit, as CP-SAT's without a deterministic limit). 2005 tests pass.
+
+## 2026-11-25 (113) — GA against CP-SAT in rescheduling — 6bc0434
+
+**Decided.** User: the GA is meant mainly for rescheduling and must be fast there; does it give better plans than
+CP-SAT in less time? Own: compare both on the same recorded rescheduling calls, value per level and time.
+
+**Done.** Script `scripts/ga_vs_cpsat.py` (10 calls, GA 100×10 and 100×30, CP-SAT with deterministic time 1, 5, 20
+per level; CP-SAT failures recorded instead of raised). Docs: [14](14_genetic-algorithm.md) §3b and change log.
+
+**Found.** On dental workers (255 to 279 free operations) the GA is the fast planner: 45 s per call (tardiness 23.0)
+or 120 s (20.7), against CP-SAT 475 s (20.0, the experiments' setting) or 600 s (18.6); CP-SAT with deterministic
+time 1 finds no plan at all. GA 100×30 beats CP-SAT (5) in 3 of 10 calls. In `robust-start` (small free part) it was
+the other way round (§4c): which planner is faster depends on the free part.
+
+**Open.** Todo (user): scale the GA's generations and population with the size of the free part
+([14](14_genetic-algorithm.md) §6). The cost of one GA evaluation; the free-part size at which CP-SAT overtakes
+the GA; more seeds.
+
+## 2026-11-24 (112) — GA population size in rescheduling — 0cf636e
+
+**Decided.** User: try a smaller population for the rescheduling GA. Own: compare on the same rescheduling calls
+(recorded snapshots), at equal generations and at equal evaluations, level by level.
+
+**Done.** Script `scripts/ga_population.py` (10 calls of one episode, six variants). Docs:
+[14](14_genetic-algorithm.md) §3b and change log.
+
+**Found.** Time per call follows the evaluations (about 45 ms each). At equal evaluations, population 30 with 100
+generations is as good as 100 with 30 (mean total tardiness 21.5 against 20.7, 5 calls better and 5 worse); every
+variant with fewer evaluations loses tardiness (22.5 to 23.0). Correction to the answer given in this pass: total
+tardiness is not 0 on this instance (19 to 24); it was 0 in the `robust-start` episodes (arrivals, other due dates).
+
+**Open.** The cost of one evaluation (decode plus the five levels) as the lever for the GA's run time; more GA
+seeds per variant.
+
+## 2026-11-24 (111) — GA stagnation stop — 30a01c2
+
+**Decided.** User: an early stop for the GA, unsure how to choose the number of generations. Own: measure first
+when the GA still improves during rescheduling, then choose; keep the stop off by default.
+
+**Done.** `GaParams.patience` ($N^{\mathrm{pat}}$, validated $\ge 1$) stops after that many generations without a
+better incumbent; `PolicyConfig.patience` (GA only, left out of the hash while unset). Tests: 3 in
+`tests/test_ga.py`, 2 negative in `tests/test_experiment.py`. Measurement script `scripts/ga_gain_generations.py`.
+Docs: [14](14_genetic-algorithm.md) §3 and change log, [notation](notation.md).
+
+**Found.** 30 rescheduling calls (dental workers, 30 generations): the last improvement in generation 25 or later in
+22 calls; $N^{\mathrm{pat}} = 10$ saves 3 generations per call and cuts a later improvement in 7 calls,
+$N^{\mathrm{pat}} = 15$ saves nothing. At this budget the stop gives no speed-up; `robust-start` (10 generations) is
+left without it.
+
+**Open.** A run with a large generation cap (100 to 200) to find where the GA converges; the cost per GA call
+(population, triggers) as the lever for the run time; literature on stopping rules not checked in Zotero.
+
+## 2026-11-23 (110) — Experiment configuration with robust start plans — uncommitted
+
+**Decided.** User: the best way to run an experiment with the stochastic scheduler, the normal GA and CP-SAT, with
+arrivals and workers. Own: start plan and robustness as policy fields, so one configuration compares them under the
+same triggers and seeds; the robust GA's scenario seeds disjoint from the episode seeds.
+
+**Done.** `experiment.PolicyConfig`: `start`, `robust`, `n_scenarios`, `alpha` with their rules; `_ga_start`;
+`PLANNER_SEEDS`; the digest leaves the new fields out while unset. `experiments/robust-start.json` (four policies,
+seeds 1 to 5). Tests in `tests/test_experiment.py` (+11): one negative test per rule (8), the hash of a configuration
+without the new fields is unchanged, an expected-GA policy (start and rescheduling) runs and repeats, a buffered
+start runs. Docs: [07](07_order-arrivals.md) §6, change log.
+
+**Found.** The seven configurations keep their hashes (same as with the committed code); `arrivals-rate4`'s stored
+rows carry an older hash (`2188cc5e86eb`, now `583b92a7a3cd`), which predates this change.
+
+Runtime of one `robust-start` episode (seed 1, 2026-11-23, machine shared with the RL session's training):
+CP-SAT 312 s, GA 3496 s, GA with buffer 3449 s; GA on $f^{\mathrm{exp}}$ with $N^{\mathrm{sc}} = 3$ unfinished when the
+session ended (> 1 h). Total tardiness 0 for all three (the due dates of this configuration bind nothing); overtime
+27 / 36 / 27 min; mean start deviation 175 / 150 / 95 min.
+
+**Open.** Runtime of the expected-GA episode; due dates tight enough to measure tardiness; $\sigma$ for worker steps is still an
+assumption; generation budget 10 and $N^{\mathrm{sc}} = 3$ (user, 2026-11-23, after a 10-scenario episode ran over 2 h unfinished) are guesses.
+
+## 2026-11-23 (109) — Incremental snapshot — uncommitted
+
+**Decided.** User: build the snapshot incrementally (rebuilding finished operations is redundant), then the
+experiment config.
+
+**Done.** `sim/snapshot.snapshot(..., finished=)` reuses and fills the entries of finished operations;
+`Simulation._finished` keeps them by key (stable under `grow`). First version cached running operations too (the
+builder overwrites `end` with the expected end); the equality test caught it, fixed by checking the DES state's
+realized end. Test `tests/test_snapshot_cache.py` (2): at every time point the snapshot equals a fresh one, with a
+repaired plan applied every fifth time point, on toy-workers and dental workers with offsets. Docs: [13](13_des.md)
+change log.
+
+**Found.** One `execute` run (dental example, repair only, profiled): 26 s → 18 s (36 s before (108)); snapshot
+7 s → 3.5 s; the repair runs 724 times, the 692 other time points were on plan. The repair still rebuilds the
+precedences, share intervals and worker chains of every operation, finished ones included, on each call (6 s).
+
+**Open.** A repair over the operations not started only (finished ones enter as fixed times); the experiment
+config.
+
+## 2026-11-23 (108) — Speed of `execute` — uncommitted
+
+**Decided.** User: speed up `execute`; Pydantic also validates, so check what it checks before dropping it; the DES
+must stay independent of any planner.
+
+**Done.**
+- `replay_from` moved from `sim/des.py` to `objectives.py`: it is the planner's lookahead with its own scenarios, not
+  the factory; the DES keeps only `validate_from` (check a plan against a snapshot, as for any plan update).
+- Pydantic checked: `Assignment` validates field types, `start >= 0`, `end > start`, no extra fields. In the loop,
+  `current_plan` and the snapshot copied validated values out of the DES state. Building them with `model_construct`
+  instead was slower (Python-level, 36 s → 53 s per run) and was reverted. Instead `current_plan` is cached and
+  cleared where the plan changes (`_apply`, swaps): Pydantic and the checker stay at the boundary (planner output,
+  every plan update).
+- Repair skipped when the factory ran as planned ([05](05_rescheduling-frozen-part.md) §5, `_unaffected`); equality
+  test `tests/test_repair_skip.py` (9), mutation-checked. Docs: [05](05_rescheduling-frozen-part.md) §5,
+  [13](13_des.md) change log, [14](14_genetic-algorithm.md) §5.
+
+**Found.** One `execute` run (dental example, repair only, profiled) 36 s → 27 s with the cache, 26 s with the skip:
+under $\sigma = 0.45$ nearly every time point deviates, so the repair runs anyway. Left: repair 12 s (9 ms per call,
+whole plan), plan check on every update 4 s (kept: trust boundary), snapshot 7 s (rebuilt every time, although
+finished operations do not change).
+
+**Open.** Incremental snapshot (finished operations once); a repair that only touches what a deviation reaches;
+fewer planning calls (e.g. only at deviations above a tolerance, a policy change, user to decide).
+
+## 2026-11-22 (107) — Merge of the GA/MCTS branch; expected objective from a snapshot — uncommitted
+
+**Decided.** User: commit, merge the RL session's branch (`refs/heads/claude/friendly-chandrasekhar-67ee3e` at
+`d09b517`), then make the expected objective work from a snapshot before it goes into the experiments.
+
+**Done.**
+- Commit `02aa20b` (stochastic work), merge `455c600`: conflicts only in the notes; the stochastic entries renumbered
+  (88)–(93) → (93)–(98) (now (101)–(106) after the later merges), the MCTS entries keep (88)–(92) (now (91)–(95)); 1937 tests pass after the merge.
+- `sim/scenario.sample_planner_scenario`, `objectives.planner_scenarios`, `expected(objective, scenarios_for)` with
+  `Objective.with_snapshot`; `sim/des.replay_from` and `Simulation(..., validate_from=)`; `solve_ga` binds the snapshot.
+  Tests `tests/test_expected_objective.py` (11, five new; mutation-checked). Docs: [14](14_genetic-algorithm.md) §4a,
+  §5, §6, change log.
+
+**Found.** Why `execute` takes 30 to 80 s on the dental examples (profile, repair only, dental example, 36 s): the
+planning tool runs at every time point (1416 calls of `adapt_plan`, 724 repairs); each call builds the whole plan and
+snapshot as Pydantic objects (`current_plan`, `snapshot`: 1.8 million Pydantic validations, about 8 s), repairs the
+whole plan (12 s) and checks it again (`update_plan`, 10 s). So the cost is time points × whole-plan work; Pydantic
+in this loop goes against the rule "no Pydantic in the hot path" (`CLAUDE.md`).
+
+**Open.** Speed of `execute` (no Pydantic in the loop; repair only when the plan is affected); the experiment config
+with the stochastic start and rescheduling planners.
+
+## 2026-11-22 (106) — Robust start plans with rescheduling — uncommitted
+
+**Decided.** User: test the robust start plans inside the predictive-reactive loop, with the objective the plans are
+measured on (total tardiness) in every planner (after the user pointed out the mismatch of (105): makespan
+optimized, tardiness measured).
+
+**Done.** Scratch comparison on both dental examples: four start plans (plain, buffer 0.7 and 0.8, expected) by the
+GA on total tardiness, two policies (repair; repair + EDD rescheduling on a tardiness trigger), DES seeds 0 to 9;
+[14](14_genetic-algorithm.md) §4c (new).
+
+**Found.** Rescheduling lowers tardiness by 41 % (example) and 15 % (workers), more than any start plan. Without
+workers and calendar the start plan hardly matters under rescheduling (the about 65 reschedulings per run replan the
+buffers away). With workers and calendar the expected start plan has 10 % less tardiness than the plain one under
+rescheduling (8 of 10 seeds, sign test $p \approx 0.11$, not significant). `execute` takes 30 to 80 s per run on the
+dental examples (repair at every time point); this, not the GA, limits the experiments.
+
+**Open.** More seeds and GA seeds on dental workers and on the Fidentis case (experiment); the GA as rescheduler;
+the speed of `execute`; the lexicographic thesis objective; merging `cda44bd`; the (105) tardiness column is not
+evidence (makespan objective).
+
+## 2026-11-22 (105) — Buffer, plain and expected GA on stability and tardiness; papers in Zotero — uncommitted
+
+**Decided.** User: compare the plans on stability and tardiness; the user added the Consensus papers to Zotero.
+
+**Done.** Scratch comparison (`dental-carriers-example`, $\sigma = 0.45$, 100 evaluation seeds, 3 GA seeds, 60 s);
+[14](14_genetic-algorithm.md) §4b table. Citations checked in the PDFs: Leon et al. 1994 (`7T6HU5N6`, p. 1),
+Huang et al. 2024 (`LD25WQL3`, pp. 1, 3, 9), Sankary & Ostfeld 2018 (`8M4VZ6UA`, p. 4); [14](14_genetic-algorithm.md)
+§6, §7 and [references](references.md) updated, the **[uncertain]** marks removed. Also in Zotero, not cited yet:
+Xiao et al. 2017 (`3NVUVGJF`), 2022 (`LF57RHND`), Teck et al. 2024 (`96BQ6NNR`), Fu et al. (`4WKLMS8E`, Zotero year
+2025, Consensus 2024). Not found: de Bruin et al. 2026.
+
+**Found.** With $\varrho = 1.32$: $D_S$ 20–22 min instead of 76–83, lateness against the plan 28–33 instead of
+113–127 min per order, realized tardiness against due dates higher (13472–15306 against 7861–11225). The expected
+GA (0 to 2 generations on the loaded machine) is close to the plain GA on these measures. One instance, one run, no
+test of significance.
+
+**Open.** Tardiness objective in all planners for the due-date comparison; generation budgets instead of seconds;
+the vectorized evaluator; Fidentis case (experiment, not tests); merging `cda44bd`.
+
+## 2026-11-22 (104) — Time-buffer baseline — uncommitted
+
+**Decided.** User: the buffer baseline next (before the vectorized evaluator). Own: inflate, plan, shorten back
+(time buffers at the same starts) instead of executing on the inflated instance, so the DES, checker and objectives
+see the nominal instance; factor $\varrho$ from the $\alpha^{\mathrm{buf}}$-quantile of the mean-one log-normal;
+p-batch steps and worker share lengths not inflated.
+
+**Done.** `planners/buffer.py` (`quantile_factor`, `inflate`, `shorten` with a checker guard); tests
+`tests/test_buffer.py` (10). Docs: [14](14_genetic-algorithm.md) §4b (new), change log;
+[notation](notation.md) ($\varrho$, $\alpha^{\mathrm{buf}}$, $z_\alpha$, $\Phi$).
+
+**Found.** On `dental-carriers-example` ($\sigma = 0.45$, 100 evaluation seeds, GA 60 s, three seeds): the buffer
+raises the planned and the mean realized makespan (GA 1304–1314 without, 1412–1423 with $\varrho = 1.32$) and lowers
+the gap between plan and realization (17 % to 2–3 %) and the worst case (1659–1669 to 1596–1624). The GA on
+$f^{\mathrm{exp}}$ has a lower mean (1316–1328) and worst case (1563–1585) than both buffered GAs. Under right-shift
+a buffer cannot shorten the makespan; it is a baseline for promise-type measures (stability, tardiness against
+promised dates). One instance, no test of significance.
+
+**Open.** Compare on stability ($D_S$, [23](23_metrics.md)) and tardiness, not only makespan; the vectorized
+evaluator; a fair budget (generations); merging `cda44bd`.
+
+## 2026-11-22 (103) — Repeated start step, replay without OVERDUE — uncommitted
+
+**Decided.** User: adopt the repeated start step (after an example of current and adjusted behavior on dental
+workers, 10 seeds: makespan unchanged, up to 10 of 287 operations up to 11 min earlier, 3 other workers).
+
+**Done.** `sim/des.py`: `start_operations` repeats `_start_pass` at $t$ until nothing starts;
+`Simulation(..., overdue=False)` and `replay` without OVERDUE events. Tests `tests/test_replay_overdue.py` (6):
+replay equals the full run (schedule, breaks, log) on five small instances, two plans, four seeds with offsets;
+O37's design swaps to C at 612 (both fail with a single pass). 1817 tests pass, no hand value changed; the suite
+takes 5.4 min instead of 9. Docs: [13](13_des.md) §3 step 3, §8, change log; [14](14_genetic-algorithm.md) §4a.
+
+**Found.** Replay now 8 / 17 / 9 ms (dental example / dental workers / Fidentis with 10 orders; Fidentis was 150 ms
+before (102)). The expected GA ($N^{\mathrm{sc}} = 10$, 60 s) runs 6 generations instead of 1, the plain GA 110;
+the expected GA's plans have a slightly higher realized mean but a lower worst case (one instance, three seeds).
+
+**Open.** Experiment results with workers and disturbances from before (102)/(103) may shift slightly (rerun before
+they enter the thesis). The vectorized evaluator, the buffer baseline, merging `cda44bd`, a fair budget
+(generations instead of seconds) for the comparison.
+
+## 2026-11-22 (102) — Faster replay; two DES bugs found — uncommitted
+
+**Decided.** User: continue the stochastic extension where the RL session left off on speed. Own (with a second
+opinion): first make `replay` faster exactly, before any separate vectorized evaluator.
+
+**Done.**
+- `sim/des.py`: unfinished-predecessor counter (`open_preds`), exact; WAKE at the order release for an operation
+  released early (bug fix, regression test in `tests/test_des.py`, mutation-checked). Docs: [13](13_des.md) §8,
+  change log.
+- Tried and reverted: a candidate filter in the start step (no gain); replay without OVERDUE events (5 to 10 times
+  faster, but not equal on instances with workers, see Found).
+
+**Found.**
+- Cost per evaluation (decode / replay, ms, scratch script, one run): dental example 15 / 21, dental workers 71 / 72,
+  Fidentis with 10 orders 28 / 80 (before the counter 33 / 150). Replay, not decode, dominates the expected
+  objective on every instance; $N^{\mathrm{sc}} = 10$ still costs 11 to 29 times a plain evaluation.
+- Without OVERDUE events a replay takes 14 / 29 / 17 ms. Equal on toy-dag (after the release fix), toy-carriers,
+  toy-workers and the dental example, not on dental workers: the swap rule depends on incidental time points
+  ([13](13_des.md) §8).
+- The RL session's commit `cda44bd` (cached weights of lexicographic objectives, 350 ms to 8 ms per evaluation) is
+  on `refs/heads/claude/friendly-chandrasekhar-67ee3e`, cut from `043ee7f`, not merged here; its protocol entry is
+  numbered (86) like main's. Matters for $f^{\mathrm{exp}}$ with a lexicographic objective (it calls `evaluate`
+  $N^{\mathrm{sc}}$ times).
+
+**Open.** User decision: fixed-point start step (repeat at $t$ until nothing starts; changes realized schedules)
+to remove the time-point dependence and allow replay without OVERDUE; merging `cda44bd`; then re-measure the
+expected GA.
+
+## 2026-11-22 (101) — Company duration data; expected objective for the GA — uncommitted
+
+**Decided.** User (2026-11-20): for the thesis, synthesize duration data from cleaned Fidentis data or generate it,
+instead of using the MES p80 estimates; count the clean samples per step on a backup (not the production database).
+User (2026-11-22): go ahead with the stochastic extension; literature also via Consensus. Own: step 1 is an
+objective, not a model change (format, checker, DES, CP-SAT unchanged, so the Definition of Done does not apply);
+the planner's scenarios have seeds disjoint from the evaluation seeds (no leakage). Branch fast-forwarded to
+`main` (`2031859`) to have the GA.
+
+**Done.**
+- MES backup of 2026-11-10 restored into a separate database `mes_backup_20261110` (local Docker; `mes_db` and
+  `mes_test_db` untouched); counts per task type and per run kind, own SQL, not stored in the repo.
+- `objectives.expected(objective, scenarios)`: sample mean of the objective over the plan's realized schedules
+  (`replay`), rounded half up, no CP-SAT model. Tests `tests/test_expected_objective.py` (6): zero disturbance on the
+  toy plan and on dental workers with breaks, hand example (mean 14), empty scenario list rejected, no CP-SAT model,
+  the GA on the toy instance not worse than any rule. 1810 tests pass.
+- Docs: [14](14_genetic-algorithm.md) §4a (new), §5, §6, §7, change log; [22](22_scenarios.md) §5;
+  [notation](notation.md) ($f^{\mathrm{exp}}$, $\mathcal{S}^{\mathrm{pl}}$, $N^{\mathrm{sc}}$).
+
+**Found.**
+- Data: worker-step times are not usable per step (214 of 672 done tasks under 30 s, 109 of them within 2 minutes
+  of the same worker's previous task; tasks left open overnight). `task_duration_estimate` is empty. Machine runs,
+  realized / estimated, kept in 0.33 to 3: milling 58 runs, median 1.14, sd of the log ratio 0.45; printing 7 runs,
+  1.25 and 0.65; one machine each; 73 milling runs with an empty success field counted as successful.
+- Cost: on `dental-carriers-example` an evaluation of the expected objective ($N^{\mathrm{sc}} = 10$) costs about 27
+  times a plain one; within 60 s the GA ran 1 generation instead of 59 to 73 and was not better under realization
+  (scratch script, 3 seeds, 100 evaluation seeds; [14](14_genetic-algorithm.md) §4a).
+- Literature (Consensus, abstracts only, not in Zotero, **[uncertain]**): Leon, Wu & Storer (1994) robustness under
+  right-shift in a GA; Xiao et al. (2017, 2022) surrogate robustness measures instead of simulation; Huang et al.
+  (2024) BRKGA with scenario populations; Fu et al. (2024), Teck et al. (2024) simulation inside the fitness with
+  variance reduction; de Bruin et al. (2026) t-tests to limit simulations.
+
+**Open.** Step 2: fast evaluator (vectorized forward pass, equality with `replay`); step 3: quantile buffer
+baseline (plan with inflated durations); choice of $N^{\mathrm{sc}}$; snapshot support for the rescheduling planner;
+sensitivity of $\sigma$ to the cutoff; add the Consensus papers to Zotero. Thesis: GA chapter not written yet.
+
+## 2026-11-23 (100) — RL step R2b; RL work paused — uncommitted
+
+- **Decided (user):**
+  - Improve the training (R2b).
+  - Then pause the RL work: no end in sight within two days. Commit, take notes, and have the main session merge this
+    branch.
+  - Questions answered:
+    - The network is fully connected and scores each candidate separately.
+    - No pickle: CLAUDE.md, and loading a pickle can run arbitrary code.
+    - Training already draws a new instance per step, but from one factory layout.
+  - The user proposed imitation learning from CP-SAT plans on generated instances with varied setups; it is
+    recorded as the next step R2c.
+- **Decided (Claude):**
+  - With a lexicographic objective, the advantage comes from the first level on which the samples differ.
+  - 20 validation instances.
+  - A second yardstick: the best of the rule plans and of 5 joint rules that take overtime when their operation can
+    use it.
+  - Return the best checkpoint by that yardstick, the untrained network included.
+- **Done:**
+  - `rl_train.py`: `overtime_rule_plans`, `levels`, `advantages`, the checkpoint, and the log row of iteration −1.
+  - `tests/test_rl.py`: 13 tests, among them the advantage by hand and the overtime rule on `late_pack`.
+  - [16](16_rl.md) §3, §5d.
+- **Found:**
+  - A 1000-step run per objective was stopped unfinished, so there are no R2b numbers. The models are those of (99).
+  - No source on imitation learning for scheduling is in the library.
+- **Open** ([16](16_rl.md) §5d):
+  - R2c, imitation pretraining from CP-SAT or GA plans on generated instances with varied setups;
+  - RL fine-tuning;
+  - attention across the candidates;
+  - R3 (`rl_planner`, `PolicyConfig "rl"`), R4 (evaluation).
+  - Thesis sections affected: none written yet.
+
+## 2026-11-23 (99) — RL step R2: policy and training — uncommitted
+
+- **Decided (user):** do R2.
+- **Decided (Claude):**
+  - An MLP of 2×64 ReLU units scores each candidate, then a softmax over the candidates.
+  - REINFORCE with the mean of 8 samples as the baseline. After the first runs the advantage is divided by the
+    samples' standard deviation instead of their mean.
+  - Training instances from `dental-carriers-workers.json` (seeds from 10000, 10–40 orders); validation seeds
+    9000–9002.
+  - Partners ranked by SPT.
+  - `.npz` + `.json`, no pickle.
+- **Done:**
+  - `planners/rl.py`, `rl_train.py` (command line).
+  - `tests/test_rl.py` (11 tests, among them training to the optimum on toy-dag-3x4).
+  - Models `models/rl-makespan`, `models/rl-worker`.
+  - Docs: [16](16_rl.md) §3–§5c; [notation.md](notation.md) (sc, Pr, $N^{\mathrm{upd}}$, $N^{\mathrm{smp}}$, adv,
+    $\mathrm{sd}_f$).
+- **Found:**
+  - The untrained network already beats every rule on validation: makespan 0.985, worker objective 0.722. That
+    comes from the overtime candidates, which the rules never use.
+  - On one instance training reaches the optimum, so the pipeline learns.
+  - On the instance distribution, 300 steps × 8 plans give no stable gain over the untrained network: makespan 0.981;
+    worker objective best 0.573 after 100 steps, 0.876 at the end.
+  - With the mean as divisor nothing was learned at all. The makespan of the generated instances hardly reacts to
+    the choices.
+- **Open (R2b):**
+  - Best checkpoint by validation; more validation instances; a longer run (Kaggle).
+  - A fair yardstick: the untrained network, and a rule that takes overtime.
+  - A reward per level of the worker objective.
+  - Thesis sections affected: none written yet.
+
+## 2026-11-23 (98) — RL step R1: features — uncommitted
+
+- **Decided (user):** do R1. Training may move to Kaggle if it takes long.
+- **Decided (Claude):**
+  - 18 scale-free features per candidate: times in units of $\bar p$, loads relative to their mean, some values
+    relative to the other candidates, two global values.
+  - No order or step identity, so the policy can transfer across instances.
+  - `DispatchState.worker_load` shares the dispatcher's own list.
+  - Symbols $\mathcal{C}_\zeta$, $\bar p$, $\mathrm{ft}$. Policy and parameter symbols come with R2: $\pi$ (plan),
+    $\theta$ (lexicographic weights), $\omega$ and $\phi$ are taken.
+- **Done:**
+  - `planners/rl_features.py` (`Featurizer`, `NAMES`, `FEATURE_VERSION`).
+  - `DispatchState.worker_load`.
+  - `tests/test_rl_features.py` (7 tests).
+  - Docs: [16](16_rl.md) new; [11](11_dispatching-rules.md) §5; [notation.md](notation.md); README;
+    [references.md](references.md).
+- **Found:** `dispatch_speed.py` gives all 1710 plans equal; a resumed run sees the same worker loads as the
+  uninterrupted one; 1930 tests pass.
+- **Open:**
+  - R2: policy and training. A script that runs standalone, so it can also run on Kaggle (`uv sync`, CPU or GPU).
+  - Thesis sections affected: none written yet.
+
+## 2026-11-23 (97) — RL step R0: PyTorch as a dependency — uncommitted
+
+- **Decided (user):**
+  - Move to RL.
+  - No time-based commitment for MCTS: the cut runs of (96) came from the load on the laptop.
+  - Add PyTorch.
+- **Decided (Claude, stated to the user):**
+  - The RL plan: a policy on the `choose` hook that scores each eligible candidate with a small MLP, then a softmax.
+    REINFORCE or PPO; reward relative to the best rule plan.
+  - Training instances from the generator, disjoint from the evaluation instances (dental examples, Fidentis).
+  - Weights as `.npz` with `allow_pickle=False`, no `torch.save` (pickle).
+  - torch pinned to the CPU index on every platform. The PyPI build pulled 15 CUDA packages for Linux (Slurm);
+    the policy is small.
+- **Done:** `uv add torch` (2.15.0, `+cpu`); `[tool.uv.sources]` / `[[tool.uv.index]]` "pytorch-cpu" (explicit) in
+  `pyproject.toml` as in the uv guide "Using uv with PyTorch"; `uv.lock`.
+- **Found:** torch 2.15.0 has wheels for Python 3.14 on win-amd64; the lock has no CUDA package any more.
+- **Open:**
+  - R1: features, worker loads in `DispatchState`.
+  - R2: policy and training.
+  - R3: `rl_planner`, `PolicyConfig "rl"`, tests.
+  - R4: evaluation, `math/16_rl.md`.
+  - Thesis sections affected: none written yet.
+
+## 2026-11-22 (96) — MCTS step M4: overtime in the action — uncommitted
+
+- **Decided (user):** do overtime in the action.
+- **Decided (Claude):**
+  - An overtime allowance only matters through the earliest start it allows. So the dispatcher offers each waiting
+    candidate a second time with its earliest start under the calendar's maximum overtime, if that is earlier and
+    within the reach.
+  - The reach stays the one without overtime.
+  - One level, $\overline{\mathrm{ot}}$; rollouts never use overtime; `MctsParams.overtime = True` by default, on a
+    par with the GA's overtime keys.
+- **Done:**
+  - `dispatching.py`: `overtime_option` (candidates $(t', o, m, p, L)$, allowance per operation in the checkpoint).
+  - `mcts.py`: keys with the allowance; overtime variants ranked right after their own candidate; rollouts without
+    overtime.
+  - `notebooks/mcts_compare.py`: MCTS with and without overtime; $N^{\mathrm{it}}$ from half a decode.
+  - Tests: hand case `late_pack` in `tests/test_dispatch_choose.py` and `tests/test_mcts.py`; feasibility and
+    resume on dental workers; negative tests.
+  - Docs: [11](11_dispatching-rules.md) §5, [15](15_mcts.md) §2, §3, §5b, §6.
+- **Found:**
+  - Without the option, `dispatch_speed.py` gives all 1710 plans equal.
+  - Overtime improves MCTS where it was not cut: worker objective on dental workers 1.679 against 1.736 for the
+    rule; balanced 24510 against 24640.
+  - On dental example and Fidentis the predicted $N^{\mathrm{it}}$ was too high. The time limit cut the search
+    (51 of 132, 29 of 90 decisions), so those rows do not measure overtime.
+  - The GA stays far ahead on the worker instances. MCTS is limited by its budget there (1–2 iterations per decision).
+- **Open:**
+  - Time-based commitment instead of a predicted $N^{\mathrm{it}}$.
+  - Cheaper rollouts.
+  - Whether MCTS should stay a planner of the thesis or become a baseline next to the GA (user).
+  - Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-22 (95) — Resumable dispatcher; MCTS resumes at the root — uncommitted
+
+- **Decided (user):** the resumable dispatcher first, then overtime in the MCTS action. Claude had recommended
+  overtime first and measured the expected gain beforehand: about 2× on the worker instances.
+- **Decided (Claude):**
+  - Keep `dispatch_plan`'s nested functions and gather the mutable state in a `Checkpoint`, instead of rewriting
+    the dispatcher as a class; that is the smaller diff.
+  - The pause lies before an iteration's choice, which reruns on resume.
+  - A resume checks that the arguments are identical.
+- **Done:**
+  - `planners/dispatching.py`: `Checkpoint`, `dispatch_until`, `dispatch_plan(..., resume=)`; core `_dispatch`; the
+    setup runs only without `resume`.
+  - `planners/mcts.py`: the root's checkpoint; rollouts resume from it.
+  - Tests in `tests/test_dispatch_choose.py`.
+  - [11](11_dispatching-rules.md) §5, [15](15_mcts.md) §5, both change logs.
+- **Found:**
+  - `notebooks/dispatch_speed.py` against the version before: all 1710 plans equal, decode time unchanged.
+  - Resuming at any decision gives the uninterrupted plan, also from a DES snapshot with GA keys.
+  - MCTS gives the same plans as before on dental example, Fidentis and dental workers, 1.9–2.1× faster. The
+    estimate from the share of a decode spent before a decision was 2.0–3.3×.
+- **Open:**
+  - Overtime in the MCTS action (M4). The overtime list is read when an operation is placed, so the tree can set it
+    per decision; with a checkpoint it must be copied with the state.
+  - Rerunning `notebooks/mcts_compare.py` after M4.
+  - Thesis sections affected: none written yet.
+
+## 2026-11-22 (94) — MCTS step M3: comparison at equal wall time — uncommitted
+
+- **Decided (user):** do M3.
+- **Decided (Claude, stated to the user):**
+  - 60 s and one core per run.
+  - Makespan on four cases; the worker objective only on dental workers, because Fidentis has no due dates.
+  - GA in three variants (all keys / no overtime / no overtime and no delay), the overtime keys zeroed in the script
+    around `decode`, with no change in `src`, to see whether overtime explains the GA's lead.
+  - MCTS $N^{\mathrm{it}}$ derived from the budget.
+- **Done:** `notebooks/mcts_compare.py`, `notebooks/results/mcts_compare.json`, [15](15_mcts.md) §5a.
+- **Found** (details in [15](15_mcts.md) §5a):
+  - MCTS is best on dental example (1122 against GA 1126–1130).
+  - Overtime explains most of the GA's lead on the worker instances. Without overtime the GA is behind MCTS on
+    dental workers (makespan).
+  - In the same action class the GA stays clearly ahead on balanced: join and partner steering, or the search; this run does not separate them.
+  - MCTS on dental workers gets 1–2 iterations per decision (0.2 s per rollout).
+  - CP-SAT on one thread: no plan for Fidentis in 60 s. On dental workers it does not improve the hinted rule
+    plan; once it was worse than the hint, once a level failed under load.
+  - The first rerun crashed on that failure; the script now records it.
+- **Open:**
+  - M4: overtime as part of the action (this comparison supports it), and/or a resumable dispatcher (cheaper rollouts).
+  - A GA "no overtime, no delay, greedy join" variant would separate join steering from search on balanced.
+  - The CP-SAT hint with lexicographic levels.
+  - Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-22 (93) — MCTS step M2: the planner — uncommitted
+
+- **Decided (user):** do M2.
+- **Decided (Claude, stated to the user):**
+  - Root commitment as in Li et al. 2021 (`7VCTD9GM`, p. 4).
+  - UCB selection on values normalized over the search.
+  - Fixed-width expansion ($N^{\mathrm{wid}}$) in rollout-rule order; rollout with the best joint rule.
+  - Commitment to the child with the best value seen.
+  - Incumbent from the warm start and the 15 rule plans.
+  - No randomness, and the iteration limit decides the result, as with the GA's generations.
+  - Default $\beta = \sqrt 2$ (UCB1 form) after a sweep; the UCB1 source is not in the library, **[uncertain]**.
+- **Done:**
+  - `planners/mcts.py`.
+  - `ga.budget_excess` extracted and shared with the GA.
+  - Planner `"mcts"` with `PolicyConfig.iterations`; the digest leaves it out where unset (all 7 configuration
+    hashes unchanged).
+  - `tests/test_mcts.py` (23 tests) and two more in `tests/test_experiment.py`.
+  - [15](15_mcts.md) new; [notation.md](notation.md) ($\mathcal{U}$, $\vartheta$, $N^{\mathrm{it}}$, $N^{\mathrm{wid}}$,
+    $N^{\mathrm{vis}}$, $\bar f$, $f^{\min}$, $f^{\max}$, $\beta$; $\omega$ and $c$ were taken).
+  - [references.md](references.md) (Lv et al. 2025; Li et al. 2021 usage); README; [07](07_order-arrivals.md) §6.
+- **Found:**
+  - At $\beta = 0.5$ the search never left the rule's first decision on toy-dag-3x4 within 200 iterations: one
+    makespan unit spans the whole normalized range. At $\beta = \sqrt 2$ it found the optimum 11 with 100 iterations.
+  - Hand case: all rule plans 12; 108 non-delay plans enumerated, best 11 = CP-SAT optimum.
+  - On toy-3x3 the optimum 10 needs a delay: the best of all 174 non-delay plans is 11.
+  - Dental example (makespan, $N^{\mathrm{it}} = 10$): MCTS 1122 against the best rule 1138 and CP-SAT 1251 at
+    10 s, in 10 s and 1336 evaluations.
+  - mk01: 42, as the rules (CP-SAT 40).
+- **Open:**
+  - M3, the comparison at equal wall time against the GA and CP-SAT with the worker objective, including tuning
+    $N^{\mathrm{it}}$, $N^{\mathrm{wid}}$, $\beta$.
+  - M4 (overtime in the action) after M3.
+  - Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-22 (92) — MCTS step M1: candidate hook in the dispatcher — uncommitted
+
+- **Decided (user):** merge the main session's branch (`2031859`, join key) into this worktree, then start M1.
+  **Decided (Claude):**
+  - The hook also gets `DispatchState`: the equivalence test needs it for fifo/mwkr/lrp, and a learned policy needs it
+    for its features.
+  - Load and s-batch partners stay with the sequencing rule.
+- **Done:**
+  - Merge with the conflicts in [14](14_genetic-algorithm.md) (change log) and this protocol resolved; (86) of this
+    session renumbered (91).
+  - `dispatch_plan(..., choose=)`.
+  - `tests/test_dispatch_choose.py` (69 tests).
+  - [11](11_dispatching-rules.md) §5 and change log.
+- **Found:**
+  - Decision depth (iterations with more than one candidate) is 133 on dental example and 174 on dental workers, not
+    the about 290 assumed in (91). Mean candidates per decision: 3.9 and 8.8; maximum 12 and 39.
+  - So at about 0.1 s per rollout on dental workers, 60 s gives about 3 iterations per decision and 300 s about 17.
+  - The width cap ω matters there.
+- **Open:**
+  - M2 (`planners/mcts.py`) waits for approval.
+  - The uncommitted changes in the main session's worktree (objectives, DES, `test_expected_objective.py`) are not
+    merged.
+
+## 2026-11-22 (91) — RL/MCTS discussion, GA evaluation cost, planner "ga" in the experiments — uncommitted
+
+- **Decided (user):**
+  - An RL planner should be an alternative to CP-SAT and the GA that builds the plan step by step from the snapshot.
+  - Order: an MCTS planner first, then an RL policy on the same step interface.
+  - Profile the GA before the MCTS step.
+  - Add the GA as a planner to the experiment configuration.
+- **Decided (Claude, stated to the user):**
+  - The MCTS plan:
+    - M1: a candidate hook `choose` in `dispatch_plan`;
+    - M2: `planners/mcts.py`, a root-commit UCT as in Li et al. 2021 (Zotero `7VCTD9GM`, p.4), with the rule plans as incumbent;
+    - M3: a comparison at equal wall time;
+    - M4: overtime in the action, only if M3 needs it.
+  - RL starts only after a dependency decision (PyTorch on Python 3.14) and stores models without pickle.
+  - For the GA in experiments, a generation limit decides the result, so runs are reproducible as with CP-SAT's
+    deterministic limit. `time_limit` is the safety net.
+- **Done:**
+  - `objectives._over`: the weight of a lexicographic level is cached per instance (one entry, by identity).
+  - `PolicyConfig.planner` gains `"ga"`, and `PolicyConfig.generations` is required for it.
+  - `run_one` builds `ga_planner(objective, GaParams(generations, time_limit, seed))`.
+  - `ExperimentConfig.digest` leaves out an unset `generations`.
+  - `ga_planner` reports `wall_limited`.
+  - Tests: `test_lexicographic_weight_follows_the_instance`, `test_ga_policy_runs_and_repeats`,
+    `test_generations_only_and_always_for_ga` (3 negative cases).
+  - Docs: [14](14_genetic-algorithm.md) §3b and change log, [07](07_order-arrivals.md) §6 and change log.
+- **Found:**
+  - On the dental workers instance a 10 s GA spent about 6.7 s recomputing `horizon_bound` / `serial_end` in
+    every `evaluate`. Without the profiler it did 72 evaluations and 0 generations; after the fix, 152
+    evaluations (machine loaded, times vary). That is still 0 generations, because seeding alone needs 100 decodes.
+  - The remaining cost is `dispatch_plan` (worker gap search, `earliest`).
+  - Rollout cost per decision for MCTS on that instance: about 0.2 iterations per decision at 10 s, about 1 at 60 s.
+    So MCTS v1 needs minutes or a faster decoder to beat its rollout rule there.
+  - The digests of all 7 configurations in `experiments/` are unchanged; checked against the version before.
+- **Open:**
+  - The GA's generation limit and time budget for the experiments (start plan vs rescheduling); no configuration uses `"ga"` yet.
+  - MCTS step M1 waits for approval. `"mcts"` joins `PolicyConfig` with M2.
+  - Thesis sections affected: none written yet.
+
+---
+
+## 2026-11-24 (90) — Endless loop in the calendar repair for long shares (found by the drift trigger) — commit 4bc202c
+
+**Decided.** User: run notebook 09 §8 (rescheduling on drift, `max_objective_change=1`) on the home PC; after it was
+killed, find the memory growth first, at most 3.5 GHz, a 500 MB limit per probe; then a guard in the repair, and
+for the bug: the break behind the share plus overtime for a long share (2026-11-24). Own: probe each episode in its
+own process with a memory limit and a stack dump instead of the notebook's process pool.
+
+**Done.** Probes (scripts in the session scratchpad, not in the repository): 21 of the 24 drift episodes one per
+process with peak memory, every CP-SAT model exported before its solve, the Python stack dumped twice at the
+limit. Fix in `planners/repair.py` (`_calendar.fit`): the pending break moves behind a share that would leave the
+day behind it (within the window, clear of the frozen part); a share longer than every part without overtime gets
+overtime up to the window; the inner loop over days stops after two weeks with `ValueError`. Four tests in
+`tests/test_repair_calendar.py` (break behind the share, overtime for 330 minutes, a 200-minute share keeps its
+break, the guard on a calendar outside the validation); the 300-minute case hung before the fix. Docs:
+[05](05_rescheduling-frozen-part.md) §2 "Long shares", change log.
+
+**Found.**
+- The 9.3 GB that the kernel's OOM killer stopped (home PC, 2026-11-22 20:27) was no leak and not CP-SAT: in
+  CP-SAT, seed 4, bind all, the repair after a rescheduling looped over days without end, `break_at` adding a break
+  per new day (≈ 8 MB/s at a standing DES clock). Both stack dumps: `repair_plan` → `shift_repair` → `fit` →
+  `break_at`. The trapped CP-SAT model (20,799 variables, 5th lexicographic level) solves alone in 48 s at 266 MB.
+- Cause: the validation admits shares up to 390 minutes (longest share, [04](04_workers.md)), the repair's `fit`
+  only 270 (break at 12:00, no overtime on a day without planned overtime). The guard of two weeks sat only in the
+  outer loop.
+- Every other probed episode peaks at 105–281 MB. The episode is not reproducible across runs and machines: CP-SAT,
+  seed 1, bind all had 14 reschedulings on the home PC (Linux) and 49 on the laptop (Windows), no wall limit hit;
+  seed 4 blew up at the 36th, 41st and 15th rescheduling in three runs, even on one machine. Source not found:
+  CP-SAT's search, or an iteration order that depends on Python's hash seed **[uncertain]**.
+
+**Open.** §8 of notebook 09 must be rerun with the fix (all episodes, including the 21 probed ones, since the
+repair changed); the diagnostic run with the guard named the real share: `O4/grind`, 280 minutes, worker B, from
+t = 36105 (within 271–300, so rule "break behind the share"); the episode's run with the fix (module override from `/tmp`) was stopped
+for a shutdown at 33 reschedulings, t = 25047, 246 MB, no error (logs: home `~/probe-2026-11-24/diag2.log`); a
+second run with the fix finished: 43 reschedulings, 32 tardy days, last decision at t = 36232, peak 314 MB, no
+error (home `/tmp/probe/diag3.log`); since episodes are not reproducible, this does not show that the run met the
+O4/grind share again; the probes `CP-SAT_3_4` (stopped unfinished), `GA_3_1`–`GA_3_4` and `GA_all_4`
+(done, 155–210 MB, old repair) are in the same folder; the dispatching rule's
+`next_start` rejects the same shares ("longer than both parts") instead of planning them; `scripts/home-run.sh`
+asks `systemd-inhibit` for `sleep:idle`, which polkit refuses over SSH without sudo (only `idle` works; with sudo it
+worked, user); math/14 §5f and the §8 findings. Reproducibility across machines: not pursued, all experiments run
+on the home PC (user, 2026-11-24). Rerun (own choice): §6 `rescheduling.json` and §7 `history.json` are recomputed
+together with §8, since both go through the repair and §8 compares with §6; the old caches are kept in home
+`~/probe-2026-11-24/old09/` (and in Git at `4c1f3cd`). Rebuild done on the home PC (2026-11-24, §6 20 min, §7 12
+min, §8 4 h): §6 differs from the old cache in 26 of 48 episodes (e.g. rate 0.6, bind all, CP-SAT, seed 4: 15 → 55
+tardy days). Not the fix: four of these episodes rerun on the PC in one process with the old `repair.py`
+(`a21aa76`) give exactly the new values, objective included, and the same four rerun with the fix reproduce the
+new cache; the old cache came from another machine (same OR-Tools 9.15.6755 and NumPy 2.5.4, Python 3.14.3 vs
+3.14.10, Windows vs Linux), and even a rule episode differs, so the start plan or the DES already differs across
+machines (cause not pursued, see above). Pitfall: a module override does not reach `ProcessPoolExecutor` workers
+under Python 3.14 (`forkserver`), so such checks must run in one process. §8, rate 1.0, mean tardy days over 4
+seeds without / with the trigger: bind all CP-SAT 35.0 / 25.8, GA 16.8 / 4.8, rule 40.5 / 39.5; norm 3 d CP-SAT
+32.8 / 19.0, GA 27.5 / 19.8, rule 36.2 / 32.8; reschedulings up to 187 instead of 5 and planner time about 10–30
+times as high for CP-SAT and the GA.
+
+---
 
 ## 2026-11-22 (89) — The plan over time: animation and metric history (notebook 09 §7) — uncommitted
 

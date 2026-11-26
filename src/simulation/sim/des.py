@@ -119,13 +119,19 @@ class Simulation:
     def __init__(
         self, ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario | None = None,
         breaks: Iterable[Break] = (), visible: Callable[[int], CompiledInstance] | None = None,
+        overdue: bool = True, validate_from: Snapshot | None = None,
     ):
         """`visible`: t -> the instance the planning tool knows at t (math/07_order-arrivals.md); plans are checked
-        against it. Default: the whole instance (every order known, e.g. a hindsight plan)."""
+        against it. Default: the whole instance (every order known, e.g. a hindsight plan). `overdue` False: no
+        OVERDUE events (they only give a planning tool time points; for a replay without one, faster)."""
+        self.overdue = overdue
+        self._plan: list[Assignment] | None = None  # cache of current_plan()
+        self._finished: dict = {}  # snapshot entries of finished operations, by key (stable under grow)
         self.breaks = tuple(breaks)
         self.visible = visible or (lambda _t: ci)
         # waiting would silently repair a broken plan, so it is validated first (C1-C5, C11-C14)
-        if violations := check_schedule(self.visible(0), plan, breaks=self.breaks):
+        # `validate_from`: a plan made from that snapshot (its frozen part has realized times, C7 instead of C2)
+        if violations := check_schedule(self.visible(0), plan, validate_from, breaks=self.breaks):
             raise PlanNotExecutable(_describe(violations))
         self.ci = ci
         self.log: list[dict] = []
@@ -134,6 +140,7 @@ class Simulation:
         self.factor = [1.0 if ci.batch_capacity[o] > 1 else d.factor for o, d in enumerate(disturbance)] \
             if disturbance else [1.0] * ci.n_ops
         self.offset = [d.start_offset for d in disturbance] if disturbance else [0] * ci.n_ops
+        self.open_preds = [len(ps) for ps in ci.predecessors]  # per op: predecessors not ended yet
         n_w = len(ci.worker_ids)
         self.state = SimState(
             machine=[0] * ci.n_ops, planned_start=[0] * ci.n_ops, planned_end=[0] * ci.n_ops,
@@ -184,6 +191,8 @@ class Simulation:
                     state.running[m] = None
                     state.next_pos[m] += 1
                 state.end[o] = state.t
+                for q in self.ci.successors[o]:
+                    self.open_preds[q] -= 1
                 self._record("COMPLETE", o)
             elif kind is EventType.SHARE_END:
                 o, i = divmod(o, _SHARES)
@@ -208,7 +217,8 @@ class Simulation:
 
     def start_operations(self) -> int:
         """Start every released operation that can start now, and every due removal (suffix) whose worker is
-        free (a start cannot enable another one: p >= 1).
+        free. Repeated until a pass starts nothing: a start can enable another one at the same time point (it makes
+        a planned worker busy, so the swap rule applies; math/13_des.md section 8, user 2026-11-22).
 
         A batch is handled by its first operation and starts only when all its operations are ready; a late
         start offset of any of them delays the whole batch (the largest one counts).
@@ -216,6 +226,13 @@ class Simulation:
         Returns the number of starts at this time point (operations, removals, breaks): each is an event for the
         planning tool, on time or not (math/13_des.md section 3, user 2026-11-11).
         """
+        starts = 0
+        while n := self._start_pass():
+            starts += n
+        return starts
+
+    def _start_pass(self) -> int:
+        """One pass of the start step over the due removals and the released operations."""
         state = self.state
         starts = self._take_breaks()
         for o in sorted(state.suffix_due):
@@ -229,12 +246,13 @@ class Simulation:
                 if minutes := state.t - state.suffix_due.pop(o):
                     self._record("OVERSTAY", o, minutes=minutes)
         for o in sorted(state.released):
+            if self.open_preds[o]:  # a predecessor still runs: o (and its batch) cannot start
+                continue
             m, batch = state.machine[o], state.batch[o]
             if (
                 o == batch[0]
                 and (m == NO_MACHINE or (state.running[m] is None and state.order_on[m][state.next_pos[m]] == o))
-                and all(q in state.released and state.t >= self.ci.release[q]
-                        and all(state.end[p] is not None for p in self.ci.predecessors[q]) for q in batch)
+                and all(q in state.released and state.t >= self.ci.release[q] and not self.open_preds[q] for q in batch)
                 and all(self._worker_ready(o, i) for i, s in enumerate(self.ci.shares[o]) if s.kind != "suffix")
             ):
                 offset = max(self.offset[q] for q in batch)
@@ -256,14 +274,18 @@ class Simulation:
     # --- interface to the planning tool ----------------------------------------------------------
 
     def snapshot(self) -> Snapshot:
-        return snapshot(self.ci, self.current_plan(), self.state, self.breaks, self.share_len)
+        return snapshot(self.ci, self.current_plan(), self.state, self.breaks, self.share_len, self._finished)
 
     def current_plan(self) -> list[Assignment]:
-        """The plan the factory currently executes (the one last sent to it)."""
+        """The plan the factory currently executes (the one last sent to it). Cached: the planning tool asks at every
+        time point, the plan changes only with `_apply` (plan updates, `grow`) and swaps, which clear the cache."""
+        if self._plan is not None:
+            return list(self._plan)
         s = self.state
-        return [Assignment(order_id=k, op_id=j, machine=self._machine_id(o), start=s.planned_start[o],
+        self._plan = [Assignment(order_id=k, op_id=j, machine=self._machine_id(o), start=s.planned_start[o],
                            end=s.planned_end[o], workers=self._worker_ids(o), batch=s.batch_id[o])
-                for o, (k, j) in enumerate(self.ci.op_keys) if o in self.planned]
+                      for o, (k, j) in enumerate(self.ci.op_keys) if o in self.planned]
+        return list(self._plan)
 
     def update_plan(self, plan: Sequence[Assignment], breaks: Sequence[Break] | None = None) -> None:
         """Replace the current plan and, if given, the breaks not taken yet; plan and breaks must respect the frozen
@@ -316,6 +338,7 @@ class Simulation:
                               ("start", None), ("end", None), ("late_start_at", None), ("batch_id", None)):
             setattr(s, name, per_op(getattr(s, name), default))
         s.worker = per_op(s.worker, list)
+        self.open_preds = [sum(s.end[p] is None for p in ps) for ps in ci.predecessors]  # after end is remapped
         s.running = [None if o is None else new[o] for o in s.running]
         s.released = {new[o] for o in s.released}
         s.share_done = {(new[o], i) for o, i in s.share_done}
@@ -387,6 +410,7 @@ class Simulation:
     def _apply(self, plan: Sequence[Assignment]) -> None:
         """Machine, workers, planned times, order per machine and per worker, and realized durations of the
         operations not started."""
+        self._plan = None  # the cached current plan is stale
         ci, s = self.ci, self.state
         worker_index = {w: i for i, w in enumerate(ci.worker_ids)}
         for a in plan:
@@ -485,6 +509,7 @@ class Simulation:
         s.worker_order[best].insert(s.worker_next[best], (o, i))
         for q in s.started_batch.get(o, s.batch[o]):  # every member of a batch carries the same workers
             s.worker[q][i] = best
+        self._plan = None  # the current plan's workers changed
         self._record("SWAP", o, share=self.ci.shares[o][i].kind, planned=self.ci.worker_ids[planned],
                      actual=self.ci.worker_ids[best])
 
@@ -547,7 +572,8 @@ class Simulation:
                 state.running[m] = q
             state.start[q] = state.t
             # expected end from the planned duration, never from the scenario (snapshot, no leakage)
-            state.push(state.t + self._planned_duration(q), EventType.OVERDUE, q)
+            if self.overdue:
+                state.push(state.t + self._planned_duration(q), EventType.OVERDUE, q)
             self._record("START", q)
         state.started_batch[first] = batch
         state.followers.update(batch[1:])
@@ -578,6 +604,8 @@ class Simulation:
     def _on_planned_start(self, o: int) -> None:
         self.state.planned_start_at[o] = None
         self.state.released.add(o)
+        if self.ci.release[o] > self.state.t:  # released early, before its order: a time point when it may start
+            self._wake(self.ci.release[o])
 
     def _record(self, kind: str, o: int, **extra) -> None:
         order_id, op_id = self.ci.op_keys[o]
@@ -624,6 +652,6 @@ def replay(
     ci: CompiledInstance, plan: Sequence[Assignment], scenario: Scenario | None = None, breaks: Iterable[Break] = ()
 ) -> SimResult:
     """Execute the whole plan without a planning tool; without a scenario the realized schedule equals the plan."""
-    sim = Simulation(ci, plan, scenario, breaks)
+    sim = Simulation(ci, plan, scenario, breaks, overdue=False)  # no planning tool: OVERDUE not needed
     sim.run()
     return SimResult(sim.realized(), sim.log, sim.realized_breaks())
