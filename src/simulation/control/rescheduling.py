@@ -18,7 +18,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from operator import attrgetter
-from typing import NamedTuple
+from typing import NamedTuple, Protocol, runtime_checkable
 
 from simulation.check.feasibility import check_schedule
 from simulation.control.nesting import Nesting
@@ -35,6 +35,22 @@ from simulation.sim.snapshot import Snapshot
 # planner(ci, snapshot, current_plan) -> new complete plan with its breaks (frozen operations and started breaks as
 # in the snapshot)
 type Planner = Callable[[CompiledInstance, Snapshot, Sequence[Assignment]], Plan]
+
+
+@runtime_checkable
+class Factory(Protocol):
+    """What the planning tool reads from and sends to the factory (math/05, section 5): the snapshot, the plan and
+    breaks it currently executes, and a new plan with its breaks. The DES (`Simulation`) is one; any other factory
+    behind this interface (e.g. a real shop floor read through its MES) can be planned by `adapt_plan` the same way.
+    The planning tool never sees more than the snapshot (no scenario data)."""
+
+    def snapshot(self) -> Snapshot: ...
+
+    def current_plan(self) -> Sequence[Assignment]: ...
+
+    def current_breaks(self) -> Sequence[Break]: ...
+
+    def update_plan(self, plan: Sequence[Assignment], breaks: Sequence[Break] | None = None) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,11 +171,12 @@ def _record(ci: CompiledInstance, history: list[dict], sent: dict, sim: Simulati
 
 
 def adapt_plan(
-    ci: CompiledInstance, sim: Simulation, policy: ReschedulingPolicy, decisions: list[dict], anchor: Anchor,
+    ci: CompiledInstance, sim: Factory, policy: ReschedulingPolicy, decisions: list[dict], anchor: Anchor,
     arrived: bool = False,
 ) -> Anchor:
-    """One step of the planning tool; returns the anchor for the next step. `arrived`: `ci` has grown by an order
-    arrival since the last step."""
+    """One step of the planning tool; returns the anchor for the next step. `arrived`: the instance changed since the
+    last step (an order arrival in the DES; outside it any change of the set of operations, e.g. a cancelled order),
+    so the current plan no longer covers `ci`: a complete rescheduling runs at once, regardless of the budget."""
     snap, current, current_breaks = sim.snapshot(), sim.current_plan(), sim.current_breaks()
     if arrived:  # repair cannot place a new order: complete rescheduling, never rejected (math/07, step 3)
         new_plan, new_breaks = _reschedule(ci, snap, current, policy, decisions, ["arrival"], always=True)

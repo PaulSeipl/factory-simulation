@@ -8,6 +8,73 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
+## 2026-11-25 (118) — Merge of main into the planner API branch
+
+**Decided.** User: resolve the conflicts with main.
+
+**Done.** Merged `main` at `7a3b540` into the branch. Conflicts only where both sides added: protocol entries (this
+branch's (90)–(92) renumbered to (115)–(117), main's (90)–(114) kept; references in [12](12_cp-sat.md) §change log,
+`mes_bridge/CHANGELOG.md` and `mes_bridge/PLAN.md` follow) and the change log of
+[05](05_rescheduling-frozen-part.md) (both rows kept). 2011 tests pass, bridge 224.
+
+**Found.** Main's repair skip (`_unaffected`, protocol (108)) assumes the factory's current plan keeps planned times
+for started operations, as the DES does. The MES bridge copied a running step's expected end into its plan, so an
+overrun was skipped; fixed in the bridge (`mes_bridge/CHANGELOG.md`), no thesis code changed.
+
+## 2026-11-25 (117) — CP-SAT stop hook: a stop between two levels — `d5427f0`
+
+**Decided.** User (2026-11-25): fix the findings of the PR review. Own: the fix below, still an engineering hook, no
+change to the model, its constraints or objectives.
+
+**Done.** `simulation.planners.cpsat.solve`: once `stop` is set, the watcher repeats `stop_search` every 0.1 s for
+10 s (`STOP_REPEATS`) instead of calling it once, and its wait counts each level twice (the presolve-off retry). A
+capped first solve (makespan with a hint) that comes back `STOPPED` is returned at once instead of building the
+full-horizon model. Test `tests/test_cpsat.py::test_a_stop_between_two_levels_still_ends_the_next_level` (MK10,
+`lexicographic(MAKESPAN, MAKESPAN)` at 5 s per level, stop set while the second level is built): fails without the
+fix (the level runs its 5 s), passes with it. Docs: [12](12_cp-sat.md) change log.
+
+**Found.** Correction to (116): in OR-Tools 9.15 `CpSolver.stop_search` acts only while `solve()` runs (it forwards
+to the active `SolveWrapper`, `None` outside a solve); a stop that arrives while the next level's objective is built
+was lost, and that level ran to its `time_limit`.
+
+**Open.** As in (116): the GA has no stop hook; the thesis experiments never pass `stop`.
+
+## 2026-11-24 (116) — CP-SAT stop hook — `c7c7b02`
+
+**Decided.** User (2026-11-24, `mes_bridge/PLAN.md` task 7.5a): a thorough solve in the MES may take up to 30 min, and
+one whose proposal the planner discards must end at once instead of running to its limit and holding up the next
+request. Own: an engineering hook in the planner interface, no change to the model, its constraints or objectives.
+
+**Done.** `simulation.planners.cpsat.solve(stop=)` and `cpsat_planner(stop=)` take a `threading.Event`. A watcher
+thread (bounded by `time_limit` x levels + 1 s) calls OR-Tools' `CpSolver.stop_search` when it is set; before and
+after each level of a lexicographic objective the solve checks it and returns status `STOPPED` with an empty schedule;
+`cpsat_planner` raises `Stopped` (a `RuntimeError`). Without `stop`, nothing changes. Test
+`tests/test_cpsat.py::test_a_stop_from_another_thread_ends_the_solve_early` (MK10 cold at 60 s stopped after 0.5 s;
+set before the call: no level solved; unset: OPTIMAL as before). Docs: [12](12_cp-sat.md) change log.
+
+**Found.** OR-Tools 9.15 offers `stop_search` on `CpSolver`, safe from another thread; a solution callback would only
+fire on solutions.
+
+**Open.** The GA has no stop hook (its limits are short in the bridge). The thesis experiments never pass `stop`.
+
+## 2026-11-23 (115) — Factory interface for the planning tool — `538e3c1`
+
+**Decided.** User (2026-11-22, scheduler integration design, `mes_bridge/PLAN.md` task 2.1): the planning tool must
+drive a factory other than the DES (the MES, through `mes_bridge/`, which `src/simulation` never imports). Own: a
+`Protocol` with exactly the four calls `adapt_plan` already makes on the DES, no new behaviour; `arrived` keeps its
+name and is documented as "the instance changed" (an arrival in the DES; any change of the set of operations
+elsewhere), since the rescheduling reaction is the same.
+
+**Done.** `simulation.control.rescheduling.Factory` (`runtime_checkable`), `adapt_plan(ci, sim: Factory, ...)`, the
+docstring of `arrived`. Tests `tests/test_factory.py` (4): the DES and a recording wrapper are factories; without
+disturbance the wrapper is sent nothing; a changed instance gives one accepted REPLAN through the protocol; zero
+disturbance through `execute` (realized = plan). Docs: [05](05_rescheduling-frozen-part.md) §5, change log.
+
+**Found.** Nothing in `adapt_plan` used more of `Simulation` than the four calls, so typing it changed no line of its
+body.
+
+**Open.** Whether `repair_plan` fails on a current plan holding operations missing from the instance (the bridge
+assumes so and reschedules completely on any instance change; `mes_bridge/PLAN.md`, known unknowns).
 ## 2026-11-25 (114) — Merge of main into the stochastic branch
 
 **Decided.** User: merge this branch into main, others are waiting.

@@ -10,7 +10,7 @@ Master's thesis (LMU, Computer Science): adaptive, event-driven scheduling for a
 - **Back scientific claims with sources.** Every claim about methods, modeling or results from the literature needs a source (authors, year, title, venue, DOI/URL). If you are unsure whether a source exists or actually contains the claim, mark it **[uncertain]**. **Never invent sources, DOIs or best-known values**, and never reconstruct benchmark instances from memory.
   - **Look up sources in the local Zotero library first**, using the `zotero` skill (collection MA). Check the claim against the paper's text (`text --grep`), not only the title or abstract, and give the Zotero item key.
   - If the library has no source for a claim, mark the claim **[uncertain]** and say it was not found in the library, even when the source is known from memory.
-- **Stay in scope.** Only implement what was asked. MES integration is not part of the thesis.
+- **Stay in scope.** Only implement what was asked. MES integration is not part of the thesis. It lives in `mes_bridge/` (own uv project, own `CHANGELOG.md`, no `math/protocol.md` entries, plan in `mes_bridge/PLAN.md`); `src/simulation/` never imports it.
 - **Maintain the protocol `math/protocol.md`.** At the end of every pass that changes code, tests, data, notebooks or `math/`, add an entry at the top: date and topic, what was **decided** (and by whom), what was **done**, what was **found**, what stays **open**, each with references (`math/` files, modules, notebooks, commit hash once committed).
 
 ## Terminology (binding)

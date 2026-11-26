@@ -150,3 +150,52 @@ def test_wall_limited_tells_which_limit_stopped_the_solver():
     assert by_work.status != "OPTIMAL" and not by_work.wall_limited  # stopped by the work limit: reproducible
     by_clock = solve(big, MAKESPAN, time_limit=0.5, workers=1)
     assert by_clock.status != "OPTIMAL" and by_clock.wall_limited
+
+
+def test_a_stop_from_another_thread_ends_the_solve_early():
+    """The stop hook (engineering, not the model): a caller that no longer wants the plan (a discarded proposal in
+    the MES bridge) ends a long solve at once instead of waiting for its time limit."""
+    import threading
+    import time
+
+    from simulation.planners.cpsat import Stopped, cpsat_planner
+
+    ci = compiled(DATA / "benchmarks" / "brandimarte" / "BrandimarteMk10.fjs")  # cold: not optimal within 10 s
+    stop = threading.Event()
+    threading.Timer(0.5, stop.set).start()
+    t0 = time.monotonic()
+    result = solve(ci, time_limit=60, workers=1, stop=stop)
+    assert result.status == "STOPPED" and result.schedule == [] and time.monotonic() - t0 < 10
+    assert solve(ci, time_limit=60, workers=1, stop=stop).wall_time == 0  # set before: no level is solved
+    with pytest.raises(Stopped):
+        cpsat_planner(time_limit=60, stop=stop)(ci, None, [])
+    stop.clear()
+    assert solve(compiled(TOYS[0]), time_limit=5, workers=1, stop=stop).status == "OPTIMAL"  # unset: as before
+
+
+def test_a_stop_between_two_levels_still_ends_the_next_level(monkeypatch):
+    """Review 2026-11-25: a stop set while the next level is built (no solve running) was lost, and that level ran
+    its whole time limit. Set here by the second level's `minimize`, after the loop's check, which then takes a
+    moment more (a big objective to build), so the stop arrives while no solve is running."""
+    import threading
+    import time
+
+    from ortools.sat.python import cp_model
+
+    from simulation.objectives import MAKESPAN, lexicographic
+
+    ci = compiled(DATA / "benchmarks" / "brandimarte" / "BrandimarteMk10.fjs")
+    stop, calls, stopped_at = threading.Event(), [], []
+    minimize = cp_model.CpModel.minimize
+
+    def minimize_then_stop(self, expr):
+        calls.append(1)
+        if len(calls) == 2:
+            stop.set()
+            stopped_at.append(time.monotonic())
+            time.sleep(0.3)
+        return minimize(self, expr)
+
+    monkeypatch.setattr(cp_model.CpModel, "minimize", minimize_then_stop)
+    result = solve(ci, objective=lexicographic(MAKESPAN, MAKESPAN), time_limit=5, workers=1, stop=stop)
+    assert result.status == "STOPPED" and time.monotonic() - stopped_at[0] < 2  # not the level's 5 s
