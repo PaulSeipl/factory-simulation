@@ -8,7 +8,7 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-27 (119) — PyTorch optional; MES planner image — uncommitted
+## 2026-11-27 (119) — PyTorch optional; MES planner image — `9e306d7`
 
 **Decided.** User: torch out of the dependencies; the MES gets the planner as a Docker image on ghcr.io. Kept the RL
 code: torch became the optional extra `rl` instead of being deleted (RL work is paused, [16](16_rl.md) §5d).
