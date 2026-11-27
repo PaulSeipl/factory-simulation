@@ -8,7 +8,19 @@ the commits and the change logs of the component files and are therefore shorter
 
 ---
 
-## 2026-11-25 (118) — Merge of main into the planner API branch
+## 2026-11-27 (119) — PyTorch optional; MES planner image — uncommitted
+
+**Decided.** User: torch out of the dependencies; the MES gets the planner as a Docker image on ghcr.io. Kept the RL
+code: torch became the optional extra `rl` instead of being deleted (RL work is paused, [16](16_rl.md) §5d).
+
+**Done.** `pyproject.toml`: torch from `dependencies` to `[project.optional-dependencies] rl` (CPU index kept);
+`tests/test_rl.py` skipped without it; [16](16_rl.md) §5b and change log. Outside the thesis: `mes_bridge/Dockerfile`,
+`.dockerignore`, `mes_bridge/PUBLISH.md` (`mes_bridge/CHANGELOG.md`).
+
+**Found.** numpy stays without torch (ortools needs it). The image is 364 MB. 1998 tests pass, `tests/test_rl.py`
+skipped (its 13 tests run with the extra); bridge 224.
+
+**Open.** RL work needs `uv sync --extra rl` from now on.
 
 **Decided.** User: resolve the conflicts with main.
 

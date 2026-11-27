@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- Docker image for the MES (2026-11-27): `Dockerfile` (built from the repository root, both packages installed
+  non-editable, runs `mes_bridge.runner` as a non-root user, state in the volume `/data`, secrets only from the
+  environment), a root `.dockerignore` that admits only the packages, and `PUBLISH.md` (push to
+  `ghcr.io/fidentis-gmbh/mes-planner:<version>`). The thesis' torch is now an optional extra, so the image is 364 MB.
+  Checked against the demo MES: dry run, publish, events (401 with a wrong token), resume after a restart. The MES
+  side: service `planner` (profile `planner`) and `docs/deployment/planner.md` in the MES repository.
 - Merge of the thesis `main` (2026-11-26): `adapt_plan` now skips the repair when the factory ran as planned
   (`_unaffected`). `MesFactory.current_plan()` copied a running step's expected end into the plan, so an overrun
   looked as planned and its successors were not moved. The plan as executed now keeps the planned length from the

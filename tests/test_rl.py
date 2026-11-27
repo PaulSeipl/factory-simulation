@@ -1,11 +1,14 @@
 """Learned dispatching policy: network, plans, storage without pickle, training (math/16_rl.md)."""
+# ruff: noqa: E402  (the imports below need torch, which is skipped first when the extra is missing)
 
 import json
 from pathlib import Path
 
 import numpy as np
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")  # the optional extra `rl`: uv sync --extra rl
+
 from test_dispatch_choose import INSTANCES
 
 from simulation.carrier_generator import CarrierGeneratorParams
