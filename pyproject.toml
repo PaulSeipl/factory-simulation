@@ -10,8 +10,11 @@ requires-python = ">=3.14"
 dependencies = [
     "ortools>=9.15.6755",
     "pydantic>=2.14.1",
-    "torch>=2.15.0",
 ]
+
+[project.optional-dependencies]
+# only the RL planner (planners/rl.py, rl_train.py) needs torch: `uv sync --extra rl`; the MES planner image stays small
+rl = ["torch>=2.15.0"]
 
 [project.scripts]
 simulation = "simulation:main"

@@ -1,0 +1,9 @@
+# Only what the MES planner image needs (mes_bridge/Dockerfile); everything else stays out of the build context.
+*
+!pyproject.toml
+!README.md
+!src
+!mes_bridge/pyproject.toml
+!mes_bridge/uv.lock
+!mes_bridge/src
+**/__pycache__
